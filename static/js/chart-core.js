@@ -51,37 +51,29 @@ export function createChartCore(container) {
     const group = new PIXI.Container();
     app.stage.addChild(group);
     group.sortableChildren = true;
-
     const candleLayer = new PIXI.Container();
     candleLayer.zIndex = 10;
     group.addChild(candleLayer);
-
     const viewportMask = new PIXI.Graphics();
     group.mask = viewportMask;
     app.stage.addChild(viewportMask);
-    
-    
     function drawCandles(layout) {
         const cw = config.candleWidth + config.spacing;
         const { width, height } = app.renderer;
         if (!candles?.length) return;
-
         const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         const range = max - min || 1;
         const key = [scaleX, scaleY, offsetX, offsetY, candles.length].join('_');
-
         if (key === lastRenderState.key) return;
         lastRenderState.key = key;
-
         while (candleSprites.length < candles.length) {
             const g = new PIXI.Graphics();
             g.zIndex = 10;
             candleSprites.push(g);
             candleLayer.addChild(g);
         }
-
         for (let i = 0; i < candleSprites.length; i++) {
             const sprite = candleSprites[i];
             const c = candles[i];
@@ -89,13 +81,11 @@ export function createChartCore(container) {
                 sprite.visible = false;
                 continue;
             }
-
             const x = i * cw * scaleX + offsetX;
             if (x + config.candleWidth < 0 || x > width - config.rightOffset) {
                 sprite.visible = false;
                 continue;
             }
-
             const y = (val) => ((height - config.bottomOffset) * (1 - (val - min) / range)) * scaleY + offsetY;
             const buy = parseInt(ChartConfig.candles.candleBull);
             const sell = parseInt(ChartConfig.candles.candleBear);
@@ -171,7 +161,6 @@ export function createChartCore(container) {
             const mx = e.offsetX;
             const cw = config.candleWidth + config.spacing;
             const worldX = (mx - offsetX) / (cw * scaleX);
-
             if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
                 offsetX -= e.deltaX;
             } else {
@@ -227,6 +216,7 @@ export function createChartCore(container) {
             app = null;
         },
         resize() {
+            if (!app || !app.renderer) return;
             const w = container.getBoundingClientRect().width;
             const h = container.getBoundingClientRect().height;
             app.renderer.resize(w, h);
@@ -243,6 +233,5 @@ export function createChartCore(container) {
         updateScales,
         app
     };
-
     return chartCore;
 }
