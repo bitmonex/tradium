@@ -1,3 +1,25 @@
+# Python cache
 __pycache__/
-myenv/
+*.py[cod]
+
+# macOS system files
 .DS_Store
+
+# Virtual environments
+env/
+venv/
+myenv/
+.env/
+
+# IDE configs
+.vscode/
+.idea/
+
+# Logs and temp
+*.log
+*.tmp
+*.bak
+
+# Uploads and generated files
+static/uploads/
+*.sqlite3
