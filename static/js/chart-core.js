@@ -51,26 +51,37 @@ export function createChartCore(container) {
     const group = new PIXI.Container();
     app.stage.addChild(group);
     group.sortableChildren = true;
-    group.sortChildren();
+
+    const candleLayer = new PIXI.Container();
+    candleLayer.zIndex = 10;
+    group.addChild(candleLayer);
+
     const viewportMask = new PIXI.Graphics();
     group.mask = viewportMask;
     app.stage.addChild(viewportMask);
+    
+    
     function drawCandles(layout) {
         const cw = config.candleWidth + config.spacing;
         const { width, height } = app.renderer;
         if (!candles?.length) return;
+
         const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         const range = max - min || 1;
         const key = [scaleX, scaleY, offsetX, offsetY, candles.length].join('_');
+
         if (key === lastRenderState.key) return;
         lastRenderState.key = key;
+
         while (candleSprites.length < candles.length) {
             const g = new PIXI.Graphics();
+            g.zIndex = 10;
             candleSprites.push(g);
-            group.addChild(g);
+            candleLayer.addChild(g);
         }
+
         for (let i = 0; i < candleSprites.length; i++) {
             const sprite = candleSprites[i];
             const c = candles[i];
@@ -84,6 +95,7 @@ export function createChartCore(container) {
                 sprite.visible = false;
                 continue;
             }
+
             const y = (val) => ((height - config.bottomOffset) * (1 - (val - min) / range)) * scaleY + offsetY;
             const buy = parseInt(ChartConfig.candles.candleBull);
             const sell = parseInt(ChartConfig.candles.candleBear);
@@ -112,10 +124,8 @@ export function createChartCore(container) {
         Grid(app, layout, candles, settings);
         const gridLayer = group.children.find(c => c.__gridLayer);
         if (gridLayer) {
-            gridLayer.zIndex = 1000;
-            app.stage.sortChildren();
-        } else {
-            console.warn("❌ Grid layer not found");
+            gridLayer.zIndex = 0;
+            group.sortChildren();
         }
         if (viewportMask) {
             viewportMask.clear();
