@@ -1,0 +1,93 @@
+/*Desk*/
+.desk{display:block; min-width:980px; margin:50px 0 30px 0}
+.desk.wire{margin-right:300px}
+    
+/*Filter*/
+.filter{position:relative; display:block; padding:15px}
+.filter .timeframes,.filter .clear,
+.filter .sizer,.filter .view,.filter .indicator{float:right; position:relative}
+
+.filter .tickers input,.filter i{min-width:32px; height:30px; line-height:30px; outline:0; background:#111; border:1px solid #333; color:#999; text-align:center}
+.filter .tickers input:hover,.filter i:hover{background:#222; border-color:#777; color:#fff; cursor:pointer}
+.filter .tickers input:focus{background:#222; border-color:#777; color:#fff}
+
+.filter i.on,.filter i.on:hover{background:#fff; border-color:#fff; color:#000}
+.filter i u{position:absolute; top:13px; right:10px; width:0; height:0; border-left:4px solid transparent; border-right:4px solid transparent; border-top:6px solid #333}
+.filter i:hover u{border-top:6px solid #fff}
+.filter i.on:hover u{border-top:6px solid #333}
+
+.filter .tickers{display:block; max-width:50%; margin: 0 576px 0 0}
+.filter .tickers input{width:calc(100% - 59px); text-align:left; padding:0 10px}
+.filter .tickers i{float:right; width:18px; text-align:center}
+
+.clear{border:1px solid #333; cursor:default; margin-left:3px}
+.clear b{margin:1px 0 0 3px; font-size:1.1em}
+.clear:hover b{color:#fff}
+
+.filter .sizer{}
+.filter .sizer i{display: inline-block}
+.filter .sizer #w{background:#000; border:1px solid #333; cursor:default}
+.filter .sizer #w:hover{color:#999}
+
+.filter .timeframes{}
+.filter .timeframes i{float:left; margin-right:3px}
+
+.filter .view{margin-right:3px}
+.filter .view i{float:left; width:46px; text-align:left; padding-left:8px}
+.filter .view i b{float:left; width:19px; height:19px; background: url('/static/bar_icon.png'); margin:6px 0 0 3px; opacity:.7}
+.filter .view i:hover b,.filter .view i.on b{opacity:1}
+.filter .view i.on b{background: url('/static/bar_icon2.png')}
+
+.filter .indicator{margin-right:3px}
+.filter .indicator i{float:left; width:88px; text-align:left; padding-left:8px}
+
+.filter .drop{display:none}
+.filter .drop.show{display:block; overflow:hidden; position:absolute; top:32px; z-index:332; font-size: .95em; background:#fff; border:1px solid #000; border-top:none}
+
+.filter .view .drop{left:-1px; right:-65px}
+.filter .view .drop a{display:block; height:30px; line-height:30px; color:#333; border-top:1px solid #F5F5F5; padding:0 10px; cursor:pointer}
+.filter .view .drop a:hover{color:#000; background:#cfcfcf}
+.filter .view .drop a.on{color:#ff0000; font-weight:bold; background:#f1f1f1}
+.filter .view .drop a.on:hover{color:#ff0000; background:#cfcfcf}
+
+.filter .indicator .drop{left:-681px; right:-1px}
+.filter .indicator .drop label{float:left; width:25%; height:30px; line-height:30px; color:#333; border-top:1px solid #F5F5F5; cursor:pointer; padding-left:0}
+.filter .indicator .drop label input{float:left; width:15px; height:15px; margin:6px 0 0 0}
+.filter .indicator .drop label:hover{color:#000; background:#cfcfcf}
+
+.filter .indicator .drop label.on{color:#ff0000; font-weight:bold; background:#f1f1f1}
+.filter .indicator .drop label.on:hover{color:#ff0000; background:#cfcfcf}
+
+/*filter cex*/
+.filter .tickers.wd{position:relative; max-width:calc(50% - 170px); margin: 0 0 0 170px}
+.filter .tickers.wd input{width:calc(100% - 59px)}
+
+.filter .cex, filter .cex-type{float:left; margin-right:3px}
+.filter .cex i,.filter .cex-type i{position:relative; float:left; text-align:left; padding-left:8px}
+.filter .cex i{width:77px}
+.filter .cex-type i{width:67px}
+.filter .cex .drop,.filter .cex-type .drop{top:48px; right:auto}
+.filter .cex .drop{left:14px; width:87px}
+.filter .cex-type .drop{left:104px; width:77px}
+.filter .cex .drop a,.filter .cex-type .drop a{display:block; height:30px; line-height:30px; color:#333; border-top:1px solid #F5F5F5; padding:0 10px; cursor:pointer}
+.filter .cex .drop a:hover,.filter .cex-type .drop a:hover{color:#000; background:#cfcfcf}
+.filter .cex .drop a.on,.filter .cex-type .drop a.on{color:#ff0000; font-weight:bold; background:#f1f1f1}
+.filter .cex .drop a.on:hover,.filter .cex-type .drop a.on:hover{color:#ff0000; background:#cfcfcf}
+
+.autoupdate{position:absolute; top:0; right:-95px; line-height:30px; margin-top:1px;}
+.autoupdate b{float:left; font-size:1.3em; margin:-0px 4px 0 0; transition: .25s}
+.autoupdate.on{color:#67ff2f}
+.autoupdate:hover b,.autoupdate.on b{color:#fff}
+
+.hide-small{float:right; line-height:32px; margin-right:10px; cursor:pointer;  transition: .25s}
+.hide-small:hover{color:#ccc}
+.hide-small input{float:left; margin:9px 8px 0 0} 
+
+/*Charts*/
+#charts-container{gap:0; overflow:hidden; margin-right:-1px}
+.tradingview-widget-container{position:relative; margin:0 0 0 -1px}
+.tradingview-widget-container b{background:#000; color:#fff; position:absolute; top:2px; left:2px; padding:5px 7px;}
+.tradingview-widget-container .resize{background:#111; position:absolute; bottom:1px; right:1px; width:65px; height:25px; text-align:right; padding-right:6px; cursor:row-resize}
+
+
+

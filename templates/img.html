@@ -1,0 +1,24 @@
+{% include 'header.html' %}
+
+<script src="/static/js/img.js"></script>
+<div class="content">
+    <div class="title">
+        <h1>IMG Host</h1>
+    </div>
+    <div class="box">
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" id="fileInput" name="file">
+            <a onclick="uploadFile()" class="btn green">Add Image</a>
+        </form>
+    </div>
+    <div class="box">
+        <h2>Last added</h2>
+        <div id="fileList">
+            {% for file in files %}
+                <p><a href="/static/uploads/{{ file.name }}" target="_blank">{{ file.name }}</a> {{ file.date }}</p>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+{% include 'footer.html' %}
