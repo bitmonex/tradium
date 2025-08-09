@@ -29,17 +29,14 @@ export function createChartCore(container) {
     let ohlcv = null;
     let indicator = null;
     let mouseHandlers = null;
-
     let app = new PIXI.Application({
         resizeTo: container,
         backgroundColor: Number(ChartConfig.default.chartBG),
         antialias: true,
         autoDensity: true
     });
-
     const settings = window.chartSettings || {};
     container.appendChild(app.view);
-
     const config = {
         ...ChartConfig,
         candleWidth: 5,
@@ -51,36 +48,29 @@ export function createChartCore(container) {
         rightOffset: 70,
         bottomOffset: 30
     };
-
     const group = new PIXI.Container();
     app.stage.addChild(group);
     group.sortableChildren = true;
     group.sortChildren();
-
     const viewportMask = new PIXI.Graphics();
     group.mask = viewportMask;
     app.stage.addChild(viewportMask);
-
     function drawCandles(layout) {
         const cw = config.candleWidth + config.spacing;
         const { width, height } = app.renderer;
         if (!candles?.length) return;
-
         const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
         const min = Math.min(...prices);
         const max = Math.max(...prices);
         const range = max - min || 1;
         const key = [scaleX, scaleY, offsetX, offsetY, candles.length].join('_');
-
         if (key === lastRenderState.key) return;
         lastRenderState.key = key;
-
         while (candleSprites.length < candles.length) {
             const g = new PIXI.Graphics();
             candleSprites.push(g);
             group.addChild(g);
         }
-
         for (let i = 0; i < candleSprites.length; i++) {
             const sprite = candleSprites[i];
             const c = candles[i];
@@ -94,7 +84,6 @@ export function createChartCore(container) {
                 sprite.visible = false;
                 continue;
             }
-
             const y = (val) => ((height - config.bottomOffset) * (1 - (val - min) / range)) * scaleY + offsetY;
             const buy = parseInt(ChartConfig.candles.candleBull);
             const sell = parseInt(ChartConfig.candles.candleBear);
@@ -114,48 +103,32 @@ export function createChartCore(container) {
             sprite.lineTo(x + (config.candleWidth * scaleX) / 2, y(c.low));
         }
     }
-
     function render() {
         if (!app?.renderer?.view || !app.view?.width) return;
         if (!candles || !candles.length) return;
         if (settings.indicatorsEnabled === false) return;
-
         const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
-
-        //console.log("📐 layout:", layout);
-        //console.log("📊 candles count:", candles.length);
-
         drawCandles(layout);
-
-        //console.log("🧱 Calling Grid...");
         Grid(app, layout, candles, settings);
-
         const gridLayer = group.children.find(c => c.__gridLayer);
         if (gridLayer) {
-            //console.log("✅ Grid layer found. Children:", gridLayer.children.length);
             gridLayer.zIndex = 1000;
             app.stage.sortChildren();
         } else {
             console.warn("❌ Grid layer not found");
         }
-
-        // group.mask = null; // временно отключить маску для проверки
-
         if (viewportMask) {
             viewportMask.clear();
             viewportMask.beginFill(0x000000);
             viewportMask.drawRect(0, 0, layout.width - config.rightOffset, layout.height - config.bottomOffset);
             viewportMask.endFill();
         }
-
         indicator?.render?.(layout);
     }
-
     function updateScales() {
         const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
         ChartScales(app, candles, layout);
     }
-
     mouseHandlers = Mouse(app, config, {
         getBounds: (e) => {
             const bounds = app.view.getBoundingClientRect();
@@ -197,46 +170,36 @@ export function createChartCore(container) {
                 scaleX = Math.max(config.minScaleX, Math.min(config.maxScaleX, scaleX));
                 offsetX = mx - worldX * (cw * scaleX);
             }
-
             render();
         }
     });
-
     window.addEventListener("resize", () => {
         if (chartCore?.resize) {
             chartCore.resize();
         }
     });
-
     if (ChartConfig.fps?.fpsOn) {
         new FPS(app.stage);
     }
-
     const chartCore = {
         draw(data) {
             candles = data;
-            //console.log("📥 draw() called with candles:", candles.length);
-
             if (ChartConfig.ohlcv?.ohlcvOn && candles.length) {
                 const activeCandle = candles.at(-1);
                 ohlcv = OHLCV({ ...config, group, chartSettings: settings }, candles);
                 ohlcv.render(activeCandle);
             }
-
             const cw = config.candleWidth + config.spacing;
             const totalWidth = candles.length * cw * scaleX;
             const viewWidth = app.renderer.width;
             offsetX = viewWidth - config.rightOffset - totalWidth;
             offsetY = app.renderer.height / 2.8;
-
-indicator = Indicators({ group, app, config, candles });
-const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
-indicator.init(layout);
-
+            indicator = Indicators({ group, app, config, candles });
+            const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
+            indicator.init(layout);
             if (ChartConfig.indicators.indicatorsEnabled) {
                 indicator?.render?.(layout);
             }
-
             render();
         },
         destroy() {
@@ -248,11 +211,9 @@ indicator.init(layout);
                     window.removeEventListener('mousemove', mouseHandlers.onMouseMove);
                 }
                 app.destroy(true, { children: true });
-                //console.log("🧹 Chart destroyed successfully");
             } catch (e) {
                 console.warn("🧯 destroy: ошибка при очистке PIXI", e);
             }
-
             app = null;
         },
         resize() {
@@ -261,14 +222,11 @@ indicator.init(layout);
             app.renderer.resize(w, h);
             app.view.style.width = w + "px";
             app.view.style.height = h + "px";
-
             const oldScales = app.stage.children.filter(c => c.__isScaleLayer);
             for (const s of oldScales) {
                 app.stage.removeChild(s);
                 s.destroy({ children: true });
             }
-
-            //console.log("📏 resize: new size", w, h);
             render();
             updateScales();
         },
