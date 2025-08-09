@@ -1,0 +1,110 @@
+{% include 'header.html' %}
+
+<link rel="stylesheet" href="{{ url_for('static', path='css/desk.css') }}">
+<div class="sidebar"></div>
+<div class="desk wire">    
+    <div class="filter">
+        <i class="clear" id="clearStorage"><b class="icon-trash"></b></i>
+        <div class="sizer">
+            <i rel="-">-</i>
+            <i id="w">3</i>
+            <i rel="+">+</i>
+        </div>
+        <div class="view">
+            <i><b></b><u></u></i>
+            <div class="drop">
+                <a rel="0" onclick="changeChartStyle(0)">Bars</a>
+                <a rel="1" onclick="changeChartStyle(1)">Candles</a>
+                <a rel="2" onclick="changeChartStyle(2)">Line</a>
+                <a rel="3" onclick="changeChartStyle(3)">Area</a>
+                <a rel="4" onclick="changeChartStyle(4)">Renko</a>
+                <a rel="5" onclick="changeChartStyle(5)">Kagi</a>
+                <a rel="6" onclick="changeChartStyle(6)">Point and Figure</a>
+                <a rel="7" onclick="changeChartStyle(7)">Line Break</a>
+                <a rel="8" onclick="changeChartStyle(8)">Heikin Ashi</a>
+                <a rel="9" onclick="changeChartStyle(9)">Hollow Candles</a>
+            </div>
+        </div>
+        <div class="indicator">
+            <i>Indicators<u></u></i>
+            <div class="drop">
+                <label><input type="checkbox" class="indicator-checkbox" value="ACCD@tv-basicstudies">ACCD</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="studyADR@tv-basicstudies">StudyADR</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="AROON@tv-basicstudies">AROON</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="ATR@tv-basicstudies">ATR</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="AwesomeOscillator@tv-basicstudies">Awesome Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="BB@tv-basicstudies">Bollinger Bands</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="BollingerBandsR@tv-basicstudies">Bollinger Bands R</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="BollingerBandsWidth@tv-basicstudies">Bollinger Bands Width</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="CMF@tv-basicstudies">CMF</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="ChaikinOscillator@tv-basicstudies">Chaikin Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="chandeMO@tv-basicstudies">Momentum Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="CCI@tv-basicstudies">CCI</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="CRSI@tv-basicstudies">CRSI</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="CorrelationCoefficient@tv-basicstudies">Correlation Coefficient</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="DetrendedPriceOscillator@tv-basicstudies">Detrended Price Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="DM@tv-basicstudies">DM</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="DONCH@tv-basicstudies">Donchian Channel</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="DoubleEMA@tv-basicstudies">Double EMA</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="EaseOfMovement@tv-basicstudies">Ease of Movement</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="EFI@tv-basicstudies">EFI</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="ENV@tv-basicstudies">ENV</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="FisherTransform@tv-basicstudies">Fisher Transform</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="HV@tv-basicstudies">Historical Volatility</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="hullMA@tv-basicstudies">Hull Moving Average</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="IchimokuCloud@tv-basicstudies">Ichimoku Cloud</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="KLTNR@tv-basicstudies">Keltner Channel</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="KST@tv-basicstudies">Know Sure Thing (KST)</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="LinearRegression@tv-basicstudies">Linear Regression</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MACD@tv-basicstudies">MACD</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MOM@tv-basicstudies">Momentum</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MF@tv-basicstudies">Money Flow</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MoonPhases@tv-basicstudies">Moon Phases</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MASimple@tv-basicstudies">Moving Average Simple</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MAExp@tv-basicstudies">Moving Average Exponential</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MAWeighted@tv-basicstudies">Moving Average Weighted</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="OBV@tv-basicstudies">OBV</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="PSAR@tv-basicstudies">Parabolic SAR</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="PivotPointsHighLow@tv-basicstudies">Pivot Points High/Low</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="PivotPointsStandard@tv-basicstudies">Pivot Points Standard</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="PriceOsc@tv-basicstudies">Price Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="PriceVolumeTrend@tv-basicstudies">Price Volume Trend</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="ROC@tv-basicstudies">Rate of Change</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="RSI@tv-basicstudies">RSI</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="VigorIndex@tv-basicstudies">Vigor Index</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="VolatilityIndex@tv-basicstudies">Volatility Index</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="SMIErgodicIndicator@tv-basicstudies">SMI Ergodic Indicator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="SMIErgodicOscillator@tv-basicstudies">SMI Ergodic Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="Stochastic@tv-basicstudies">Stochastic</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="StochasticRSI@tv-basicstudies">Stochastic RSI</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="TripleEMA@tv-basicstudies">Triple EMA</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="Trix@tv-basicstudies">Trix</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="UltimateOsc@tv-basicstudies">Ultimate Oscillator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="VSTOP@tv-basicstudies">Volatility Stop</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="VWAP@tv-basicstudies">VWAP</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="MAVolumeWeighted@tv-basicstudies">MA Volume Weighted</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="WilliamR@tv-basicstudies">Williams %R</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="WilliamsAlligator@tv-basicstudies">Williams Alligator</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="WilliamsFractal@tv-basicstudies">Williams Fractal</label>
+                <label><input type="checkbox" class="indicator-checkbox" value="ZigZag@tv-basicstudies">ZigZag</label>
+            </div>
+        </div>
+        <div class="timeframes" id="timeframes">
+            <i rel="5" onclick="changeTimeframe('5')">5m</i>
+            <i rel="15" onclick="changeTimeframe('15')">15m</i>
+            <i rel="30" onclick="changeTimeframe('30')">30m</i>
+            <i rel="60" onclick="changeTimeframe('60')">1h</i>
+            <i rel="240" onclick="changeTimeframe('240')">4h</i>
+            <i rel="D" onclick="changeTimeframe('D')">D</i>
+            <i rel="W" onclick="changeTimeframe('W')">W</i>
+        </div>
+        <div class="tickers">
+            <input type="text" id="tickers" placeholder="Enter ticker" value="OANDA:SPX500USD,EIGHTCAP:NDQ100,NYSE:DOW,VIX,DXY,total,BTCUSDTPERP,ETHUSDTPERP"/>
+            <i id="go">Go</i>
+        </div>
+    </div>    
+    <div id="charts-container" style="display:grid; gap:0"></div>
+</div>
+<script src="/static/js/desk.js"></script>
+
+{% include 'footer.html' %}

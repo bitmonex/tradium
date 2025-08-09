@@ -1,0 +1,66 @@
+{% include 'header.html' %}
+
+<link rel="stylesheet" href="{{ url_for('static', path='css/ticker.css') }}">
+<div class="sidebar trades">
+    <h2>Trades</h2>
+</div>
+<div class="sidebar orderbook">
+    <h2>Orderbook</h2>
+</div>
+<div class="ticker">    
+    <div class="filter">
+        <h1 class="title">{{ symbol }}</h1>
+        <i class="full" id="full-open"><b class="icon-full"></b></i>
+        <i id="trades-open">Trades</i>
+        <i id="orderbook-open">Orderbook</i>
+        <div class="timeframes" id="tf" data-default="30m">
+            <i rel="1m">1m</i>
+            <i rel="5m">5m</i>
+            <i rel="15m">15m</i>
+            <i rel="30m" class="active">30m</i>
+            <i rel="1h">1h</i>
+            <i rel="2h">2h</i>
+            <i rel="4h">4h</i>
+            <i rel="6h">6h</i>
+            <i rel="12h">12h</i>
+            <i rel="1d">D</i>
+            <i rel="3d">3D</i>
+            <i rel="1w">W</i>
+            <i rel="1M">M</i>
+        </div>
+        <div class="indicator">
+            <i>Indicators<u></u></i>
+            <div class="drop">
+                <strong>Indicators</strong>
+                <div class="search">
+                    <input type="text" id="indicator-search" placeholder="Enter indicator" />
+                </div>
+                <ul class="indicator-list ws">
+                    <li>RSI</li>
+                    <li>SMA</li>
+                    <li>MA</li>
+                    <li>Volume</li>
+                </ul>
+            </div>
+        </div>
+        <div class="view">
+            <i><b></b><u></u></i>
+            <div class="drop">
+                <a rel="0" onclick="change-style(0)">Line</a>
+                <a rel="1" onclick="change-style(1)">Candles</a>
+            </div>
+        </div>
+        <i class="clear" id="clearStorage"><b class="icon-trash"></b></i>
+    </div>
+    {% include 'chart.html' %}
+    <script>
+        window.chartSettings = {
+            exchange: "{{ exchange }}",
+            marketType: "{{ market_type }}",
+            symbol: "{{ symbol }}"
+        };
+    </script>
+    <script type="module" src="/static/js/ticker.js"></script>
+</div>
+
+{% include 'footer.html' %}

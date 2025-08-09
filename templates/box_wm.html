@@ -1,0 +1,42 @@
+<div class="wm">
+    <h3>US Market</h3>
+    <ul id="market-us"></ul>
+    <h3>Europe Market</h3>
+    <ul id="market-europe"></ul>
+    <h3>Asia Market</h3>
+    <ul id="market-asia"></ul>
+    <h3>Bonds</h3>
+    <ul id="bonds"></ul>
+    <h3>Commodities</h3>
+    <ul id="commodities"></ul>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const colorize = v => v.includes("-") ? "#0f0" : "#f55";
+    const format = (s, p, c) =>
+        `<li><a href="/ticker/${encodeURIComponent(s)}"><b>${s}</b><u>${p}</u><i style="color:${colorize(c)}">${c}</i></a></li>`;
+
+    const render = (id, list) => {
+        const el = document.getElementById(id);
+        el.innerHTML = list.map(item => format(item.symbol, item.price, item.change_percent)).join("");
+    };
+
+    const fetchAndRender = (url, idOrMap) =>
+        fetch(url)
+            .then(r => r.json())
+            .then(data => {
+                if (typeof idOrMap === "string") render(idOrMap, data.data);
+                else Object.entries(idOrMap).forEach(([k, id]) => render(id, data.data[k] || []));
+            });
+
+    const fetchAll = () => {
+        fetchAndRender("/api/wm", { USA: "market-us", Europe: "market-europe", Asia: "market-asia" });
+        fetchAndRender("/api/bonds", "bonds");
+        fetchAndRender("/api/commodities", "commodities");
+    };
+
+    fetchAll();
+    setInterval(fetchAll, 10000);
+});
+</script>
