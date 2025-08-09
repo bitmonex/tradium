@@ -1,8 +1,10 @@
+import { Indicators } from './indicators/index.js';
+
 export function Indicators({ group, app, config, candles }) {
   const activeIndicators = {};
 
   function add(id, layout) {
-    const mod = IndicatorModules[id];
+    const mod = Indicators[id];
     if (!mod) return;
     if (activeIndicators[id]) return;
 
