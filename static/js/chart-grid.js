@@ -59,7 +59,6 @@ export function Grid(app, layout, candles, settings) {
     if (scaleX < 0.3 && stepX < 10) stepX = 10;
     const stepY = getAdaptiveStepY(scaleY);
 
-    // Вертикальные линии по индексам свечей
     const anchorIndex = Math.floor(candleCount / 2);
     const minLineSpacingPx = 4;
     const maxLinesLeft = Math.floor(anchorIndex / stepX);
@@ -67,19 +66,47 @@ export function Grid(app, layout, candles, settings) {
     let lastX = -Infinity;
     let verticalCount = 0;
 
+    // Вертикальные линии по индексам свечей
     for (let i = -maxLinesLeft; i <= maxLinesRight; i++) {
         const index = anchorIndex + i * stepX;
         if (index < 0 || index >= extendedCount) continue;
 
         const barCenter = offsetX + index * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
         const visible = barCenter >= 0 && barCenter <= w - rightOffset;
-        if (!visible || Math.abs(barCenter - lastX) < minLineSpacingPx) continue;
+
 
         gridLines.lineStyle(1, gridColor, 1);
         gridLines.moveTo(barCenter, 0);
         gridLines.lineTo(barCenter, h - bottomOffset);
         lastX = barCenter;
         verticalCount++;
+    }
+
+    // Псевдобесконечные ячейки справа — до края viewport
+    const lastVisibleX = lastX;
+    const maxRightX = w - rightOffset;
+    const stepPx = stepX * totalSpacing * scaleX;
+    const maxExtraLines = 100; // или адаптивно от ширины
+    let extraX = lastX + stepX * totalSpacing * scaleX;
+    let extraCount = 0;
+
+    while (extraX <= w - rightOffset && extraCount < maxExtraLines) {
+        gridLines.lineStyle(1, gridColor, 1);
+        gridLines.moveTo(extraX, 0);
+        gridLines.lineTo(extraX, h - bottomOffset);
+        extraX += stepX * totalSpacing * scaleX;
+        extraCount++;
+    }
+    // Псевдобесконечные ячейки слева — до начала viewport
+    let extraLeftX = lastX - stepPx;
+    let extraLeftCount = 0;
+
+    while (extraLeftX >= 0 && extraLeftCount < maxExtraLines) {
+        gridLines.lineStyle(1, gridColor, 1);
+        gridLines.moveTo(extraLeftX, 0);
+        gridLines.lineTo(extraLeftX, h - bottomOffset);
+        extraLeftX -= stepPx;
+        extraLeftCount++;
     }
 
     // Горизонтальные линии по пикселям
