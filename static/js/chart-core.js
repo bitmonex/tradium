@@ -112,6 +112,7 @@ export function createChartCore(container) {
         const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
         drawCandles(layout);
         Grid(app, layout, candles, settings);
+        updateScales();
         const gridLayer = group.children.find(c => c.__gridLayer);
         if (gridLayer) {
             gridLayer.zIndex = 0;
