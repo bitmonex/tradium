@@ -83,21 +83,48 @@ function generateTimeTicksFromGrid(candles, layout) {
   } = layout;
 
   const totalSpacing = candleWidth + spacing;
-  const anchorIndex = Math.floor(candles.length / 2);
+  const candleCount = candles.length;
+  const futureExtension = ChartConfig.grid?.futureExtension ?? 10;
+  const extendedCount = candleCount + futureExtension;
+
   let stepX = Math.ceil(100 / (totalSpacing * scaleX));
   if (scaleX < 0.3 && stepX < 10) stepX = 10;
 
+  const anchorIndex = Math.floor(candleCount / 2);
   const maxLeft = Math.floor(anchorIndex / stepX);
-  const maxRight = Math.floor((candles.length - anchorIndex) / stepX);
+  const maxRight = Math.floor((extendedCount - anchorIndex) / stepX);
 
+  const stepPx = stepX * totalSpacing * scaleX;
+  const maxExtraLines = 100;
+
+  // Основные деления по свечам
   for (let i = -maxLeft; i <= maxRight; i++) {
     const index = anchorIndex + i * stepX;
-    if (index < 0 || index >= candles.length) continue;
+    if (index < 0 || index >= extendedCount) continue;
 
     const x = offsetX + index * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
-    if (x >= 0 && x <= w - rightOffset) {
-      ticks.push({ x });
-    }
+    ticks.push({ x });
+  }
+
+  // Псевдо-деления справа
+  let lastX = offsetX + (anchorIndex + maxRight * stepX) * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
+  let extraX = lastX + stepPx;
+  let extraCount = 0;
+
+  while (extraX <= w - rightOffset && extraCount < maxExtraLines) {
+    ticks.push({ x: extraX });
+    extraX += stepPx;
+    extraCount++;
+  }
+
+  // Псевдо-деления слева
+  let extraLeftX = offsetX + (anchorIndex - maxLeft * stepX) * totalSpacing * scaleX + (candleWidth * scaleX) / 2 - stepPx;
+  let extraLeftCount = 0;
+
+  while (extraLeftX >= 0 && extraLeftCount < maxExtraLines) {
+    ticks.push({ x: extraLeftX });
+    extraLeftX -= stepPx;
+    extraLeftCount++;
   }
 
   return ticks;
