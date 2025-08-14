@@ -5,12 +5,12 @@ export function Indicators({ group, app, config, candles }) {
 
   function add(id, layout) {
     const mod = IndicatorModules[id];
-    if (!mod) return;
-    if (activeIndicators[id]) return;
+    if (!mod || activeIndicators[id]) return;
+
     const layer = new PIXI.Container();
     layer.zIndex = 2000;
     group.addChild(layer);
-    const result = mod.createIndicator({ layer, app }, layout, candles);
+    const result = mod.createIndicator({ layer, app }, layout, config.indicators?.params?.[id] || {});
     if (result?.layer && result?.render) {
       activeIndicators[id] = result;
     }

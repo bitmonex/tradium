@@ -1,12 +1,12 @@
-export function createIndicator(params, env, candles) {
-  const { group, width, height, scaleX, scaleY, offsetX, offsetY } = env;
+export function createIndicator({ layer }, layout, params = {}) {
+  if (!layer || !layout?.candles?.length) return;
 
-  const layer = new PIXI.Container();
-  group.addChild(layer);
+  const maLayer = new PIXI.Container();
+  layer.addChild(maLayer);
 
   const period = params.period || 14;
   const maLine = new PIXI.Graphics();
-  layer.addChild(maLine);
+  maLayer.addChild(maLine);
 
   function calculateMA(data, period) {
     const result = [];
@@ -22,22 +22,31 @@ export function createIndicator(params, env, candles) {
     return result;
   }
 
-  const maValues = calculateMA(candles, period);
+  let maValues = [];
 
-  function render(layout) {
+  function render(currentLayout) {
+    const candles = currentLayout.candles;
+    if (!candles?.length) return;
+
+    if (maValues.length !== candles.length) {
+      maValues = calculateMA(candles, period);
+    }
+
     maLine.clear();
-    maLine.lineStyle(2, 0xffd700); // Золотой цвет
+    maLine.lineStyle(2, 0xffd700);
 
-    const cw = env.config.candleWidth + env.config.spacing;
-    const { minPrice, maxPrice } = layout;
+    const cw = currentLayout.config.candleWidth + currentLayout.config.spacing;
+    const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
     const priceRange = maxPrice - minPrice || 1;
 
     for (let i = 0; i < maValues.length; i++) {
       const val = maValues[i];
       if (val === null) continue;
 
-      const x = i * cw * scaleX + offsetX;
-      const y = ((height - env.config.bottomOffset) * (1 - (val - minPrice) / priceRange)) * scaleY + offsetY;
+      const x = i * cw * currentLayout.scaleX + currentLayout.offsetX;
+      const y = ((currentLayout.height - currentLayout.config.bottomOffset) * (1 - (val - minPrice) / priceRange)) * currentLayout.scaleY + currentLayout.offsetY;
 
       if (i === period - 1) {
         maLine.moveTo(x, y);
@@ -47,5 +56,5 @@ export function createIndicator(params, env, candles) {
     }
   }
 
-  return { layer, render };
+  return { layer: maLayer, render };
 }

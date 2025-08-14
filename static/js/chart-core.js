@@ -1,9 +1,9 @@
 import { ChartConfig } from './chart-config.js';
-import { getLayout } from './chart-layout.js';
+import { createLayout } from './chart-layout.js';
 import { FPS } from './chart-fps.js';
 import { OHLCV } from './chart-ohlcv.js';
 import { ChartScales } from './chart-scale.js';
-import { Grid } from "./chart-grid.js";
+import { renderGrid } from "./chart-grid-render.js";
 import { Mouse } from './chart-mouse.js';
 import { Indicators } from './chart-indicators.js';
 import { detectTimeframe } from './chart-tf.js';
@@ -29,6 +29,7 @@ export function createChartCore(container) {
     let ohlcv = null;
     let indicator = null;
     let mouseHandlers = null;
+    let isTouching = false;
     let app = new PIXI.Application({
         resizeTo: container,
         backgroundColor: Number(ChartConfig.default.chartBG),
@@ -42,9 +43,9 @@ export function createChartCore(container) {
         candleWidth: 5,
         spacing: 2,
         minScaleX: 0.05,
-        maxScaleX: 25,
-        minScaleY: 0.2,
-        maxScaleY: 5,
+        maxScaleX: 40,
+        minScaleY: 0.1,
+        maxScaleY: 40,
         rightOffset: 70,
         bottomOffset: 30
     };
@@ -109,9 +110,9 @@ export function createChartCore(container) {
         if (!app?.renderer?.view || !app.view?.width) return;
         if (!candles || !candles.length) return;
         if (settings.indicatorsEnabled === false) return;
-        const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
+        const layout = createLayout(app, config, candles, offsetX, offsetY, scaleX, scaleY, group); // ← изменено
         drawCandles(layout);
-        Grid(app, layout, candles, settings);
+        renderGrid(app, layout, settings);
         updateScales();
         const gridLayer = group.children.find(c => c.__gridLayer);
         if (gridLayer) {
@@ -126,53 +127,100 @@ export function createChartCore(container) {
         }
         indicator?.render?.(layout);
     }
+
+
     function updateScales() {
-        const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
+        const layout = createLayout(app, config, candles, offsetX, offsetY, scaleX, scaleY);
         ChartScales(app, candles, layout);
     }
+            
+    function zoomAt(mx, direction = 1.1) {
+        const cw = config.candleWidth + config.spacing;
+        const worldX = (mx - offsetX) / (cw * scaleX);
+        scaleX *= direction;
+        scaleX = Math.max(config.minScaleX, Math.min(config.maxScaleX, scaleX));
+        offsetX = mx - worldX * (cw * scaleX);
+        render();
+    }
+
+    function zoomYAt(my, direction = 1.1) {
+        const height = app.renderer.height;
+        const worldY = (my - offsetY) / (height * scaleY);
+        scaleY *= direction;
+        scaleY = Math.max(config.minScaleY, Math.min(config.maxScaleY, scaleY));
+        offsetY = my - worldY * (height * scaleY);
+        render();
+    }
+            
     mouseHandlers = Mouse(app, config, {
-        getBounds: (e) => {
-            const bounds = app.view.getBoundingClientRect();
-            return e.clientX >= bounds.left &&
-                   e.clientX <= bounds.right - config.rightOffset &&
-                   e.clientY >= bounds.top &&
-                   e.clientY <= bounds.bottom - config.bottomOffset;
-        },
-        onDragStart: () => { dragging = true },
-        onDragMove: (dx, dy) => {
-            offsetX += dx;
-            offsetY += dy;
-            render();
-            const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
-            indicator?.render?.(layout);
-        },
-        onDragEnd: () => { dragging = false },
+      setTouching: (v) => { isTouching = v },
+      getBounds: (e) => {
+        const bounds = app.view.getBoundingClientRect();
+        return e.clientX >= bounds.left &&
+               e.clientX <= bounds.right - config.rightOffset &&
+               e.clientY >= bounds.top &&
+               e.clientY <= bounds.bottom - config.bottomOffset;
+      },
+      onDragStart: () => { dragging = true },
+      onDragMove: (dx, dy) => {
+        offsetX += dx;
+        offsetY += dy;
+        render();
+        const layout = createLayout(app, config, candles, offsetX, offsetY, scaleX, scaleY);
+        indicator?.render?.(layout);
+      },
+      onDragEnd: () => { dragging = false },
         onMouseUpdate: (e) => {
-            const pos = app.renderer.plugins?.interaction?.mouse?.global;
-            if (pos) {
-                cursorPos.x = pos.x;
-                cursorPos.y = pos.y;
-            } else {
-                cursorPos.x = e.offsetX;
-                cursorPos.y = e.offsetY;
-            }
-            render();
+          const pos = app.renderer.plugins?.interaction?.mouse?.global;
+          if (pos) {
+            cursorPos.x = pos.x;
+            cursorPos.y = pos.y;
+          } else {
+            cursorPos.x = e.offsetX;
+            cursorPos.y = e.offsetY;
+          }
+
+          // 🔍 Найдём индекс свечи под курсором
+          const cw = config.candleWidth + config.spacing;
+          const index = Math.floor((cursorPos.x - offsetX) / (cw * scaleX));
+          const candle = candles[index];
+
+          if (ohlcv && candle) {
+            ohlcv.render(candle);
+          }
+
+          render();
         },
         onWheelZoom: (e) => {
-            const mx = e.offsetX;
-            const cw = config.candleWidth + config.spacing;
-            const worldX = (mx - offsetX) / (cw * scaleX);
-            if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) {
-                offsetX -= e.deltaX;
+          const absX = Math.abs(e.deltaX);
+          const absY = Math.abs(e.deltaY);
+
+          if (absX > absY + 2) {
+            // 🖐️ Панорамирование по горизонтали
+            offsetX -= e.deltaX;
+          } else if (absY > absX + 2) {
+            // 🔍 Масштабирование
+            const dir = e.deltaY < 0 ? 1.1 : 0.9;
+            const sir = e.deltaY < 0 ? 1.5 : 0.5;
+
+            if (e.shiftKey) {
+              // ⬆️ Вертикальный масштаб из центра
+              const rect = app.view.getBoundingClientRect();
+              const centerY = rect.height / 2;
+              zoomYAt(centerY, sir);
             } else {
-                const dir = e.deltaY < 0 ? 1.1 : 0.9;
-                scaleX *= dir;
-                scaleX = Math.max(config.minScaleX, Math.min(config.maxScaleX, scaleX));
-                offsetX = mx - worldX * (cw * scaleX);
+              // ⬅️ Горизонтальный масштаб из курсора
+              zoomAt(e.offsetX, dir);
             }
-            render();
-        }
+          }
+
+          render();
+        },
+
+        zoomAt,
+        zoomYAt
     });
+
     window.addEventListener("resize", () => {
         if (chartCore?.resize) {
             chartCore.resize();
@@ -195,7 +243,7 @@ export function createChartCore(container) {
             offsetX = viewWidth - config.rightOffset - totalWidth;
             offsetY = app.renderer.height / 2.8;
             indicator = Indicators({ group, app, config, candles });
-            const layout = getLayout(app, config, group, candles, offsetX, offsetY, scaleX, scaleY);
+            const layout = createLayout(app, config, candles, offsetX, offsetY, scaleX, scaleY);
             indicator.init(layout);
             if (ChartConfig.indicators.indicatorsEnabled) {
                 indicator?.render?.(layout);
@@ -232,6 +280,8 @@ export function createChartCore(container) {
             updateScales();
         },
         updateScales,
+        zoomAt,
+        zoomYAt,
         app
     };
     return chartCore;

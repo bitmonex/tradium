@@ -1,4 +1,5 @@
 import { ChartConfig } from './chart-config.js';
+import { createLayout } from './chart-layout.js';
 
 export function ChartScales(app, candles, layout) {
   if (!ChartConfig.scales) return;
@@ -41,6 +42,36 @@ function drawScaleBox(app, layout, ticks, orientation = "horizontal") {
   }
 
   graphics.interactive = true;
+    
+    if (isHorizontal) {
+        graphics.on("pointerdown", (e) => {
+          const startX = e.data.global.x;
+          const startY = e.data.global.y;
+
+          const onMove = (ev) => {
+            const dx = ev.data.global.x - startX;
+            const dy = ev.data.global.y - startY;
+            const sensitivity = 0.001; // можно тестировать от 0.001 до 0.005
+            const delta = isHorizontal ? dx : -dy;
+            const dir = 1 + delta * sensitivity;
+
+            if (isHorizontal && typeof layout.zoomAt === 'function') {
+              layout.zoomAt(ev.data.global.x, dir);
+            } else if (!isHorizontal && typeof layout.zoomYAt === 'function') {
+              layout.zoomYAt(ev.data.global.y, dir);
+            }
+          };
+
+          const onUp = () => {
+            app.stage.off("pointermove", onMove);
+            app.stage.off("pointerup", onUp);
+          };
+
+          app.stage.on("pointermove", onMove);
+          app.stage.on("pointerup", onUp);
+        });
+    }
+ 
   graphics.hitArea = isHorizontal
     ? new PIXI.Rectangle(0, h - 30, w - 70, 30)
     : new PIXI.Rectangle(w - 70, 0, 70, h - 30);

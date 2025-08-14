@@ -10,8 +10,8 @@ export const ChartConfig = {
     candleBear: '0x00ff00'
   },
   grid: {
-    gridColor: '#222222',
-    gridEnabled: true
+    gridColor: '#444444',
+    gridEnabled: false
   },
   ohlcv: {
     ohlcvOn: true,
