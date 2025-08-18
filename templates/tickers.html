@@ -1,0 +1,44 @@
+{% include 'header.html' %}
+
+<link rel="stylesheet" href="{{ url_for('static', path='css/desk.css') }}">
+<div class="content">
+    <div class="filter">
+        <i class="clear" id="clearStorage"><b class="icon-trash"></b></i>
+        <label class="hide-small"><input type="checkbox" id="hide-small">Hide LowCap</label>        
+        <div class="cex">
+            <i>Binance<b></b><u></u></i>
+            <div class="drop">
+                <a rel="binance">Binance</a>
+                <a rel="bybit">Bybit</a>
+                <a rel="coinbase">Coinbase</a>
+                <a rel="kukoin">Kukoin</a>
+                <a rel="okx">OKX</a>
+            </div>
+        </div>
+        <div class="cex-type">
+            <i><b>Spot</b><u></u></i>
+            <div class="drop">
+                <a rel="spot" onclick="">Spot</a>
+                <a rel="futures" onclick="">Futures</a>
+            </div>
+        </div> 
+        <div class="tickers wd">
+            <input type="text" id="tickers" placeholder="Enter tiker" value="Search"/>
+            <i id="go">Go</i>
+            <a id="toggle-update" class="autoupdate on"><b class="icon-on"></b>Update</a>
+        </div>
+        
+    </div>       
+    <div class="ticker-header">
+        <div data-col="symbol" class="col sortable">Ticker (<b id="ticker-count"></b>)</div>
+        <div data-col="price" class="col sortable">Price</div>
+        <div data-col="price_change" class="col sortable">24h</div>
+        <div data-col="volume_24h" class="col sortable">Volume</div>
+        <div data-col="market_vol" class="col sortable">Market Volume</div>
+        <div data-col="market_cap" class="col sortable">Market Cap</div>
+    </div>
+    <div id="ticker-list" class="ticker-list"></div>
+</div>
+<script src="/static/js/tickers.js"></script>
+
+{% include 'footer.html' %}
