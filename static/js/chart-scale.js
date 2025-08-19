@@ -1,188 +1,159 @@
-import { ChartConfig } from './chart-config.js';
-import { createLayout } from './chart-layout.js';
+// chart-scale.js
 
-export function ChartScales(app, candles, layout) {
-  if (!ChartConfig.scales) return;
+import { ChartConfig }         from './chart-config.js';
+import { getTimeTicks,
+         getPriceTicks }      from './chart-grid.js';
 
-  // Удаляем старые шкалы
-  const oldScales = app.stage.children.filter(c => c.__isScaleLayer);
-  for (const s of oldScales) {
-    app.stage.removeChild(s);
-    s.destroy({ children: true });
+export class ChartScales {
+  /**
+   * @param {PIXI.Container} container — куда рисуем шкалы
+   * @param {Object} layout  — из createLayout
+   * @param {Object} settings — конфиг из chart-core
+   */
+  constructor(container, layout, settings) {
+    this.container = container;
+    this.layout    = layout;
+    this.settings  = settings;
+    this._cache    = {};
+
+    this._bg     = new PIXI.Graphics();
+    this._gfx    = new PIXI.Graphics();
+    this._labels = new PIXI.Container();
+
+    container.addChild(this._bg, this._gfx, this._labels);
+    container.sortableChildren = true;
   }
 
-  if (ChartConfig.scales.scaleTime) {
-    const timeTicks = generateTimeTicksFromGrid(candles, layout);
-    drawScaleBox(app, layout, timeTicks, "horizontal");
-  }
+  update() {
+    const L   = this.layout;
+    const cfg = this.settings;
 
-  if (ChartConfig.scales.scalePrice) {
-    const priceTicks = generatePriceTicksFromGrid(layout);
-    drawScaleBox(app, layout, priceTicks, "vertical");
-  }
-}
+    if (!cfg.grid.gridEnabled)                    return;
+    if (!cfg.scales.scaleTime && !cfg.scales.scalePrice) return;
 
-function drawScaleBox(app, layout, ticks, orientation = "horizontal") {
-  const w = app.renderer.width;
-  const h = app.renderer.height;
-  const isHorizontal = orientation === "horizontal";
+    const key = [
+      L.width, L.height,
+      L.scaleX, L.scaleY,
+      L.offsetX, L.offsetY,
+      cfg.scales.scaleTime,
+      cfg.scales.scalePrice,
+      cfg.scales.scaleBG
+    ].join('|');
+    if (this._cache.key === key) return;
+    this._cache.key = key;
 
-  const scaleLayer = new PIXI.Container();
-  scaleLayer.__isScaleLayer = true;
+    this._bg.clear();
+    this._gfx.clear();
+    this._labels.removeChildren();
 
-  const graphics = new PIXI.Graphics();
-  graphics.beginFill(0x444444);
+    const bgColor = PIXI.utils.string2hex(cfg.scales.scaleBG);
 
-  if (isHorizontal) {
-    graphics.drawRect(0, h - 30, w - 70, 30);
-    graphics.cursor = 'ew-resize';
-  } else {
-    graphics.drawRect(w - 70, 0, 70, h - 30);
-    graphics.cursor = 'ns-resize';
-  }
-
-  graphics.interactive = true;
-    
-    if (isHorizontal) {
-        graphics.on("pointerdown", (e) => {
-          const startX = e.data.global.x;
-          const startY = e.data.global.y;
-
-          const onMove = (ev) => {
-            const dx = ev.data.global.x - startX;
-            const dy = ev.data.global.y - startY;
-            const sensitivity = 0.001; // можно тестировать от 0.001 до 0.005
-            const delta = isHorizontal ? dx : -dy;
-            const dir = 1 + delta * sensitivity;
-
-            if (isHorizontal && typeof layout.zoomAt === 'function') {
-              layout.zoomAt(ev.data.global.x, dir);
-            } else if (!isHorizontal && typeof layout.zoomYAt === 'function') {
-              layout.zoomYAt(ev.data.global.y, dir);
-            }
-          };
-
-          const onUp = () => {
-            app.stage.off("pointermove", onMove);
-            app.stage.off("pointerup", onUp);
-          };
-
-          app.stage.on("pointermove", onMove);
-          app.stage.on("pointerup", onUp);
-        });
-    }
- 
-  graphics.hitArea = isHorizontal
-    ? new PIXI.Rectangle(0, h - 30, w - 70, 30)
-    : new PIXI.Rectangle(w - 70, 0, 70, h - 30);
-
-  scaleLayer.addChild(graphics);
-  scaleLayer.zIndex = 999;
-  graphics.zIndex = 1000;
-  app.stage.sortableChildren = true;
-
-  for (const tick of ticks) {
-    const pos = isHorizontal ? tick.x : tick.y;
-    const limit = isHorizontal ? w - 70 : h - 30;
-    if (pos < 0 || pos > limit) continue;
-
-    const line = new PIXI.Graphics();
-    line.lineStyle(1, 0xffffff, 1);
-
-    if (isHorizontal) {
-      line.moveTo(pos, h - 30);
-      line.lineTo(pos, h - 23);
-    } else {
-      line.moveTo(w - 70, pos);
-      line.lineTo(w - 64, pos);
+    // Нижний фон
+    if (cfg.scales.scaleTime) {
+      const y0 = L.height - cfg.bottomOffset;
+      const w  = L.width - cfg.rightOffset;
+      this._bg.beginFill(bgColor);
+      this._bg.drawRect(0, y0, w, cfg.bottomOffset);
+      this._bg.endFill();
     }
 
-    scaleLayer.addChild(line);
+    // Правый фон
+    if (cfg.scales.scalePrice) {
+      const x0 = L.width - cfg.rightOffset;
+      const h  = L.height - cfg.bottomOffset;
+      this._bg.beginFill(bgColor);
+      this._bg.drawRect(x0, 0, cfg.rightOffset, h);
+      this._bg.endFill();
+    }
+
+    if (cfg.scales.scaleTime)  this._drawTimeScale(L, cfg);
+    if (cfg.scales.scalePrice) this._drawPriceScale(L, cfg);
   }
 
-  app.stage.addChild(scaleLayer);
-}
+  _drawTimeScale(L, cfg) {
+    const ticks      = getTimeTicks(L);
+    const halfCandle = (L.config.candleWidth * L.scaleX) / 2;
+    const y0         = L.height - cfg.bottomOffset;
+    let lastX        = -Infinity;
 
-function generateTimeTicksFromGrid(candles, layout) {
-  const ticks = [];
-  const {
-    config: { candleWidth, spacing },
-    scaleX,
-    offsetX,
-    width: w,
-    rightOffset = 0
-  } = layout;
+    const style = new PIXI.TextStyle({
+      fontFamily: ChartConfig.default.chartFont,
+      fontSize:   cfg.scales.scaleFontSize,
+      fontWeight: ChartConfig.default.chartFontWeight,
+      fill:       cfg.scales.scaleTickColor
+    });
 
-  const totalSpacing = candleWidth + spacing;
-  const candleCount = candles.length;
-  const futureExtension = ChartConfig.grid?.futureExtension ?? 10;
-  const extendedCount = candleCount + futureExtension;
+    for (const t of ticks) {
+      const ts  = L.screen2t(t.x);
+      const idx = Math.round((ts - (L.candles[0]?.time||0)) / L.tfMs);
+      const x0  = L.timestampToX(idx) + halfCandle;
 
-  let stepX = Math.ceil(100 / (totalSpacing * scaleX));
-  if (scaleX < 0.3 && stepX < 10) stepX = 10;
+      if (x0 < 0 || x0 > L.width - cfg.rightOffset) continue;
+      if (x0 - lastX < cfg.scales.minLabelSpacing)  continue;
+      lastX = x0;
 
-  const anchorIndex = Math.floor(candleCount / 2);
-  const maxLeft = Math.floor(anchorIndex / stepX);
-  const maxRight = Math.floor((extendedCount - anchorIndex) / stepX);
+      this._gfx
+        .lineStyle(1, PIXI.utils.string2hex(cfg.scales.scaleTickColor))
+        .moveTo(x0, y0)
+        .lineTo(x0, y0 + 6);
 
-  const stepPx = stepX * totalSpacing * scaleX;
-  const maxExtraLines = 100;
-
-  // Основные деления по свечам
-  for (let i = -maxLeft; i <= maxRight; i++) {
-    const index = anchorIndex + i * stepX;
-    if (index < 0 || index >= extendedCount) continue;
-
-    const x = offsetX + index * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
-    ticks.push({ x });
+      const label = new PIXI.Text(t.label, style);
+      label.x = x0 - label.width / 2;
+      label.y = y0 + 8;
+      this._labels.addChild(label);
+    }
   }
 
-  // Псевдо-деления справа
-  let lastX = offsetX + (anchorIndex + maxRight * stepX) * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
-  let extraX = lastX + stepPx;
-  let extraCount = 0;
+    _drawPriceScale(L, cfg) {
+      // получаем и сортируем тики по возрастанию Y
+      const rawTicks = getPriceTicks(L);
+      const ticks = rawTicks.slice().sort((a, b) => a.y - b.y);
 
-  while (extraX <= w - rightOffset && extraCount < maxExtraLines) {
-    ticks.push({ x: extraX });
-    extraX += stepPx;
-    extraCount++;
-  }
+      const priceX   = L.width - cfg.rightOffset;
+      const tickLen  = 6;
+      const textGap  = 4;
+      const minGap   = cfg.scales.minLabelSpacing;
+      const maxY     = L.height - cfg.bottomOffset;
 
-  // Псевдо-деления слева
-  let extraLeftX = offsetX + (anchorIndex - maxLeft * stepX) * totalSpacing * scaleX + (candleWidth * scaleX) / 2 - stepPx;
-  let extraLeftCount = 0;
+      // определим первый и последний тик
+      const firstTick = ticks[0];
+      const lastTick  = ticks[ticks.length - 1];
 
-  while (extraLeftX >= 0 && extraLeftCount < maxExtraLines) {
-    ticks.push({ x: extraLeftX });
-    extraLeftX -= stepPx;
-    extraLeftCount++;
-  }
+      let lastY = -Infinity;
+      const style = new PIXI.TextStyle({
+        fontFamily:  ChartConfig.default.chartFont,
+        fontSize:    cfg.scales.scaleFontSize,
+        fontWeight:  ChartConfig.default.chartFontWeight,
+        fill:        cfg.scales.scaleTickColor
+      });
 
-  return ticks;
-}
+      for (const p of ticks) {
+        // округляем Y, чтобы сравнения были предсказуемы
+        const y = Math.round(p.y);
 
-function generatePriceTicksFromGrid(layout) {
-  const ticks = [];
-  const {
-    scaleY,
-    offsetY,
-    height: h,
-    bottomOffset = 30
-  } = layout;
+        // пропускаем тики вне области графика
+        if (y < 0 || y > maxY) continue;
 
-  const stepY = getAdaptiveStepY(scaleY);
-  const startY = (offsetY % stepY + stepY) % stepY;
+        // для первого и последнего тика мин. расстояние не проверяем
+        const isEdge = (p === firstTick || p === lastTick);
 
-  for (let y = startY; y <= h - bottomOffset; y += stepY) {
-    ticks.push({ y });
-  }
+        // проверяем минимальный отступ от предыдущей метки
+        if (!isEdge && y - lastY < minGap) continue;
 
-  return ticks;
-}
+        lastY = y;
 
-function getAdaptiveStepY(scaleY) {
-  const baseStep = 50;
-  const minStep = 30;
-  const zoomedStep = Math.round(baseStep * scaleY);
-  return Math.max(minStep, zoomedStep);
+        // рисуем шкалу (тик)
+        this._gfx
+          .lineStyle(1, PIXI.utils.string2hex(cfg.scales.scaleTickColor))
+          .moveTo(priceX,     y)
+          .lineTo(priceX + tickLen, y);
+
+        // создаём и позиционируем текст
+        const label = new PIXI.Text(p.label, style);
+        label.x = priceX + tickLen + textGap;
+        label.y = y - label.height / 2;
+        this._labels.addChild(label);
+      }
+    }
+
 }

@@ -1,128 +1,99 @@
-import { ChartConfig } from './chart-config.js';
-import { formatTime, formatPrice } from './chart-utils.js';
+// chart-grid.js
 
-function getAdaptiveStepX(scaleX, candleWidth, spacing) {
-  const spacingPx = (candleWidth + spacing) * scaleX;
-  const minSpacing = 100;
-  if (spacingPx < minSpacing) {
-    const boostFactor = Math.ceil(minSpacing / spacingPx);
-    return Math.max(1, boostFactor);
-  }
-  return 1;
-}
-
-function getAdaptiveStepY(scaleY) {
-  const baseStep = 50;
-  const minStep = 30;
-  const zoomedStep = Math.round(baseStep * scaleY);
-  return Math.max(minStep, zoomedStep);
-}
+import {
+  getAdaptiveStepX,
+  getAdaptiveStepY,
+  formatTime,
+  formatPrice
+} from './chart-utils.js';
 
 export function computeGrid(layout, settings) {
-  if (!ChartConfig.grid.gridEnabled || !settings?.grid?.enabled || !layout?.candles?.length) return null;
+  if (!settings?.grid?.enabled || !layout.candles?.length) return null;
 
   const {
-    width: w,
-    height: h,
-    config: { candleWidth, spacing, rightOffset = 0, bottomOffset = 0 },
+    width,
+    height,
+    config,
     scaleX,
     scaleY,
     offsetX,
     offsetY,
     candles
   } = layout;
+  const { candleWidth, spacing, rightOffset = 0, bottomOffset = 0 } = config;
 
-  const futureExtension = settings.grid.futureExtension ?? 10;
-  const totalSpacing = candleWidth + spacing;
-  const candleCount = candles.length;
-  const extendedCount = candleCount + futureExtension;
-
+  // горизонтальные/вертикальные шаги
   let stepX = getAdaptiveStepX(scaleX, candleWidth, spacing);
   if (scaleX < 0.3 && stepX < 10) stepX = 10;
   const stepY = getAdaptiveStepY(scaleY);
 
-  const anchorIndex = Math.floor(candleCount / 2);
-  const verticalLines = [];
-  const horizontalLines = [];
+  const totalSpacing = candleWidth + spacing;
+  const candleCount = candles.length;
+  const extension = settings.grid.futureExtension ?? 10;
+  const extended = candleCount + extension;
+  const anchor = Math.floor(candleCount / 2);
 
-  const candleCenter = i => offsetX + i * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
+  const linesX = [];
+  const linesY = [];
 
-  for (let i = -Math.floor(anchorIndex / stepX); i <= Math.floor((extendedCount - anchorIndex) / stepX); i++) {
-    const index = anchorIndex + i * stepX;
-    if (index < 0 || index >= extendedCount) continue;
-    const x = candleCenter(index);
-    if (x >= 0 && x <= w - rightOffset) {
-      verticalLines.push(x);
-    }
+  // вертикальные линии
+  for (let i = -Math.floor(anchor / stepX); i <= Math.floor((extended - anchor) / stepX); i++) {
+    const idx = anchor + i * stepX;
+    if (idx < 0 || idx >= extended) continue;
+    const x = offsetX + idx * totalSpacing * scaleX + (candleWidth * scaleX) / 2;
+    if (x >= 0 && x <= width - rightOffset) linesX.push(x);
   }
 
-  const stepPx = stepX * totalSpacing * scaleX;
-  let extraX = verticalLines.at(-1) + stepPx;
-  const maxExtraLines = 100;
-  while (extraX <= w - rightOffset && verticalLines.length < maxExtraLines) {
-    verticalLines.push(extraX);
-    extraX += stepPx;
-  }
+  // расширение сетки вправо/влево
+  const px = stepX * totalSpacing * scaleX;
+  let last = linesX.at(-1), first = linesX[0];
+  while (last + px <= width - rightOffset) { last += px; linesX.push(last); }
+  while (first - px >= 0) { first -= px; linesX.unshift(first); }
 
-  let extraLeftX = verticalLines[0] - stepPx;
-  while (extraLeftX >= 0 && verticalLines.length < maxExtraLines * 2) {
-    verticalLines.unshift(extraLeftX);
-    extraLeftX -= stepPx;
-  }
-
+  // горизонтальные линии
   const startY = (offsetY % stepY + stepY) % stepY;
-  for (let y = startY; y < h - bottomOffset; y += stepY) {
-    horizontalLines.push(y);
+  for (let y = startY; y < height - bottomOffset; y += stepY) {
+    linesY.push(y);
   }
 
   return {
-    verticalLines,
-    horizontalLines
+    verticalLines: linesX,
+    horizontalLines: linesY
   };
 }
 
-export function getTimeGridLines(layout) {
-  const {
-    width: w,
-    config: { candleWidth, spacing, rightOffset = 0 },
-    scaleX,
-    offsetX,
-    tfMs,
-    screen2t
-  } = layout;
+export function getTimeTicks(layout) {
+  const grid = computeGrid(layout, { grid: { enabled: true, futureExtension: 0 } });
+  if (!grid) return [];
 
-  const totalSpacing = candleWidth + spacing;
-  const spacingPx = totalSpacing * scaleX;
-  const stepPx = Math.max(spacingPx * 10, 80);
-  const lines = [];
-
-  for (let x = 0; x < w - rightOffset; x += stepPx) {
-    const t = screen2t(x);
-    const label = formatTime(t, tfMs);
-    lines.push({ x, label });
-  }
-
-  return lines;
+  return grid.verticalLines.map(x => {
+    const t = layout.screen2t(x);
+    return {
+      x,
+      label: formatTime(t, layout.tfMs)
+    };
+  });
 }
 
-export function getPriceGridLines(layout) {
-  const {
-    height: h,
-    config: { bottomOffset = 30 },
-    scaleY,
-    offsetY,
-    screen2$
-  } = layout;
+export function getPriceTicks(layout) {
+  const grid = computeGrid(layout, { grid: { enabled: true } });
+  if (!grid) return [];
 
-  const stepY = Math.max(30, Math.round(50 * scaleY));
-  const lines = [];
+  // восстанавливаем диапазон цены по свечам
+  const prices = layout.candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+  const minPrice = Math.min(...prices);
+  const maxPrice = Math.max(...prices);
+  const range = maxPrice - minPrice || 1;
 
-  const startY = (offsetY % stepY + stepY) % stepY;
-  for (let y = startY; y < h - bottomOffset; y += stepY) {
-    const price = screen2$(y);
-    const label = formatPrice(price);
-    lines.push({ y, label });
-  }
+  return grid.horizontalLines.map(y => {
+    // обратное преобразование y → цена
+    const rawY = (y - layout.offsetY) / layout.scaleY;
+    const ratio = 1 - rawY / (layout.height - layout.config.bottomOffset);
+    const price = minPrice + ratio * range;
 
-  return lines;
+    return {
+      y,
+      label: formatPrice(price)
+    };
+  });
 }

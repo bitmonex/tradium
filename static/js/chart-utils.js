@@ -1,3 +1,22 @@
+// chart-utils.js
+
+export function getAdaptiveStepX(scaleX, candleWidth, spacing) {
+  const spacingPx = (candleWidth + spacing) * scaleX;
+  const minSpacing = 100;
+  if (spacingPx < minSpacing) {
+    const boostFactor = Math.ceil(minSpacing / spacingPx);
+    return Math.max(1, boostFactor);
+  }
+  return 1;
+}
+
+export function getAdaptiveStepY(scaleY) {
+  const baseStep = 50;
+  const minStep = 30;
+  const zoomedStep = Math.round(baseStep * scaleY);
+  return Math.max(minStep, zoomedStep);
+}
+
 export function formatTime(timestamp, tfMs) {
   const date = new Date(timestamp);
   if (tfMs >= 86400000) {

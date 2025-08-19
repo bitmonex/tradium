@@ -22,8 +22,12 @@ export const ChartConfig = {
     indicatorsEnabled: true
   },
   scales: {
-    scalePrice: true,
-    scaleTime: true
+      scaleTime:       true,
+      scalePrice:      true,
+      scaleFontSize:   11.5,
+      scaleTickColor:  '0xcccccc',
+      scaleBG:         '0x222222',
+      minLabelSpacing: 50
   },
   fps: {
     fpsOn: true,

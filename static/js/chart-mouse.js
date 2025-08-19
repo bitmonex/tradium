@@ -1,4 +1,5 @@
 // chart-mouse.js
+
 export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update }) {
   let dragging   = false;
   let resizingX  = false;
@@ -6,7 +7,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
   let lastX      = 0;
   let lastY      = 0;
 
-  // Вспомогательные данные для зума
+  // вспомогательные для зума
   let centerX    = 0;
   let centerY    = 0;
   let worldX0    = 0;
@@ -14,7 +15,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
   const cw       = config.candleWidth + config.spacing;
   let canvasH    = 0;
 
-  // Batch-рендер через RAF
+  // batch-рендер
   let rafPending = false;
   function scheduleRender() {
     if (!rafPending) {
@@ -26,7 +27,6 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
     }
   }
 
-  // Обработчики на Pointer-события
   function onPointerDown(e) {
     const r = app.view.getBoundingClientRect();
     centerX = r.width  * 0.5;
@@ -49,7 +49,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       app.view.style.cursor = 'ew-resize';
 
     } else {
-      // простой пан
+      // пан
       dragging = true;
       app.view.style.cursor = 'grabbing';
     }
@@ -71,9 +71,10 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       scheduleRender();
 
     } else if (resizingX) {
-      // inline-zoomX
+      // inline zoomX
       let f = 1 - dx * 0.02;
-      f = Math.max(config.minScaleX / state.scaleX, Math.min(config.maxScaleX / state.scaleX, f));
+      f = Math.max(config.minScaleX / state.scaleX,
+                   Math.min(config.maxScaleX / state.scaleX, f));
       const newScaleX  = state.scaleX * f;
       const newOffsetX = centerX - worldX0 * (cw * newScaleX);
       state.scaleX  = newScaleX;
@@ -81,9 +82,10 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       scheduleRender();
 
     } else if (resizingY) {
-      // inline-zoomY
+      // inline zoomY
       let f = 1 - dy * 0.02;
-      f = Math.max(config.minScaleY / state.scaleY, Math.min(config.maxScaleY / state.scaleY, f));
+      f = Math.max(config.minScaleY / state.scaleY,
+                   Math.min(config.maxScaleY / state.scaleY, f));
       const newScaleY  = state.scaleY * f;
       const newOffsetY = centerY - worldY0 * (canvasH * newScaleY);
       state.scaleY  = newScaleY;
@@ -91,7 +93,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       scheduleRender();
 
     } else {
-      // hover
+      // hover по свечам
       const r = app.view.getBoundingClientRect();
       const xCanvas = e.clientX - r.left;
       const L = state.layout;
@@ -116,7 +118,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
     const ay = Math.abs(e.deltaY);
 
     if (ax > ay + 2) {
-      // пан по горизонтали
+      // горизонтальный пан
       state.offsetX -= e.deltaX;
 
     } else if (ay > ax + 2) {
@@ -124,7 +126,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       const midY = r.height / 2;
 
       if (e.shiftKey) {
-        // vertical zoom via wheel+shift
+        // вертикальный zoom
         const f = e.deltaY < 0 ? 1.5 : 0.5;
         const z = zoomY({
           my: midY,
@@ -138,7 +140,7 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
         state.offsetY = z.offsetY;
 
       } else {
-        // horizontal zoom
+        // горизонтальный zoom
         const dir = e.deltaY < 0 ? 1.1 : 0.9;
         const z = zoomX({
           mx: e.offsetX,
@@ -159,14 +161,14 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
     init() {
       app.view.addEventListener('pointerdown', onPointerDown);
       window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup',   onPointerUp);
-      app.view.addEventListener('wheel',      onWheel, { passive: false });
+      window.addEventListener('pointerup', onPointerUp);
+      app.view.addEventListener('wheel', onWheel, { passive: false });
     },
     destroy() {
       app.view.removeEventListener('pointerdown', onPointerDown);
       window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup',   onPointerUp);
-      app.view.removeEventListener('wheel',      onWheel);
+      window.removeEventListener('pointerup', onPointerUp);
+      app.view.removeEventListener('wheel', onWheel);
     }
   };
 }

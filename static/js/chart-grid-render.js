@@ -1,4 +1,4 @@
-import { computeGrid, getTimeGridLines, getPriceGridLines } from './chart-grid.js';
+import { computeGrid } from './chart-grid.js';
 import { ChartConfig } from './chart-config.js';
 
 export function renderGrid(app, layout, settings) {
