@@ -6,8 +6,8 @@ export const ChartConfig = {
     chartBG: '0x111111'
   },
   candles: {
-    candleBull: '0xff3b3b',
-    candleBear: '0x00ff00'
+    candleBull: '0x00ff00',
+    candleBear: '0xff3b3b'
   },
   grid: {
     gridColor: '#444444',

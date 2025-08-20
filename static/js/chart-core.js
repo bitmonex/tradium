@@ -1,3 +1,5 @@
+// chart-core.js
+
 import { ChartConfig }       from './chart-config.js';
 import { createLayout }      from './chart-layout.js';
 import { FPS }               from './chart-fps.js';
@@ -20,21 +22,21 @@ export function createChartCore(container) {
     layout:    null
   };
 
-  let sprites = [];
-  let lastKey = '';
-  let scales  = null;
+  let sprites  = [];
+  let lastKey  = '';
+  let scales   = null;
 
+  // инициализация PIXI
   const app = new PIXI.Application({
     resizeTo:        container,
     backgroundColor: +ChartConfig.default.chartBG,
     antialias:       true,
     autoDensity:     true
   });
-  // чтобы zIndex работал и на stage
   app.stage.sortableChildren = true;
-
   container.appendChild(app.view);
 
+  // глобальные настройки
   const settings = window.chartSettings || {};
   const config = {
     ...ChartConfig,
@@ -48,44 +50,36 @@ export function createChartCore(container) {
     bottomOffset: 30
   };
 
-  // основной контейнер
+  // слои: свечи, маска, шкалы
   const group = new PIXI.Container();
   group.sortableChildren = true;
   app.stage.addChild(group);
 
-  // слой свечей
   const candleLayer = new PIXI.Container();
   candleLayer.zIndex = 10;
   group.addChild(candleLayer);
 
-  // маска графика
   const mask = new PIXI.Graphics();
   group.mask = mask;
   app.stage.addChild(mask);
 
-  // контейнер для шкал
   const scalesContainer = new PIXI.Container();
   scalesContainer.zIndex = 20;
   app.stage.addChild(scalesContainer);
 
+  // рисуем свечи
   function drawCandles() {
     const c = state.candles;
     if (!c.length) return;
 
     const { width, height } = app.renderer;
     const cw = (config.candleWidth + config.spacing) * state.scaleX;
-    const prices = c.flatMap(x => [x.open, x.high, x.low, x.close]);
+    const prices = c.flatMap(v => [v.open, v.high, v.low, v.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     const range = max - min || 1;
 
-    const key = [
-      state.scaleX,
-      state.scaleY,
-      state.offsetX,
-      state.offsetY,
-      c.length
-    ].join('_');
+    const key = [state.scaleX, state.scaleY, state.offsetX, state.offsetY, c.length].join('_');
     if (key === lastKey) return;
     lastKey = key;
 
@@ -96,24 +90,22 @@ export function createChartCore(container) {
       candleLayer.addChild(g);
     }
 
-    c.forEach((d, i) => {
+    c.forEach((v, i) => {
       const g = sprites[i];
       const x = i * cw + state.offsetX;
-
       if (x + config.candleWidth < 0 || x > width - config.rightOffset) {
         g.visible = false;
         return;
       }
 
-      const mapY = v =>
-        ((height - config.bottomOffset) *
-          (1 - (v - min) / range)) *
+      const mapY = val =>
+        ((height - config.bottomOffset) * (1 - (val - min) / range)) *
           state.scaleY +
         state.offsetY;
 
-      const bull = +ChartConfig.candles.candleBull;
-      const bear = +ChartConfig.candles.candleBear;
-      const col  = d.close >= d.open ? bull : bear;
+      const col = v.close >= v.open
+        ? +ChartConfig.candles.candleBull
+        : +ChartConfig.candles.candleBear;
 
       g.clear();
       g.visible = true;
@@ -121,18 +113,19 @@ export function createChartCore(container) {
       g.beginFill(col);
       g.drawRect(
         x,
-        Math.min(mapY(d.open), mapY(d.close)),
+        Math.min(mapY(v.open), mapY(v.close)),
         config.candleWidth * state.scaleX,
-        Math.max(1, Math.abs(mapY(d.close) - mapY(d.open)))
+        Math.max(1, Math.abs(mapY(v.close) - mapY(v.open)))
       );
       g.endFill();
 
       const cx = x + (config.candleWidth * state.scaleX) / 2;
-      g.moveTo(cx, mapY(d.high));
-      g.lineTo(cx, mapY(d.low));
+      g.moveTo(cx, mapY(v.high));
+      g.lineTo(cx, mapY(v.low));
     });
   }
 
+  // создаёт или обновляет шкалы (только пересчитывает координаты)
   function updateScales() {
     const L = createLayout(
       app,
@@ -148,13 +141,13 @@ export function createChartCore(container) {
     if (!scales) {
       scales = new ChartScales(scalesContainer, L, config);
     } else {
-      scales.container = scalesContainer;
-      scales.layout    = L;
-      scales.settings  = config;
+      scales.layout   = L;
+      scales.settings = config;
     }
     scales.update();
   }
 
+  // отрисовка сетки и шкал + свечей
   function render() {
     if (!state.candles.length) return;
 
@@ -172,7 +165,7 @@ export function createChartCore(container) {
 
     drawCandles();
     renderGrid(app, L, settings);
-    updateScales();
+    updateScales();  // обновляем координаты шкал при каждом render
 
     mask.clear();
     mask.beginFill(0x000000);
@@ -187,16 +180,16 @@ export function createChartCore(container) {
     state.indicator?.render?.(L);
   }
 
+  // загрузка новых данных
   function draw(data) {
     state.candles = data;
+
     if (ChartConfig.ohlcv?.ohlcvOn && data.length) {
-      state.ohlcv = OHLCV(
-        { ...config, group, chartSettings: settings },
-        data
-      );
+      state.ohlcv = OHLCV({ ...config, group, chartSettings: settings }, data);
       state.ohlcv.render(data.at(-1));
     }
 
+    // центрируем свечи вправо
     const cw = (config.candleWidth + config.spacing) * state.scaleX;
     state.offsetX = app.renderer.width - config.rightOffset - data.length * cw;
     state.offsetY = app.renderer.height / 2.8;
@@ -217,9 +210,11 @@ export function createChartCore(container) {
       state.indicator.render(initL);
     }
 
+    updateScales();  // рассчитываем тики один раз при загрузке данных
     render();
   }
 
+  // обновление последней свечи
   function update(candle) {
     state.ohlcv?.update?.(candle);
   }
@@ -236,8 +231,9 @@ export function createChartCore(container) {
     app.renderer.resize(width, height);
     app.view.style.width  = width  + 'px';
     app.view.style.height = height + 'px';
+
+    updateScales();  // обновляем координаты шкал
     render();
-    updateScales();
   }
   window.addEventListener('resize', resize);
 
