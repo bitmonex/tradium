@@ -1,147 +1,153 @@
-// chart-ohlcv.js
+export function OHLCV({ config, chartSettings = {}, group }) {
+  const {
+    ohlcvOn,
+    ohlcvLabel,
+    ohlcvData,
+    tickerColor,
+    chartFont,
+    chartFontSize,
+    chartFontWeight
+  } = config;
 
-import { ChartConfig } from './chart-config.js'
-
-export function OHLCV(config, candles) {
-  const { group, chartSettings } = config
-  if (!group || !ChartConfig.ohlcv.ohlcvOn) {
-    // возвращаем заглушку
-    return { layer: new PIXI.Container(), render: () => {}, update: () => {} }
+  if (!group || !ohlcvOn) {
+    const stub = new PIXI.Container();
+    return { layer: stub, init: () => {}, render: () => {}, update: () => {} };
   }
 
-  const layer = new PIXI.Container()
-  layer.zIndex = 10
-  group.addChild(layer)
+  const layer = new PIXI.Container();
+  layer.zIndex = 30;
+  group.addChild(layer);
 
-  // базовый стиль текста
+  const resolution = window.devicePixelRatio;
   const baseStyle = {
-    fontFamily: ChartConfig.default.chartFont,
-    fontSize:   ChartConfig.default.chartFontSize,
-    fontWeight: ChartConfig.default.chartFontWeight
-  }
+    fontFamily: chartFont,
+    fontSize: chartFontSize,
+    fontWeight: chartFontWeight,
+    resolution
+  };
 
-  // стили для лейблов и значений
-  const labelStyle = new PIXI.TextStyle({
-    fontFamily: baseStyle.fontFamily,
-    fontSize:   baseStyle.fontSize,
-    fontWeight: baseStyle.fontWeight,
-    fill:       ChartConfig.ohlcv.ohlcvLabel
-  })
+  const tickerStyle = new PIXI.TextStyle({ ...baseStyle, fill: tickerColor });
+  const labelStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvLabel });
+  const valueStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvData });
 
-  const valueStyle = new PIXI.TextStyle({
-    fontFamily: baseStyle.fontFamily,
-    fontSize:   baseStyle.fontSize,
-    fontWeight: baseStyle.fontWeight,
-    fill:       ChartConfig.ohlcv.ohlcvData
-  })
+  let candles = [];
+  let staticInited = false;
+  let lastRenderIdx = -1;
+  let lastHoverIdx = -1;
 
-  // храним индекс последней зарендренной свечи
-  let lastRenderIdx = -1
-  // и индекс последней обновлённой (hover) свечи
-  let lastHoverIdx  = -1
+  let tickerText;
+  const labelTexts = [];
+  const valueTexts = [];
 
-  // помогает найти индекс свечи в массиве по совпадающему полю time
-  function candleIndex(candle) {
-    return candles.findIndex(c => c.time === candle.time)
+  function init(newCandles, newVolumes) {
+    candles = newCandles;
+    staticInited = false;
+    lastRenderIdx = -1;
+    lastHoverIdx = -1;
+    layer.removeChildren();
+    labelTexts.length = 0;
+    valueTexts.length = 0;
   }
 
   function render(candle) {
-    if (!candle) return
+    if (!candle) return;
 
-    const idx = candleIndex(candle)
-    if (idx === lastRenderIdx) return
-    lastRenderIdx = idx
+    const idx = candles.findIndex(c => c.time === candle.time);
+    if (idx === lastRenderIdx) return;
+    lastRenderIdx = idx;
 
-    layer.removeChildren()
-    valueTexts.length = 0
+    if (!staticInited) {
+      tickerText = new PIXI.Text('', tickerStyle);
+      tickerText.x = 15;
+      tickerText.y = 12;
+      layer.addChild(tickerText);
 
-    const items = getOHLCVItems(candle, candles, chartSettings)
-    let x = 15
-
-    for (const item of items) {
-      if (item.custom) {
-        const txt = new PIXI.Text(item.label, {
-          ...baseStyle,
-          fill: 0xffcc00
-        })
-        txt.x = x; txt.y = 12
-        layer.addChild(txt)
-        x += txt.width + 15
-      } else {
-        const lbl = new PIXI.Text(item.label, labelStyle)
-        lbl.x = x; lbl.y = 12
-        layer.addChild(lbl)
-        x += lbl.width + 2
-
-        const val = new PIXI.Text(item.value, valueStyle)
-        val.x = x; val.y = 12
-        layer.addChild(val)
-        valueTexts.push({ key: item.label, text: val })
-        x += val.width + 15
+      const items = getOHLCVItems(candle, candles);
+      for (const it of items) {
+        const lbl = new PIXI.Text(it.label, labelStyle);
+        const val = new PIXI.Text('', valueStyle);
+        layer.addChild(lbl, val);
+        labelTexts.push(lbl);
+        valueTexts.push(val);
       }
+
+      staticInited = true;
     }
+
+    _updateAll(candle);
   }
 
   function update(candle) {
-    if (!candle) return
+    if (!staticInited || !candle) return;
 
-    const idx = candleIndex(candle)
-    if (idx === lastHoverIdx) return
-    lastHoverIdx = idx
+    const idx = candles.findIndex(c => c.time === candle.time);
+    if (idx < 0 || idx === lastHoverIdx) return;
+    lastHoverIdx = idx;
 
-    const items = getOHLCVItems(candle, candles, chartSettings)
-    for (const item of items) {
-      const found = valueTexts.find(v => v.key === item.label)
-      if (found && found.text.text !== item.value) {
-        found.text.text = item.value
-      }
+    _updateAll(candle);
+  }
+
+  function _updateAll(candle) {
+    const exch  = chartSettings.exchange   || '';
+    const mType = chartSettings.marketType || '';
+    const symb  = chartSettings.symbol     || '';
+    tickerText.text = `${exch} - ${mType} - ${symb}`.toUpperCase();
+
+    let x = Math.round(tickerText.x + tickerText.width + 20);
+    const items = getOHLCVItems(candle, candles);
+
+    for (let i = 0; i < items.length; i++) {
+      const lbl = labelTexts[i];
+      const val = valueTexts[i];
+      const { label, value } = items[i];
+
+      lbl.text = label;
+      val.text = value;
+
+      lbl.x = Math.round(x);
+      lbl.y = 12;
+      val.x = Math.round(lbl.x + lbl.width + 2);
+      val.y = 12;
+
+      x += lbl.width + val.width + 15;
     }
   }
 
-  const valueTexts = []
-
-  return { layer, render, update }
+  return { layer, init, render, update };
 }
 
+function getOHLCVItems(candle, candles) {
+  const volBtc   = candle.volume || 0;
+  const volUsd   = volBtc * candle.close;
+  const volLabel = formatMoney(volUsd);
 
-// ————————————————
-// вспомогательные функции
-// ————————————————
+  const idx      = candles.findIndex(c => c.time === candle.time);
+  const prevVol  = idx > 0 ? candles[idx - 1].volume : 0;
+  const delta    = volBtc - prevVol;
+  const pct      = prevVol > 0 ? (delta / prevVol) * 100 : 0;
+  const sign     = delta >= 0 ? '+' : '–';
+  const change   = `${sign}${formatMoney(Math.abs(delta))} (${pct.toFixed(2)}%)`;
 
-function getOHLCVItems(candle, candles, settings = {}) {
-  const volBtc = candle.volume || 0
-  const volUsd = volBtc * candle.close
-  const volLabel = formatMoney(volUsd)
-
-  const prevVol = candles[candles.indexOf(candle) - 1]?.volume || 0
-  const delta   = volBtc - prevVol
-  const pct     = prevVol > 0 ? (delta / prevVol) * 100 : 0
-  const changeLabel = `${delta >= 0 ? '+' : '–'}${formatMoney(Math.abs(delta))} (${pct.toFixed(2)}%)`
-
-  const ampAbs  = candle.high - candle.low
-  const ampPct  = candle.low !== 0 ? (ampAbs / Math.abs(candle.low)) * 100 : 0
-  const ampLabel = `${ampAbs.toFixed(2)} (${ampPct.toFixed(2)}%)`
-
-  const { exchange, marketType, symbol } = settings
-  const ticker = `${exchange} - ${marketType} - ${symbol}`.toUpperCase()
+  const ampAbs   = candle.high - candle.low;
+  const ampPct   = candle.low !== 0 ? (ampAbs / candle.low) * 100 : 0;
+  const amp      = `${ampAbs.toFixed(2)} (${ampPct.toFixed(2)}%)`;
 
   return [
-    { label: ticker,  value: '',     custom: true },
-    { label: 'O',     value: candle.open.toFixed(2) },
-    { label: 'H',     value: candle.high.toFixed(2) },
-    { label: 'L',     value: candle.low.toFixed(2) },
-    { label: 'C',     value: candle.close.toFixed(2) },
-    { label: 'V',     value: volLabel },
-    { label: 'Change',value: changeLabel },
-    { label: 'Amp',   value: ampLabel }
-  ]
+    { label: 'O',      value: candle.open.toFixed(2) },
+    { label: 'H',      value: candle.high.toFixed(2) },
+    { label: 'L',      value: candle.low.toFixed(2) },
+    { label: 'C',      value: candle.close.toFixed(2) },
+    { label: 'V',      value: volLabel },
+    { label: 'Change', value: change },
+    { label: 'Amp',    value: amp }
+  ];
 }
 
 function formatMoney(v) {
-  if (!isFinite(v)) return '—'
-  const abs = Math.abs(v)
-  if (abs >= 1e9) return (abs / 1e9).toFixed(2) + 'b'
-  if (abs >= 1e6) return (abs / 1e6).toFixed(2) + 'm'
-  if (abs >= 1e3) return (abs / 1e3).toFixed(2) + 'k'
-  return abs.toFixed(2)
+  if (!isFinite(v)) return '—';
+  const abs = Math.abs(v);
+  if (abs >= 1e9) return (abs / 1e9).toFixed(2) + 'b';
+  if (abs >= 1e6) return (abs / 1e6).toFixed(2) + 'm';
+  if (abs >= 1e3) return (abs / 1e3).toFixed(2) + 'k';
+  return abs.toFixed(2);
 }

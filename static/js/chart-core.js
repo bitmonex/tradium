@@ -1,96 +1,143 @@
 // chart-core.js
-
-import { ChartConfig }       from './chart-config.js';
 import { createLayout }      from './chart-layout.js';
-import { FPS }               from './chart-fps.js';
+import { TF }                from './chart-tf.js';
+import { Grid }              from './chart-grid-render.js';
 import { OHLCV }             from './chart-ohlcv.js';
-import { ChartScales }       from './chart-scale.js';
-import { renderGrid }        from './chart-grid-render.js';
-import { Mouse }             from './chart-mouse.js';
 import { Indicators }        from './chart-indicators.js';
+import { FPS }               from './chart-fps.js';
+import { Mouse }             from './chart-mouse.js';
 import { zoomX, zoomY, pan } from './chart-zoom.js';
+import { ChartConfig }       from './chart-config.js';
+import { LivePrice }         from './chart-live.js';
 
-export function createChartCore(container) {
-  const state = {
-    scaleX:    1,
-    scaleY:    1,
-    offsetX:   0,
-    offsetY:   150,
-    candles:   [],
-    ohlcv:     null,
-    indicator: null,
-    layout:    null
-  };
+// @param {HTMLElement} container – DOM-элемент для PIXI Canvas
+// @param {object} userConfig – объект, расширяющий ChartConfig
 
-  let sprites  = [];
-  let lastKey  = '';
-  let scales   = null;
+export function createChartCore(container, userConfig = {}) {
+  const fullConfig = { ...ChartConfig, ...userConfig };
+  const {
+    default: defStyles,
+    modules,
+    exchange,
+    marketType,
+    symbol,
+    ...sections
+  } = fullConfig;
 
-  // инициализация PIXI
-  const app = new PIXI.Application({
-    resizeTo:        container,
-    backgroundColor: +ChartConfig.default.chartBG,
-    antialias:       true,
-    autoDensity:     true
-  });
-  app.stage.sortableChildren = true;
-  container.appendChild(app.view);
-
-  // глобальные настройки
-  const settings = window.chartSettings || {};
   const config = {
-    ...ChartConfig,
+    ...defStyles,
+    ...sections.candles,
+    ...sections.grid,
+    ...sections.ohlcv,
+    ...sections.indicators,
+    ...sections.fps,
+    ...sections.livePrice,
+
     candleWidth:  5,
     spacing:      2,
+    rightOffset:  70,
+    bottomOffset: 30,
+
     minScaleX:    0.05,
     maxScaleX:    40,
     minScaleY:    0.1,
     maxScaleY:    40,
-    rightOffset:  70,
-    bottomOffset: 30
+
+    modules
   };
 
-  // слои: свечи, маска, шкалы
+  // chartSettings передаём в OHLCV
+  const chartSettings = { exchange, marketType, symbol };
+
+  // 4) Инициализация PIXI
+  const app = new PIXI.Application({
+    resizeTo:       container,
+    backgroundColor:+config.chartBG,
+    antialias:      true,
+    autoDensity:    true
+  });
+  app.stage.sortableChildren = true;
+  container.appendChild(app.view);
+
+  // 5) Группа и маска для вьюпорта
   const group = new PIXI.Container();
   group.sortableChildren = true;
   app.stage.addChild(group);
-
-  const candleLayer = new PIXI.Container();
-  candleLayer.zIndex = 10;
-  group.addChild(candleLayer);
 
   const mask = new PIXI.Graphics();
   group.mask = mask;
   app.stage.addChild(mask);
 
-  const scalesContainer = new PIXI.Container();
-  scalesContainer.zIndex = 20;
-  app.stage.addChild(scalesContainer);
+  // 6) Состояние чарта
+  const state = {
+    candles:    [],
+    volumes:    [],
+    timeframe:  0,
+    offsetX:    0,
+    offsetY:    150,
+    scaleX:     1,
+    scaleY:     1,
+    layout:     null,
+    ohlcv:      null,
+    indicators: null,
+    fps:        null
+  };
 
-  // рисуем свечи
-  function drawCandles() {
-    const c = state.candles;
-    if (!c.length) return;
+  // 7) Контейнер под свечи
+  let candleLayer;
+  if (modules.candles) {
+    candleLayer = new PIXI.Container();
+    candleLayer.zIndex = 10;
+    group.addChild(candleLayer);
+  }
+
+  // 8) Инициализация подключаемых модулей
+  if (modules.ohlcv) {
+    state.ohlcv = OHLCV({ config, chartSettings, group });
+    state.ohlcv.init(state.candles, state.volumes);
+  }
+  if (modules.indicators) {
+    state.indicators = Indicators({ group, config });
+  }
+  if (modules.fps) {
+    state.fps = new FPS(app.stage, config.fpsColor);
+  }
+  if (modules.livePrice) {
+    state.livePrice = LivePrice({ group, config, chartSettings });
+  }
+
+  // вспомогательные переменные для отрисовки свечей
+  let sprites = [];
+  let lastKey = '';
+
+  // 9) Функция рисует только свечи
+  function drawCandlesOnly() {
+    if (!candleLayer || !state.candles.length) return;
 
     const { width, height } = app.renderer;
     const cw = (config.candleWidth + config.spacing) * state.scaleX;
-    const prices = c.flatMap(v => [v.open, v.high, v.low, v.close]);
+
+    const prices = state.candles.flatMap(v => [v.open, v.high, v.low, v.close]);
     const min = Math.min(...prices);
     const max = Math.max(...prices);
     const range = max - min || 1;
 
-    const key = [state.scaleX, state.scaleY, state.offsetX, state.offsetY, c.length].join('_');
+    const key = [
+      state.scaleX, state.scaleY,
+      state.offsetX, state.offsetY,
+      state.candles.length
+    ].join('_');
     if (key === lastKey) return;
     lastKey = key;
 
-    while (sprites.length < c.length) {
+    while (sprites.length < state.candles.length) {
       const g = new PIXI.Graphics();
       g.zIndex = 10;
       sprites.push(g);
       candleLayer.addChild(g);
     }
 
-    c.forEach((v, i) => {
+    state.candles.forEach((v, i) => {
       const g = sprites[i];
       const x = i * cw + state.offsetX;
       if (x + config.candleWidth < 0 || x > width - config.rightOffset) {
@@ -99,18 +146,17 @@ export function createChartCore(container) {
       }
 
       const mapY = val =>
-        ((height - config.bottomOffset) * (1 - (val - min) / range)) *
-          state.scaleY +
-        state.offsetY;
+        ((height - config.bottomOffset) * (1 - (val - min) / range))
+        * state.scaleY + state.offsetY;
 
-      const col = v.close >= v.open
-        ? +ChartConfig.candles.candleBull
-        : +ChartConfig.candles.candleBear;
+      const color = v.close >= v.open
+        ? +config.candleBull
+        : +config.candleBear;
 
       g.clear();
       g.visible = true;
-      g.lineStyle(1, col);
-      g.beginFill(col);
+      g.lineStyle(1, color);
+      g.beginFill(color);
       g.drawRect(
         x,
         Math.min(mapY(v.open), mapY(v.close)),
@@ -125,33 +171,9 @@ export function createChartCore(container) {
     });
   }
 
-  // создаёт или обновляет шкалы (только пересчитывает координаты)
-  function updateScales() {
-    const L = createLayout(
-      app,
-      config,
-      state.candles,
-      state.offsetX,
-      state.offsetY,
-      state.scaleX,
-      state.scaleY
-    );
-    state.layout = L;
-
-    if (!scales) {
-      scales = new ChartScales(scalesContainer, L, config);
-    } else {
-      scales.layout   = L;
-      scales.settings = config;
-    }
-    scales.update();
-  }
-
-  // отрисовка сетки и шкал + свечей
-  function render() {
-    if (!state.candles.length) return;
-
-    const L = createLayout(
+  // 10) Универсальная сборка полного layout
+  function createFullLayout() {
+    const raw = createLayout(
       app,
       config,
       state.candles,
@@ -159,94 +181,127 @@ export function createChartCore(container) {
       state.offsetY,
       state.scaleX,
       state.scaleY,
-      group
+      state.timeframe
     );
-    state.layout = L;
+    return {
+      ...raw,
+      candles:   state.candles,
+      volumes:   state.volumes,
+      config,
+      offsetX:   state.offsetX,
+      offsetY:   state.offsetY,
+      scaleX:    state.scaleX,
+      scaleY:    state.scaleY,
+      timeframe: state.timeframe
+    };
+  }
 
-    drawCandles();
-    renderGrid(app, L, settings);
-    updateScales();  // обновляем координаты шкал при каждом render
+  // 11) Полный рендер всех элементов
+  function renderAll() {
+    if (!state.candles.length) return;
 
+    const layout = createFullLayout();
+    state.layout = layout;
+
+    if (modules.grid)       Grid(app, layout, config);
+    if (modules.candles)    drawCandlesOnly();
+    if (modules.ohlcv)      state.ohlcv.render(state.candles.at(-1));
+    if (modules.indicators) { state.indicators.add(layout); state.indicators.render(layout); }
+    if (modules.livePrice) { state.livePrice.render(layout); }
+      
     mask.clear();
     mask.beginFill(0x000000);
     mask.drawRect(
       0,
       0,
-      L.width - config.rightOffset,
-      L.height - config.bottomOffset
+      layout.width  - config.rightOffset,
+      layout.height - config.bottomOffset
     );
     mask.endFill();
-
-    state.indicator?.render?.(L);
   }
 
-  // загрузка новых данных
-  function draw(data) {
-    state.candles = data;
+    // 12) Приём новых данных и первая отрисовка
+    function draw({ candles, volumes }) {
+      // 1. Обновляем состояние по свечам (без текста)
+      state.candles   = candles;
+      state.volumes   = volumes;
+      state.timeframe = TF(candles);
 
-    if (ChartConfig.ohlcv?.ohlcvOn && data.length) {
-      state.ohlcv = OHLCV({ ...config, group, chartSettings: settings }, data);
-      state.ohlcv.render(data.at(-1));
+      // 2. Центрируем по правому краю
+      const cw = (config.candleWidth + config.spacing) * state.scaleX;
+      state.offsetX = app.renderer.width  - config.rightOffset - candles.length * cw;
+      state.offsetY = app.renderer.height / 2.8;
+
+      // 3. Рисуем только свечи, модули ещё не трогаем
+      drawCandlesOnly();
+
+      // 4. Функция, которая выполнит полную отрисовку после загрузки шрифта
+      function doDraw() {
+        // обновляем состояние повторно (на случай изменения параметров)
+        state.candles   = candles;
+        state.volumes   = volumes;
+        state.timeframe = TF(candles);
+
+        // центрируем ещё раз
+        const cw2 = (config.candleWidth + config.spacing) * state.scaleX;
+        state.offsetX = app.renderer.width  - config.rightOffset - candles.length * cw2;
+        state.offsetY = app.renderer.height / 2.8;
+
+        // инициализируем и рендерим OHLCV, если нужно
+        if (modules.ohlcv) {
+          state.ohlcv.init(candles, volumes);
+          state.ohlcv.render(candles.at(-1));
+        }
+
+        // рендерим все остальные модули (LivePrice, индикаторы, FPS и т.д.)
+        renderAll();
+      }
+
+      // 5. Ждём загрузки шрифта и запускаем doDraw
+      const fontSpec = `${config.chartFontSize}px "${config.chartFont}"`;
+      document.fonts
+        .load(fontSpec)
+        .then(doDraw)
+        .catch(doDraw);
     }
 
-    // центрируем свечи вправо
-    const cw = (config.candleWidth + config.spacing) * state.scaleX;
-    state.offsetX = app.renderer.width - config.rightOffset - data.length * cw;
-    state.offsetY = app.renderer.height / 2.8;
-
-    state.indicator = Indicators({ group, app, config, candles: data });
-    const initL = createLayout(
-      app,
-      config,
-      data,
-      state.offsetX,
-      state.offsetY,
-      state.scaleX,
-      state.scaleY
-    );
-    state.layout = initL;
-    state.indicator.init(initL);
-    if (ChartConfig.indicators.indicatorsEnabled) {
-      state.indicator.render(initL);
+    // 13) Обработка наведения мыши — без изменений
+    function onHover(candle) {
+      if (modules.ohlcv) {
+        state.ohlcv.update(candle);
+      }
+      if (modules.indicators) {
+        state.indicators.render(state.layout);
+      }
     }
+    const mouse = Mouse(app, config, state, {
+      zoomX, zoomY, pan,
+      render: renderAll,
+      update: onHover
+    });
+    mouse.init();
 
-    updateScales();  // рассчитываем тики один раз при загрузке данных
-    render();
-  }
 
-  // обновление последней свечи
-  function update(candle) {
-    state.ohlcv?.update?.(candle);
-  }
-
-  const mouse = Mouse(app, config, state, { zoomX, zoomY, pan, render, update });
-  mouse.init();
-
-  if (ChartConfig.fps?.fpsOn) {
-    new FPS(app.stage);
-  }
-
+  // 14) Обработка ресайза
   function resize() {
     const { width, height } = container.getBoundingClientRect();
     app.renderer.resize(width, height);
     app.view.style.width  = width  + 'px';
     app.view.style.height = height + 'px';
-
-    updateScales();  // обновляем координаты шкал
-    render();
+    renderAll();
   }
   window.addEventListener('resize', resize);
 
+  // 15) Очистка и уничтожение
   function destroy() {
     mouse.destroy();
     window.removeEventListener('resize', resize);
     app.destroy(true, { children: true });
   }
 
+  // 16) Публичное API
   return {
     draw,
-    updateScales,
-    update,
     resize,
     destroy,
     zoomX,

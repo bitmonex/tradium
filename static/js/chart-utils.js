@@ -1,5 +1,4 @@
 // chart-utils.js
-
 export function getAdaptiveStepX(scaleX, candleWidth, spacing) {
   const spacingPx = (candleWidth + spacing) * scaleX;
   const minSpacing = 100;
@@ -32,4 +31,16 @@ export function formatPrice(price) {
   if (price >= 1000) return price.toFixed(0);
   if (price >= 1) return price.toFixed(2);
   return price.toFixed(4);
+}
+
+//Базовый PIXI.TextStyle по дефолту
+export function createTextStyle(config, overrides = {}) {
+  return new PIXI.TextStyle({
+    fontFamily: config.chartFont,
+    fontSize:   config.chartFontSize,
+    fontWeight: config.chartFontWeight,
+    resolution: window.devicePixelRatio,
+    letterSpacing: config.letterSpacing,
+    ...overrides
+  });
 }

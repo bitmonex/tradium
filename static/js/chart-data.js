@@ -1,3 +1,4 @@
+//chart-data.js
 export async function loadChartData(exchange, marketType, symbol, timeframe) {
     const url = `/${exchange}/${marketType}/${symbol}/history?tf=${timeframe}`;
     console.log("Запрос:", url);

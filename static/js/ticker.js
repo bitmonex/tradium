@@ -1,154 +1,223 @@
+// ticker.js
+
 import { initPixiChart } from "./chart.js";
 
-// Таймфрейм будет получен из storage или DOM после загрузки
-let timeframe = null;
+let currentChart = null
+let timeframe = null
 
 function changeTimeframe(newTF) {
-    timeframe = newTF;
-    localStorage.setItem("timeframe", timeframe);
+  timeframe = newTF
+  localStorage.setItem("timeframe", timeframe)
 
-    document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
-    const active = document.querySelector(`.timeframes i[rel='${timeframe}']`);
-    if (active) active.classList.add("on");
+  // 1) Уничтожаем старый график
+  if (currentChart?.destroy) {
+    currentChart.destroy()
+    currentChart = null
+    window.chartCore = null
+  }
 
-    const { exchange, marketType, symbol } = window.chartSettings;
-    initPixiChart("pixi-chart-container", { exchange, marketType, symbol, timeframe });
-}
-// Пересчитать родитель при изменении верстки
-function resizeChart() {
-    if (window.chartCore?.resize) {
-        window.chartCore.resize();
+  // 2) Очищаем контейнер от старого <canvas>
+  const container = document.getElementById("pixi-chart-container")
+  if (container) {
+    container.innerHTML = ""
+  }
+
+  // 3) Обновляем состояния кнопок
+  document.querySelectorAll(".timeframes i")
+    .forEach(btn => btn.classList.remove("on", "active"))
+
+  const activeBtn = Array.from(document.querySelectorAll(".timeframes i"))
+    .find(btn => btn.getAttribute("rel") === timeframe)
+  if (activeBtn) {
+    activeBtn.classList.add("on")
+  }
+
+  // 4) Инициализируем новый график и сохраняем ссылку
+  currentChart = initPixiChart(
+    "pixi-chart-container",
+    {
+      exchange:   window.chartSettings.exchange,
+      marketType: window.chartSettings.marketType,
+      symbol:     window.chartSettings.symbol,
+      timeframe
     }
+  )
+
+  // Делаем экземпляр доступным для resize()
+  window.chartCore = currentChart
 }
+
+
+//Обновление размеров графика
+function resizeChart() {
+  window.chartCore?.resize?.()
+}
+
+
+//Инициализация при загрузке страницы
 
 document.addEventListener("DOMContentLoaded", () => {
-    const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
-    window.chartSettings.grid = storedGrid || {
-        enabled: true,
-        color: "#ffffff"
-    };
+  // Загружаем настройки сетки
+  const storedGrid = JSON.parse(localStorage.getItem("gridSettings"))
+  window.chartSettings.grid = storedGrid || { enabled: true, color: "#ffffff" }
 
-    const tfSelector = document.getElementById("tf");
-    const stored = localStorage.getItem("timeframe");
-    const fallback = tfSelector?.getAttribute("data-default");
+  // Определяем стартовый таймфрейм
+  const tfSelector = document.getElementById("tf")
+  const storedTF   = localStorage.getItem("timeframe")
+  const fallbackTF = tfSelector?.getAttribute("data-default")
+  const initialTF  = storedTF || fallbackTF
 
-    const initialTF = stored || fallback;
+  if (!initialTF) {
+    console.warn("⛔ Не удалось определить таймфрейм — график не будет загружен")
+    return
+  }
 
-    if (!initialTF) {
-        console.warn("⛔ Не удалось определить таймфрейм — график не будет загружен");
-        return;
-    }
+  // Сбрасываем классы на кнопках
+  document.querySelectorAll(".timeframes i")
+    .forEach(btn => btn.classList.remove("on", "active"))
 
-    const active = document.querySelector(`#tf i[rel='${initialTF}']`);
-    if (active) active.classList.add("on");
+  // Подсвечиваем кнопку initialTF
+  const initBtn = Array.from(document.querySelectorAll(".timeframes i"))
+    .find(btn => btn.getAttribute("rel") === initialTF)
+  if (initBtn) {
+    initBtn.classList.add("on")
+  }
 
-    changeTimeframe(initialTF);
-});
+  // Запускаем первый рендер
+  changeTimeframe(initialTF)
+})
 
-document.querySelectorAll(".timeframes i").forEach(item => {
+
+// Клики по кнопкам таймфрейма
+document.querySelectorAll(".timeframes i")
+  .forEach(item => {
     item.addEventListener("click", () => {
-        changeTimeframe(item.getAttribute("rel"));
-    });
-});
+      changeTimeframe(item.getAttribute("rel"))
+    })
+  })
 
-// Drop-меню: стиль и индикаторы
-document.querySelectorAll(".view i, .indicator i").forEach(el => {
-    el.addEventListener("click", function (event) {
-        event.stopPropagation();
-        this.classList.toggle("on");
-        this.nextElementSibling.classList.toggle("show");
-    });
-});
+
+// Drop-меню (стиль и индикаторы)
+document.querySelectorAll(".view i, .indicator i")
+  .forEach(el => {
+    el.addEventListener("click", function(event) {
+      event.stopPropagation()
+      this.classList.toggle("on")
+      this.nextElementSibling.classList.toggle("show")
+    })
+  })
+
 document.addEventListener("click", (event) => {
-    document.querySelectorAll(".drop").forEach(menu => {
-        if (!menu.closest(".view, .indicator")?.contains(event.target)) {
-            menu.classList.remove("show");
-            menu.previousElementSibling?.classList.remove("on");
-        }
-    });
-});
+  document.querySelectorAll(".drop")
+    .forEach(menu => {
+      if (!menu.closest(".view, .indicator")?.contains(event.target)) {
+        menu.classList.remove("show")
+        menu.previousElementSibling?.classList.remove("on")
+      }
+    })
+})
 
-// Поиск по индикаторам
-const indicatorInput = document.getElementById("indicator-search");
-const indicatorList = document.querySelector(".indicator-list");
+
+// Поиск по списку индикаторов
+const indicatorInput = document.getElementById("indicator-search")
+const indicatorList  = document.querySelector(".indicator-list")
+
 indicatorInput?.addEventListener("input", () => {
-    const keyword = indicatorInput.value.toLowerCase();
-    indicatorList.querySelectorAll("li").forEach(li => {
-        const match = li.textContent.toLowerCase().includes(keyword);
-        li.style.display = match ? "block" : "none";
-    });
-});
+  const keyword = indicatorInput.value.toLowerCase()
+  indicatorList.querySelectorAll("li")
+    .forEach(li => {
+      li.style.display = li.textContent.toLowerCase().includes(keyword)
+        ? "block"
+        : "none"
+    })
+})
+
 
 // Сайдбары: Trades & Orderbook
-const trades = document.getElementById("trades-open");
-const orderbook = document.getElementById("orderbook-open");
-const trades_bar = document.querySelector(".sidebar.trades");
-const orderbook_bar = document.querySelector(".sidebar.orderbook");
-const ticker = document.querySelector(".ticker");
+const trades        = document.getElementById("trades-open")
+const orderbook     = document.getElementById("orderbook-open")
+const trades_bar    = document.querySelector(".sidebar.trades")
+const orderbook_bar = document.querySelector(".sidebar.orderbook")
+const ticker        = document.querySelector(".ticker")
 
 function closeSidebars() {
-    trades?.classList.remove("open");
-    trades_bar?.classList.remove("show");
-    orderbook?.classList.remove("open");
-    orderbook_bar?.classList.remove("show");
-    ticker?.classList.remove("wire");
-    resizeChart();
+  trades?.classList.remove("open")
+  trades_bar?.classList.remove("show")
+  orderbook?.classList.remove("open")
+  orderbook_bar?.classList.remove("show")
+  ticker?.classList.remove("wire")
+  resizeChart()
 }
 
 trades?.addEventListener("click", () => {
-    const isOpen = trades_bar?.classList.contains("show");
-    closeSidebars();
-    if (!isOpen) {
-        trades.classList.add("open");
-        trades_bar.classList.add("show");
-        ticker.classList.add("wire");
-        resizeChart();
-    }
-});
+  const isOpen = trades_bar?.classList.contains("show")
+  closeSidebars()
+  if (!isOpen) {
+    trades.classList.add("open")
+    trades_bar.classList.add("show")
+    ticker.classList.add("wire")
+    resizeChart()
+  }
+})
 
 orderbook?.addEventListener("click", () => {
-    const isOpen = orderbook_bar?.classList.contains("show");
-    closeSidebars();
-    if (!isOpen) {
-        orderbook.classList.add("open");
-        orderbook_bar.classList.add("show");
-        ticker.classList.add("wire");
-        resizeChart();
-    }
-});
+  const isOpen = orderbook_bar?.classList.contains("show")
+  closeSidebars()
+  if (!isOpen) {
+    orderbook.classList.add("open")
+    orderbook_bar.classList.add("show")
+    ticker.classList.add("wire")
+    resizeChart()
+  }
+})
 
-// Очистка Storage
+
+// Очистка локального хранилища и сброс графика
 document.getElementById("clearStorage")?.addEventListener("click", () => {
-    localStorage.removeItem("timeframe");
-    localStorage.removeItem("chartStyle");
-    localStorage.removeItem("activeIndicator");
+  localStorage.removeItem("timeframe")
+  localStorage.removeItem("chartStyle")
+  localStorage.removeItem("activeIndicator")
 
-    document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
+  // Сбрасываем класс на кнопках
+  document.querySelectorAll(".timeframes i")
+    .forEach(btn => btn.classList.remove("on", "active"))
 
-    const tfDefault = document.getElementById("tf")?.getAttribute("data-default");
-    if (!tfDefault) {
-        console.warn("⛔ Не удалось получить таймфрейм из шаблона");
-        return;
-    }
+  // Определяем дефолтный таймфрейм
+  const defaultTF = document.getElementById("tf")?.getAttribute("data-default")
+  if (!defaultTF) {
+    console.warn("⛔ Не удалось получить таймфрейм из шаблона")
+    return
+  }
 
-    const activeTF = document.querySelector(`#tf i[rel='${tfDefault}']`);
-    if (activeTF) activeTF.classList.add("on");
+  // Подсвечиваем дефолтную кнопку
+  const activeTF = Array.from(document.querySelectorAll(".timeframes i"))
+    .find(btn => btn.getAttribute("rel") === defaultTF)
+  if (activeTF) {
+    activeTF.classList.add("on")
+  }
 
-    if (window.chartCore?.destroy) {
-        window.chartCore.destroy();
-        window.chartCore = null;
-    }
+  // Уничтожаем старый график
+  if (currentChart?.destroy) {
+    currentChart.destroy()
+    currentChart = null
+    window.chartCore = null
+  }
 
-    const { exchange, marketType, symbol } = window.chartSettings;
-    initPixiChart("pixi-chart-container", { exchange, marketType, symbol, timeframe: tfDefault });
+  // Очищаем контейнер
+  const container = document.getElementById("pixi-chart-container")
+  if (container) {
+    container.innerHTML = ""
+  }
 
-    console.log("🧯 Storage очищен, график сброшен на", tfDefault);
-});
+  // Перезапускаем с дефолтным таймфреймом
+  changeTimeframe(defaultTF)
+})
 
-// Полный экран
+
+// Полноэкранный режим
 document.getElementById("full-open")?.addEventListener("click", () => {
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.msRequestFullscreen) el.msRequestFullscreen();
-});
+  const el = document.documentElement
+  if (el.requestFullscreen)            el.requestFullscreen()
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen()
+  else if (el.msRequestFullscreen)     el.msRequestFullscreen()
+})

@@ -1,48 +1,53 @@
-import { detectTimeframe } from './chart-tf.js';
+// chart-layout.js
 
-export function createLayout(app, config, candles, offsetX = 0, offsetY = 0, scaleX = 1, scaleY = 1, group = null) {
-  const width = app.renderer.width;
+export function createLayout(
+  app,           // нужен только для width/height
+  config,
+  candles,       // массив свечей для вычисления domain
+  offsetX,       // сдвиг по X в пикселях
+  offsetY,       // сдвиг по Y
+  scaleX,        // масштаб X
+  scaleY,        // масштаб Y
+  tfMs           // таймфрейм в мс (вычислили заранее в ядре)
+) {
+  const width  = app.renderer.width;
   const height = app.renderer.height;
-  const tfMs = detectTimeframe(candles);
+
+  // один раз считаем domain
   const spacing = config.candleWidth + config.spacing;
+  const prices  = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+  const min     = Math.min(...prices);
+  const max     = Math.max(...prices);
+  const range   = max - min || 1;
+  const time0   = candles[0]?.time ?? 0;
 
-  // 📈 Преобразование цены в координату Y
+  // Перевод цены → Y
   function priceToY(price) {
-    const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    const range = max - min || 1;
-    return ((height - config.bottomOffset) * (1 - (price - min) / range)) * scaleY + offsetY;
+    return (
+      ((height - config.bottomOffset) * (1 - (price - min) / range))
+      * scaleY
+      + offsetY
+    );
   }
 
-  // 🕒 Индекс свечи → X
-  function timestampToX(index) {
-    return offsetX + index * spacing * scaleX;
+  // Перевод временной метки → X
+  function timeToX(ts) {
+    const delta = (ts - time0) / tfMs;
+    return offsetX + delta * spacing * scaleX;
   }
 
-  // 🕰️ Время → X
-  function timeToX(timestamp) {
-    const time0 = candles?.[0]?.time ?? timestamp;
-    const deltaMs = timestamp - time0;
-    return offsetX + (deltaMs / tfMs) * spacing * scaleX;
+  // Перевод индекса свечи → X
+  function indexToX(idx) {
+    return offsetX + idx * spacing * scaleX;
   }
 
-  // 🔄 Экран → время
-  function screen2t(x) {
-    const time0 = candles?.[0]?.time ?? 0;
-    const delta = (x - offsetX) / (spacing * scaleX);
-    return time0 + delta * tfMs;
-  }
-
-  // 🔄 Время → экран
-  function t2screen(t) {
-    return timeToX(t);
+  // Перевод пикселя X → время
+  function screenToTime(x) {
+    const frac = (x - offsetX) / (spacing * scaleX);
+    return time0 + frac * tfMs;
   }
 
   return {
-    app,
-    config,
-    candles,
     width,
     height,
     offsetX,
@@ -51,11 +56,9 @@ export function createLayout(app, config, candles, offsetX = 0, offsetY = 0, sca
     scaleY,
     tfMs,
     spacing,
-    group,
     priceToY,
-    timestampToX,
     timeToX,
-    screen2t,
-    t2screen
+    indexToX,
+    screenToTime
   };
 }

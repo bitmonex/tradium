@@ -1,35 +1,47 @@
+// chart.js
+
 import { createChartCore } from "./chart-core.js";
-import { loadChartData } from "./chart-data.js";
+import { loadChartData }   from "./chart-data.js";
 
 let chartCore = null;
 
-export async function initPixiChart(containerId, { exchange, marketType, symbol, timeframe }) {
+export async function initPixiChart(containerId, opts) {
   const container = document.getElementById(containerId);
   if (!container) throw new Error("Chart container not found");
 
+  // 1) Destroy previous instance
   if (chartCore?.destroy) {
-    try {
-      chartCore.destroy();
-    } catch (e) {
-      console.warn("🧯 Ошибка при chartCore.destroy():", e);
-    }
+    chartCore.destroy();
     chartCore = null;
-    window.chartCore = null;
   }
 
-  const { candles } = await loadChartData(exchange, marketType, symbol, timeframe);
+  // 2) Load candles and volumes
+  const { candles, volumes } = await loadChartData(
+    opts.exchange,
+    opts.marketType,
+    opts.symbol,
+    opts.timeframe
+  );
   if (!candles.length) {
     console.warn("❌ Нет данных для отрисовки");
     return;
   }
 
-  chartCore = createChartCore(container);
+  // 3) Create chart core
+  chartCore = createChartCore(container, {
+    exchange:   opts.exchange,
+    marketType: opts.marketType,
+    symbol:     opts.symbol
+  });
+
+  // Expose for debugging
   window.chartCore = chartCore;
 
+  // 4) Initial render
+  chartCore.draw({ candles, volumes });
+
+  // 5) Re-render on window resize
   window.addEventListener("resize", () => {
     chartCore.resize();
   });
-
-  chartCore.draw(candles);
-  chartCore.updateScales();
 }

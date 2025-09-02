@@ -1,34 +1,40 @@
-import { Indicators as IndicatorModules } from './indicators/index.js';
+//chart-indicators.js
+import { Indicators as defs } from './indicators/index.js';
 
-export function Indicators({ group, app, config, candles }) {
-  const activeIndicators = {};
+export function Indicators({ group, config }) {
+  const layer = new PIXI.Container();
+  layer.zIndex = 15;
+  group.addChild(layer);
+  const instances = [];
+  function initOne(id, mod, layout) {
+    if (!config.modules.indicators) return;
+    if (typeof mod.createIndicator !== 'function') return;
+    if (!layout?.candles?.length) return;
+    try {
+      const params = mod.params || {};
+      const inst = mod.createIndicator({ layer }, layout, params);
 
-  function add(id, layout) {
-    const mod = IndicatorModules[id];
-    if (!mod || activeIndicators[id]) return;
-
-    const layer = new PIXI.Container();
-    layer.zIndex = 2000;
-    group.addChild(layer);
-    const result = mod.createIndicator({ layer, app }, layout, config.indicators?.params?.[id] || {});
-    if (result?.layer && result?.render) {
-      activeIndicators[id] = result;
+      if (inst && typeof inst.render === 'function') {
+        instances.push(inst);
+      }
+    } catch (err) {
+      console.warn(`⚠️ Indicator "${id}" init failed:`, err);
     }
   }
-
+  function add(layout) {
+    if (instances.length) return;
+    for (const [id, mod] of Object.entries(defs)) {
+      initOne(id, mod, layout);
+    }
+  }
   function render(layout) {
-    for (const id in activeIndicators) {
-      activeIndicators[id]?.render?.(layout);
-    }
-  }
-
-  function init(layout) {
-    if (config.indicators?.indicatorsEnabled) {
-      for (const id of Object.keys(IndicatorModules)) {
-        add(id, layout);
+    for (const inst of instances) {
+      try {
+        inst.render(layout);
+      } catch (err) {
+        console.warn('⚠️ Indicator render failed:', err);
       }
     }
   }
-
-  return { add, render, init };
+  return { add, render };
 }
