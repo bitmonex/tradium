@@ -1,6 +1,67 @@
-// static/js/chart-live.js
-
+//chart-live.js
 import { createTextStyle } from './chart-utils.js';
+import { LivePrice } from "./chart-live-price.js";
+
+export function initLive(chartCore, { exchange, marketType, symbol, timeframe }) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url   = `${proto}://${location.host}/ws/kline`
+              + `?exchange=${exchange}`
+              + `&market_type=${marketType}`
+              + `&symbol=${symbol}`
+              + `&tf=${timeframe}`;
+
+  const socket = new WebSocket(url);
+  console.info("WS connecting to:", url);
+
+  // инициализируем оверлей последней цены
+  const livePrice = LivePrice({
+    group:        chartCore.app.stage,     // добавляем прямо в сцену PIXI
+    config:       chartCore.config,        // цвета, шрифты и т.п.
+    chartSettings: { symbol }
+  });
+
+  socket.addEventListener("message", event => {
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+
+    switch (msg.type) {
+      // весь массив исторических свечей приходит сразу,
+      // но мы историей уже загрузились через REST — обычно не нужен
+      case "history":
+        chartCore.draw({ candles: msg.data });
+        break;
+
+      // приходит обновлённая незавершённая свечка
+      case "kline_update":
+        chartCore.updateLast(msg.data);
+        livePrice.render(chartCore.layout);
+        break;
+
+      // полностью закрытый бар, нужно добавить новый
+      case "kline_new":
+        // «state» должен держать актуальные candles & volumes
+        const newC = msg.data;
+        chartCore.draw({
+          candles: [...chartCore.state.candles, newC],
+          volumes: [...chartCore.state.volumes, {
+            time:  newC.timestamp,
+            value: newC.volume
+          }]
+        });
+        break;
+    }
+  });
+
+  // на выходе чистим ресурсы
+  window.addEventListener("beforeunload", () => {
+    socket.close();
+    chartCore.destroy();
+  });
+}
 
 export function LivePrice({ group, config, chartSettings }) {
   const { symbol } = chartSettings;
