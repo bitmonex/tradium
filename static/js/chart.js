@@ -2,6 +2,7 @@
 
 import { createChartCore } from "./chart-core.js";
 import { loadChartData }   from "./chart-data.js";
+import { initLive }        from "./chart-live.js";
 
 let chartCore = null;
 
@@ -44,4 +45,10 @@ export async function initPixiChart(containerId, opts) {
   window.addEventListener("resize", () => {
     chartCore.resize();
   });
+
+  // 6) Запускаем WebSocket-слушалку тикеров и баров
+ initLive(chartCore, opts);
+    
+  // 7) Возвращаем ядро, чтобы можно было цеплять дополнительные плагины
+  return chartCore;
 }
