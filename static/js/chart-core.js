@@ -9,6 +9,7 @@ import { Mouse }             from './chart-mouse.js';
 import { zoomX, zoomY, pan } from './chart-zoom.js';
 import { ChartConfig }       from './chart-config.js';
 import { LivePrice }         from './chart-live.js';
+import { updateLastCandle }  from './chart-candles.js';
 
 // @param {HTMLElement} container – DOM-элемент для PIXI Canvas
 // @param {object} userConfig – объект, расширяющий ChartConfig
@@ -118,9 +119,9 @@ export function createChartCore(container, userConfig = {}) {
     const cw = (config.candleWidth + config.spacing) * state.scaleX;
 
     const prices = state.candles.flatMap(v => [v.open, v.high, v.low, v.close]);
-    const min = Math.min(...prices);
-    const max = Math.max(...prices);
-    const range = max - min || 1;
+    const min    = Math.min(...prices);
+    const max    = Math.max(...prices);
+    const range  = max - min || 1;
 
     const key = [
       state.scaleX, state.scaleY,
@@ -222,42 +223,66 @@ export function createChartCore(container, userConfig = {}) {
 
     // 12) Приём новых данных и первая отрисовка
     function draw({ candles, volumes }) {
-      // 1. Обновляем состояние по свечам (без текста)
+      // 1. Обновляем состояние
       state.candles   = candles;
       state.volumes   = volumes;
       state.timeframe = TF(candles);
 
-      // 2. Центрируем по правому краю
-      const cw = (config.candleWidth + config.spacing) * state.scaleX;
-      state.offsetX = app.renderer.width  - config.rightOffset - candles.length * cw;
-      state.offsetY = app.renderer.height / 2.8;
+      // 2. Вычисляем min/max и range для всех свечей
+      const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+      const min    = Math.min(...prices);
+      const max    = Math.max(...prices);
+      const range  = max - min || 1;
 
-      // 3. Рисуем только свечи, модули ещё не трогаем
+      // 3. Центрируем последнюю свечу по горизонтали
+      const cw       = (config.candleWidth + config.spacing) * state.scaleX;
+      const centerX  = app.renderer.width  / 2;
+      const lastIdx  = candles.length - 1;
+      const halfW    = (config.candleWidth * state.scaleX) / 2;
+      state.offsetX  = centerX - lastIdx * cw - halfW;
+
+      // 4. Центрируем последнюю свечу по вертикали
+      //    так, чтобы её closing price оказался в середине plot-области
+      const lastC     = candles[lastIdx].close;
+      const ratio     = 1 - (lastC - min) / range;         // 0→максимум внизу, 1→минимум вверху
+      const H         = app.renderer.height;
+      const plotH     = H - config.bottomOffset;
+      state.offsetY   = H/2 - (ratio * plotH * state.scaleY);
+
+      // 5. Рисуем только свечи
       drawCandlesOnly();
 
-      // 4. Функция, которая выполнит полную отрисовку после загрузки шрифта
+      // 6. Полная отрисовка модулей после загрузки шрифта
       function doDraw() {
-        // обновляем состояние повторно (на случай изменения параметров)
+        // повторяем расчёты на случай, если scaleX/scaleY сбросились
         state.candles   = candles;
         state.volumes   = volumes;
         state.timeframe = TF(candles);
 
-        // центрируем ещё раз
-        const cw2 = (config.candleWidth + config.spacing) * state.scaleX;
-        state.offsetX = app.renderer.width  - config.rightOffset - candles.length * cw2;
-        state.offsetY = app.renderer.height / 2.8;
+        // горизонталь
+        const cw2      = (config.candleWidth + config.spacing) * state.scaleX;
+        const centerX2 = app.renderer.width  / 2;
+        const lastIdx2 = candles.length - 1;
+        const halfW2   = (config.candleWidth * state.scaleX) / 2;
+        state.offsetX  = centerX2 - lastIdx2 * cw2 - halfW2;
 
-        // инициализируем и рендерим OHLCV, если нужно
+        // vert
+        const lastC2   = candles[lastIdx2].close;
+        const ratio2   = 1 - (lastC2 - min) / range;
+        const H2       = app.renderer.height;
+        const plotH2   = H2 - config.bottomOffset;
+        state.offsetY  = H2/2 - (ratio2 * plotH2 * state.scaleY);
+
+        // OHLCV
         if (modules.ohlcv) {
           state.ohlcv.init(candles, volumes);
-          state.ohlcv.render(candles.at(-1));
+          state.ohlcv.render(candles[lastIdx2]);
         }
 
-        // рендерим все остальные модули (LivePrice, индикаторы, FPS и т.д.)
         renderAll();
       }
 
-      // 5. Ждём загрузки шрифта и запускаем doDraw
+      // ждём загрузки шрифта, затем рисуем модули
       const fontSpec = `${config.chartFontSize}px "${config.chartFont}"`;
       document.fonts
         .load(fontSpec)
@@ -265,22 +290,17 @@ export function createChartCore(container, userConfig = {}) {
         .catch(doDraw);
     }
 
-    // 13) Обработка наведения мыши — без изменений
-    function onHover(candle) {
-      if (modules.ohlcv) {
-        state.ohlcv.update(candle);
-      }
-      if (modules.indicators) {
-        state.indicators.render(state.layout);
-      }
-    }
-    const mouse = Mouse(app, config, state, {
-      zoomX, zoomY, pan,
-      render: renderAll,
-      update: onHover
-    });
-    mouse.init();
-
+  // 13) Hover-подсветка через мышь
+  function onHover(candle) {
+    if (modules.ohlcv)      state.ohlcv.update(candle);
+    if (modules.indicators) state.indicators.render(state.layout);
+  }
+  const mouse = Mouse(app, config, state, {
+    zoomX, zoomY, pan,
+    render: renderAll,
+    update: onHover
+  });
+  mouse.init();
 
   // 14) Обработка ресайза
   function resize() {
@@ -299,14 +319,33 @@ export function createChartCore(container, userConfig = {}) {
     app.destroy(true, { children: true });
   }
 
-  // 16) Публичное API
+  // 16) Обновление последней свечи без полного redraw
+  function updateLast(candle) {
+    updateLastCandle(candle);
+  }
+
+  // 17) Публичное API
   return {
+    // полный redraw всех модулей
     draw,
+
+    // перерисовка только свечей
+    drawCandlesOnly,
+
+    // апдейт последней свечи
+    updateLast,
+
+    // изменение размера и очистка
     resize,
     destroy,
+
+    // зум и пан
     zoomX,
     zoomY,
     pan,
-    app
+
+    // доступ к PIXI.Application и состоянию
+    app,
+    state
   };
 }

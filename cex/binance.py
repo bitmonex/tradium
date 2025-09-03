@@ -4,6 +4,7 @@ import json
 from db import db
 from datetime import datetime
 from tickers import save_ticker_data
+from ws.manager import ws_manager
 
 SPOT_WS_URL = "wss://stream.binance.com:9443/ws/!ticker@arr"
 FUTURES_WS_URL = "wss://fstream.binance.com/ws/!ticker@arr"
@@ -94,13 +95,16 @@ async def kline_ws_handler(market_type, symbol, tf):
                 timestamp = int(k["t"]) / 1000
 
                 candle = {
-                    "symbol": full_symbol,
-                    "timestamp": timestamp,
-                    "open": float(k["o"]),
-                    "high": float(k["h"]),
-                    "low": float(k["l"]),
-                    "close": float(k["c"]),
-                    "volume": float(k["v"])
+                    "symbol":     full_symbol,
+                    "timestamp":  timestamp,
+                    "open":       float(k["o"]),
+                    "high":       float(k["h"]),
+                    "low":        float(k["l"]),
+                    "close":      float(k["c"]),
+                    "volume":     float(k["v"]),
+                    "openTime":   int(k["t"]) // 1000,
+                    "closeTime":  int(k["T"]) // 1000,
+                    "isFinal":    k["x"]
                 }
 
                 exchange = "binance"
@@ -112,7 +116,9 @@ async def kline_ws_handler(market_type, symbol, tf):
                     upsert=True
                 )
 
-                #print(f"[✅ {market_type.upper()} {tf} candle] {full_symbol}")
+                # 🔔 Рассылаем клиентам в нужную комнату
+                room = f"{exchange}:{market_type}:{full_symbol}:{tf}"
+                await ws_manager.broadcast(room, json.dumps(candle))
 
             except Exception as e:
                 print(f"[kline_ws_handler] Error {market_type}/{tf}: {e}")

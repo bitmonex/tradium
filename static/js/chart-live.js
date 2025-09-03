@@ -1,4 +1,4 @@
-// chart-live.js
+// static/js/chart-live.js
 
 import { createTextStyle } from './chart-utils.js';
 
