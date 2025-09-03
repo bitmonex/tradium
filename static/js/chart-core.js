@@ -322,30 +322,18 @@ export function createChartCore(container, userConfig = {}) {
   // 16) Обновление последней свечи без полного redraw
   function updateLast(candle) {
     updateLastCandle(candle);
+    updateLastVolume(candle);
   }
 
   // 17) Публичное API
   return {
-    // полный redraw всех модулей
     draw,
-
-    // перерисовка только свечей
-    drawCandlesOnly,
-
-    // апдейт последней свечи
-    updateLast,
-
-    // изменение размера и очистка
     resize,
     destroy,
-
-    // зум и пан
     zoomX,
     zoomY,
     pan,
-
-    // доступ к PIXI.Application и состоянию
-    app,
-    state
+    updateLast,
+    app
   };
 }
