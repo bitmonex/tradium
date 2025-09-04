@@ -1,4 +1,5 @@
 // chart-core.js
+
 import { createLayout }      from './chart-layout.js';
 import { TF }                from './chart-tf.js';
 import { Grid }              from './chart-grid-render.js';
@@ -9,7 +10,6 @@ import { Mouse }             from './chart-mouse.js';
 import { zoomX, zoomY, pan } from './chart-zoom.js';
 import { ChartConfig }       from './chart-config.js';
 import { LivePrice }         from './chart-live.js';
-import { updateLastCandle }  from './chart-candles.js';
 
 // @param {HTMLElement} container – DOM-элемент для PIXI Canvas
 // @param {object} userConfig – объект, расширяющий ChartConfig
@@ -319,13 +319,7 @@ export function createChartCore(container, userConfig = {}) {
     app.destroy(true, { children: true });
   }
 
-  // 16) Обновление последней свечи без полного redraw
-  function updateLast(candle) {
-    updateLastCandle(candle);
-    updateLastVolume(candle);
-  }
-
-  // 17) Публичное API
+  // 16) Публичное API
   return {
     draw,
     resize,
@@ -333,7 +327,6 @@ export function createChartCore(container, userConfig = {}) {
     zoomX,
     zoomY,
     pan,
-    updateLast,
     app
   };
 }
