@@ -1,13 +1,16 @@
-// chart-live.js
+// static/js/chart-live.js
 
 import { createTextStyle } from './chart-utils.js';
 
+/**
+ * Рисует пунктирную линию текущей цены,
+ * плашку с тикером, текущей ценой и таймером.
+ */
 export function LivePrice({ group, config, chartSettings }) {
   const { symbol } = chartSettings;
-  const padX       = 8;
-  const padY       = 4;
+  const padX = 8, padY = 4;
 
-  // 1) линия (mask)
+  // 1) Слой для пунктирной линии
   const lineLayer = new PIXI.Container();
   lineLayer.sortableChildren = true;
   lineLayer.zIndex = 100;
@@ -16,28 +19,34 @@ export function LivePrice({ group, config, chartSettings }) {
   const line = new PIXI.Graphics();
   lineLayer.addChild(line);
 
-  // 2) overlay (над mask)
+  // 2) Слой поверх всего для плашек
+  //    Добавляем в app.stage (group.parent), чтобы не попал под маску
   const overlay = new PIXI.Container();
   overlay.sortableChildren = true;
   overlay.zIndex = 101;
   group.parent.addChild(overlay);
 
-  // 3) общий TextStyle
-  const baseStyle = createTextStyle(config, { fill: config.textColor });
+  // 3) Общий текстовый стиль
+  //    Принудительно приводим config.textColor к числу
+  const baseStyle = createTextStyle(config, {
+    fill: +config.textColor
+  });
 
-  // тикер
+  // 4) Плашка с тикером
   const tickerBg   = new PIXI.Graphics();
   const tickerText = new PIXI.Text(symbol, baseStyle);
   overlay.addChild(tickerBg, tickerText);
 
-  // плашка цены + времени
+  // 5) Плашка с ценой и таймером
   const boxBg     = new PIXI.Graphics();
   const priceText = new PIXI.Text('', baseStyle);
   const timerText = new PIXI.Text('', baseStyle);
   overlay.addChild(boxBg, priceText, timerText);
 
+  // Вспомогательная функция для рисования пунктиров
   function drawDotted(g, x1, y, x2, dotR = 1, gap = 4) {
     g.clear();
+    // g._lineColor уже число 0xRRGGBB
     g.beginFill(g._lineColor || 0xffffff);
     for (let x = x1; x < x2; x += dotR * 2 + gap) {
       g.drawCircle(x, y, dotR);
@@ -54,44 +63,43 @@ export function LivePrice({ group, config, chartSettings }) {
       return;
     }
 
-    // определяем цену, направление и цвет
-    const last = candles.at(-1);
-    const prev = candles.at(-2) || last;
+    // Последняя свеча и цвет по тренду
+    const last  = candles.at(-1);
+    const prev  = candles.at(-2) || last;
     const price = last.close;
-    const isUp = price >= prev.close;
+    const isUp  = price >= prev.close;
     const lineClr = isUp
       ? +config.priceUpColor
       : +config.priceDownColor;
     line._lineColor = lineClr;
 
-    // рассчитываем y по цене
-    const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-    const minP = Math.min(...allPrices);
-    const maxP = Math.max(...allPrices);
+    // Пересчёт Y-координаты
+    const all = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+    const minP = Math.min(...all), maxP = Math.max(...all);
     const range = maxP - minP || 1;
     const plotH = height - config.bottomOffset;
-    const rawY = plotH * (1 - (price - minP) / range);
-    const y = rawY * scaleY + offsetY;
+    const rawY  = plotH * (1 - (price - minP) / range);
+    const y     = rawY * scaleY + offsetY;
 
-    // пунктирная линия вплотную к правому краю
+    // Рисуем пунктирную линию
     drawDotted(line, 0, y, width);
 
-    // обновляем тексты
-    priceText.text = price.toFixed(2);
+    // Обновляем тексты
+    priceText.text = price.toFixed(config.pricePrecision ?? 2);
     timerText.text = new Date().toLocaleTimeString();
 
-    // размеры ценовой плашки
+    // Вычисляем размеры плашки
     const textW = Math.max(priceText.width, timerText.width);
     const boxW  = textW + padX * 2;
     const boxH  = priceText.height + timerText.height + padY * 3;
 
-    // рисуем фон ценового бокса
+    // Фон ценового бокса
     boxBg.clear();
     boxBg.beginFill(lineClr);
     boxBg.drawRect(0, 0, boxW, boxH);
     boxBg.endFill();
 
-    // прижимаем ценовой бокс к правому краю
+    // Позиционируем ценовой бокс
     const boxX = width - boxW;
     const boxY = y - boxH / 2;
     boxBg.x = Math.round(boxX);
@@ -102,7 +110,7 @@ export function LivePrice({ group, config, chartSettings }) {
     timerText.x = Math.round(boxX + padX);
     timerText.y = Math.round(priceText.y + priceText.height + padY);
 
-    // тикер строго слева от ценового блока
+    // Плашка тикера слева от ценового бокса
     tickerText.text = symbol;
     const tW = tickerText.width + padX * 2;
     const tH = tickerText.height + padY * 2;
@@ -119,4 +127,51 @@ export function LivePrice({ group, config, chartSettings }) {
   }
 
   return { render };
+}
+
+/**
+ * Запускает WebSocket-поток и навешивает
+ * обновления в chartCore и LivePrice.
+ */
+export function initLive(chartCore, { exchange, marketType, symbol, timeframe }) {
+  const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+  const url   =
+    `${proto}://${location.host}/ws/kline`
+    + `?exchange=${exchange}`
+    + `&market_type=${marketType}`
+    + `&symbol=${symbol}`
+    + `&tf=${timeframe}`;
+
+  console.info('WS connecting to:', url);
+  const socket = new WebSocket(url);
+
+  const livePrice = LivePrice({
+    group:         chartCore.group,
+    config:        chartCore.config,
+    chartSettings: { symbol }
+  });
+
+  socket.addEventListener('message', ({ data }) => {
+    let msg;
+    try { msg = JSON.parse(data); }
+    catch { return; }
+
+    if (msg.type === 'kline_update') {
+      chartCore.updateLast(msg.data);
+      livePrice.render(chartCore.layout);
+    }
+
+    if (msg.type === 'kline_new') {
+      const c = msg.data;
+      chartCore.draw({
+        candles: [...chartCore.state.candles, c],
+        volumes: [...chartCore.state.volumes, { time: c.timestamp, value: c.volume }]
+      });
+    }
+  });
+
+  window.addEventListener('beforeunload', () => {
+    socket.close();
+    chartCore.destroy();
+  });
 }

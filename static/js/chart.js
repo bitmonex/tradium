@@ -1,7 +1,6 @@
-// chart.js
-
 import { createChartCore } from "./chart-core.js";
 import { loadChartData }   from "./chart-data.js";
+import { initLive }        from "./chart-live.js";
 
 let chartCore = null;
 
@@ -15,7 +14,7 @@ export async function initPixiChart(containerId, opts) {
     chartCore = null;
   }
 
-  // 2) Load candles and volumes
+  // 2) Load candles и volumes
   const { candles, volumes } = await loadChartData(
     opts.exchange,
     opts.marketType,
@@ -27,21 +26,29 @@ export async function initPixiChart(containerId, opts) {
     return;
   }
 
-  // 3) Create chart core
+  // 3) Create chart core + прокидываем флаг livePrice
+  //    если opts.livePrice === false — модуль LivePrice не инициализируется
   chartCore = createChartCore(container, {
     exchange:   opts.exchange,
     marketType: opts.marketType,
-    symbol:     opts.symbol
+    symbol:     opts.symbol,
+    livePrice:  opts.livePrice
   });
 
-  // Expose for debugging
+  // expose for debugging
   window.chartCore = chartCore;
 
   // 4) Initial render
   chartCore.draw({ candles, volumes });
 
   // 5) Re-render on window resize
-  window.addEventListener("resize", () => {
-    chartCore.resize();
-  });
+  window.addEventListener("resize", () => chartCore.resize());
+
+  // 6) Запускаем WebSocket-слушалку только если модуль включён в config
+  if (chartCore.config.modules.livePrice) {
+    initLive(chartCore, opts);
+  }
+
+  // 7) Возвращаем ядро для плагинов
+  return chartCore;
 }

@@ -2,6 +2,7 @@
 
 import { createLayout }      from './chart-layout.js';
 import { TF }                from './chart-tf.js';
+import { ChartScales }       from './chart-scale.js';
 import { Grid }              from './chart-grid-render.js';
 import { OHLCV }             from './chart-ohlcv.js';
 import { Indicators }        from './chart-indicators.js';
@@ -10,10 +11,12 @@ import { Mouse }             from './chart-mouse.js';
 import { zoomX, zoomY, pan } from './chart-zoom.js';
 import { ChartConfig }       from './chart-config.js';
 import { LivePrice }         from './chart-live.js';
+import { updateLastCandle, updateLastVolume } from './chart-candles.js';
 
-// @param {HTMLElement} container – DOM-элемент для PIXI Canvas
-// @param {object} userConfig – объект, расширяющий ChartConfig
-
+/**
+ * @param {HTMLElement} container – DOM-элемент для PIXI Canvas
+ * @param {object} userConfig – объект, расширяющий ChartConfig
+ */
 export function createChartCore(container, userConfig = {}) {
   const fullConfig = { ...ChartConfig, ...userConfig };
   const {
@@ -47,7 +50,6 @@ export function createChartCore(container, userConfig = {}) {
     modules
   };
 
-  // chartSettings передаём в OHLCV
   const chartSettings = { exchange, marketType, symbol };
 
   // 4) Инициализация PIXI
@@ -207,9 +209,14 @@ export function createChartCore(container, userConfig = {}) {
     if (modules.grid)       Grid(app, layout, config);
     if (modules.candles)    drawCandlesOnly();
     if (modules.ohlcv)      state.ohlcv.render(state.candles.at(-1));
-    if (modules.indicators) { state.indicators.add(layout); state.indicators.render(layout); }
-    if (modules.livePrice) { state.livePrice.render(layout); }
-      
+    if (modules.indicators) {
+      state.indicators.add(layout);
+      state.indicators.render(layout);
+    }
+    if (modules.livePrice) {
+      state.livePrice.render(layout);
+    }
+
     mask.clear();
     mask.beginFill(0x000000);
     mask.drawRect(
@@ -221,74 +228,67 @@ export function createChartCore(container, userConfig = {}) {
     mask.endFill();
   }
 
-    // 12) Приём новых данных и первая отрисовка
-    function draw({ candles, volumes }) {
-      // 1. Обновляем состояние
+  // 12) Приём новых данных и первая отрисовка
+  function draw({ candles, volumes }) {
+    state.candles   = candles;
+    state.volumes   = volumes;
+    state.timeframe = TF(candles);
+
+    const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+    const min    = Math.min(...prices);
+    const max    = Math.max(...prices);
+    const range  = max - min || 1;
+
+    // центрируем по горизонтали
+    const cw       = (config.candleWidth + config.spacing) * state.scaleX;
+    const centerX  = app.renderer.width  / 2;
+    const lastIdx  = candles.length - 1;
+    const halfW    = (config.candleWidth * state.scaleX) / 2;
+    state.offsetX  = centerX - lastIdx * cw - halfW;
+
+    // центрируем по вертикали
+    const lastC     = candles[lastIdx].close;
+    const ratio     = 1 - (lastC - min) / range;
+    const H         = app.renderer.height;
+    const plotH     = H - config.bottomOffset;
+    state.offsetY   = H / 2 - (ratio * plotH * state.scaleY);
+
+    // начальный рендер свечей
+    drawCandlesOnly();
+
+    // отрисовка всех модулей после загрузки шрифта
+    function doDraw() {
       state.candles   = candles;
       state.volumes   = volumes;
       state.timeframe = TF(candles);
 
-      // 2. Вычисляем min/max и range для всех свечей
-      const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-      const min    = Math.min(...prices);
-      const max    = Math.max(...prices);
-      const range  = max - min || 1;
+      // пересчитываем офсет
+      const cw2      = (config.candleWidth + config.spacing) * state.scaleX;
+      const centerX2 = app.renderer.width  / 2;
+      const lastIdx2 = candles.length - 1;
+      const halfW2   = (config.candleWidth * state.scaleX) / 2;
+      state.offsetX  = centerX2 - lastIdx2 * cw2 - halfW2;
 
-      // 3. Центрируем последнюю свечу по горизонтали
-      const cw       = (config.candleWidth + config.spacing) * state.scaleX;
-      const centerX  = app.renderer.width  / 2;
-      const lastIdx  = candles.length - 1;
-      const halfW    = (config.candleWidth * state.scaleX) / 2;
-      state.offsetX  = centerX - lastIdx * cw - halfW;
+      const lastC2   = candles[lastIdx2].close;
+      const ratio2   = 1 - (lastC2 - min) / range;
+      const H2       = app.renderer.height;
+      const plotH2   = H2 - config.bottomOffset;
+      state.offsetY  = H2 / 2 - (ratio2 * plotH2 * state.scaleY);
 
-      // 4. Центрируем последнюю свечу по вертикали
-      //    так, чтобы её closing price оказался в середине plot-области
-      const lastC     = candles[lastIdx].close;
-      const ratio     = 1 - (lastC - min) / range;         // 0→максимум внизу, 1→минимум вверху
-      const H         = app.renderer.height;
-      const plotH     = H - config.bottomOffset;
-      state.offsetY   = H/2 - (ratio * plotH * state.scaleY);
-
-      // 5. Рисуем только свечи
-      drawCandlesOnly();
-
-      // 6. Полная отрисовка модулей после загрузки шрифта
-      function doDraw() {
-        // повторяем расчёты на случай, если scaleX/scaleY сбросились
-        state.candles   = candles;
-        state.volumes   = volumes;
-        state.timeframe = TF(candles);
-
-        // горизонталь
-        const cw2      = (config.candleWidth + config.spacing) * state.scaleX;
-        const centerX2 = app.renderer.width  / 2;
-        const lastIdx2 = candles.length - 1;
-        const halfW2   = (config.candleWidth * state.scaleX) / 2;
-        state.offsetX  = centerX2 - lastIdx2 * cw2 - halfW2;
-
-        // vert
-        const lastC2   = candles[lastIdx2].close;
-        const ratio2   = 1 - (lastC2 - min) / range;
-        const H2       = app.renderer.height;
-        const plotH2   = H2 - config.bottomOffset;
-        state.offsetY  = H2/2 - (ratio2 * plotH2 * state.scaleY);
-
-        // OHLCV
-        if (modules.ohlcv) {
-          state.ohlcv.init(candles, volumes);
-          state.ohlcv.render(candles[lastIdx2]);
-        }
-
-        renderAll();
+      if (modules.ohlcv) {
+        state.ohlcv.init(candles, volumes);
+        state.ohlcv.render(candles[lastIdx2]);
       }
 
-      // ждём загрузки шрифта, затем рисуем модули
-      const fontSpec = `${config.chartFontSize}px "${config.chartFont}"`;
-      document.fonts
-        .load(fontSpec)
-        .then(doDraw)
-        .catch(doDraw);
+      renderAll();
     }
+
+    const fontSpec = `${config.chartFontSize}px "${config.chartFont}"`;
+    document.fonts
+      .load(fontSpec)
+      .then(doDraw)
+      .catch(doDraw);
+  }
 
   // 13) Hover-подсветка через мышь
   function onHover(candle) {
@@ -319,14 +319,30 @@ export function createChartCore(container, userConfig = {}) {
     app.destroy(true, { children: true });
   }
 
-  // 16) Публичное API
-  return {
+  // 16) Обновление последней свечи без полного redraw
+  function updateLast(candle) {
+    updateLastCandle(candle);
+    updateLastVolume(candle);
+  }
+
+  // 17) Публичное API
+  const core = {
     draw,
     resize,
+    drawCandlesOnly,
     destroy,
     zoomX,
     zoomY,
     pan,
-    app
+    updateLast,
+    app,
+    config,
+    state,
+    group
   };
+
+  // сохраняем кор в глобальном скоупе, чтобы updateLastCandle/Volume его ссылались
+  window.chartCore = core;
+
+  return core;
 }
