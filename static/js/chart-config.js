@@ -17,8 +17,12 @@ export const ChartConfig = {
   scales:     { scaleTime: true, scalePrice: true, scaleFontSize: 11.5, scaleTickColor: '0xcccccc', scaleBG: '0x222222', minLabelSpacing: 50 },
   fps:        { fpsOn: true, fpsColor: '0x00ff00' },
   indicators: { indicatorsEnabled: true },
-  livePrice:  { textColor: '#ffffff', priceUpColor: '0x0C6600', priceDownColor: '0xBF1717', tickerBgColor: '0x000000'},
-
+  livePrice: {
+      textColor:     0xffffff,
+      priceUpColor:  0x0C6600,
+      priceDownColor:0xBF1717,
+      tickerBgColor: 0x000000
+  },
   //модули
   modules: {
     candles:    true,

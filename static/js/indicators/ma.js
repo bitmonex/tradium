@@ -1,9 +1,4 @@
-export const params = {
-  period: 20
-};
-
 export function createIndicator({ layer }, layout, params = {}) {
-  // ждём, пока есть куда рисовать и появятся свечи
   if (!layer || !layout?.candles?.length) return;
 
   const maLayer = new PIXI.Container();
@@ -33,7 +28,6 @@ export function createIndicator({ layer }, layout, params = {}) {
     const candles = currentLayout.candles;
     if (!candles?.length) return;
 
-    // пересчитываем, если сменилось число свечей
     if (maValues.length !== candles.length) {
       maValues = calculateMA(candles, period);
     }
@@ -41,21 +35,18 @@ export function createIndicator({ layer }, layout, params = {}) {
     maLine.clear();
     maLine.lineStyle(2, 0xffd700);
 
-    const cw       = currentLayout.config.candleWidth + currentLayout.config.spacing;
-    const prices   = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
+    const cw = currentLayout.config.candleWidth + currentLayout.config.spacing;
+    const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
     const minPrice = Math.min(...prices);
     const maxPrice = Math.max(...prices);
-    const range    = maxPrice - minPrice || 1;
+    const priceRange = maxPrice - minPrice || 1;
 
     for (let i = 0; i < maValues.length; i++) {
       const val = maValues[i];
       if (val === null) continue;
 
       const x = i * cw * currentLayout.scaleX + currentLayout.offsetX;
-      const y = (
-        (currentLayout.height - currentLayout.config.bottomOffset)
-        * (1 - (val - minPrice) / range)
-      ) * currentLayout.scaleY + currentLayout.offsetY;
+      const y = ((currentLayout.height - currentLayout.config.bottomOffset) * (1 - (val - minPrice) / priceRange)) * currentLayout.scaleY + currentLayout.offsetY;
 
       if (i === period - 1) {
         maLine.moveTo(x, y);
