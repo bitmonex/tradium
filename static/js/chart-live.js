@@ -67,9 +67,6 @@ export function LivePrice({ group, config, chartSettings }) {
 
     drawDotted(line, 0, y, width);
 
-    priceText.text = price.toFixed(2);
-    timerText.text = String(timer);
-
     const textW = Math.max(priceText.width, timerText.width);
     const boxW  = textW + padX * 2;
     const boxH  = priceText.height + timerText.height + padY * 3;
@@ -104,7 +101,34 @@ export function LivePrice({ group, config, chartSettings }) {
     tickerText.y = Math.round(tickerBg.y + padY);
   }
 
-  return { render };
+  function updateText(price, timer) {
+    priceText.text = price.toFixed(2);
+    timerText.text = String(timer);
+  }
+
+  return { render, updateText };
+}
+
+function connectLiveSocket(chartSettings, onUpdate) {
+  const { exchange, marketType, symbol, timeframe } = chartSettings;
+  const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
+  const ws = new WebSocket(url);
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.price && data.timer) {
+        onUpdate(data.price, data.timer);
+      }
+    } catch (err) {
+      console.warn('[LiveSocket] Parse error:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    console.warn('[LiveSocket] Disconnected');
+    setTimeout(() => connectLiveSocket(chartSettings, onUpdate), 1000);
+  };
 }
 
 export function initLive(chartCore, chartSettings) {
@@ -126,6 +150,12 @@ export function initLive(chartCore, chartSettings) {
   if (chartCore.layout) {
     live.render(chartCore.layout);
   }
+
+  connectLiveSocket(chartSettings, (price, timer) => {
+    if (chartCore.state.livePrice) {
+      chartCore.state.livePrice.updateText(price, timer);
+    }
+  });
 
   return live;
 }
