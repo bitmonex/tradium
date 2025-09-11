@@ -340,3 +340,34 @@ export function createChartCore(container, userConfig = {}) {
     group
   };
 }
+
+export function initRealtimeCandles(chartCore, chartSettings) {
+  const { exchange, marketType, symbol, timeframe } = chartSettings;
+  const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
+  const ws = new WebSocket(url);
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      if (data.openTime && data.closeTime) {
+        const candles = chartCore.state.candles ?? [];
+        const last = candles.at(-1);
+
+        if (last?.openTime === data.openTime) {
+          Object.assign(last, data); // обновляем текущую свечу
+        } else {
+          candles.push(data); // добавляем новую свечу
+        }
+
+        chartCore.draw({ candles, volumes: chartCore.state.volumes });
+      }
+    } catch (err) {
+      console.warn('[RealtimeCandles] Parse error:', err);
+    }
+  };
+
+  ws.onclose = () => {
+    console.warn('[RealtimeCandles] Disconnected');
+    setTimeout(() => initRealtimeCandles(chartCore, chartSettings), 1000);
+  };
+}

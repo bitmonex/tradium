@@ -18,7 +18,6 @@ export function LivePrice({ group, config, chartSettings }) {
   overlay.zIndex = 101;
   group.parent.addChild(overlay);
 
-  // 🔧 Принудительно белый цвет текста
   const baseStyle = createTextStyle(config, { fill: 0xffffff });
 
   const tickerBg   = new PIXI.Graphics();
@@ -29,6 +28,9 @@ export function LivePrice({ group, config, chartSettings }) {
   const priceText = new PIXI.Text('', baseStyle);
   const timerText = new PIXI.Text('', baseStyle);
   overlay.addChild(boxBg, priceText, timerText);
+
+  let lastCloseTime = null;
+  let currentPrice = null;
 
   function drawDotted(g, x1, y, x2, dotR = 1, gap = 4) {
     g.clear();
@@ -51,7 +53,8 @@ export function LivePrice({ group, config, chartSettings }) {
     const last = candles.at(-1);
     const prev = candles.at(-2) || last;
     const price = last.price ?? last.close;
-    const timer = last.timer ?? '--';
+    lastCloseTime = last.closeTime;
+    currentPrice = price;
 
     const isUp = price >= prev.close;
     const lineClr = isUp ? +config.priceUpColor : +config.priceDownColor;
@@ -101,15 +104,23 @@ export function LivePrice({ group, config, chartSettings }) {
     tickerText.y = Math.round(tickerBg.y + padY);
   }
 
-  function updateText(price, timer) {
-    priceText.text = price.toFixed(2);
+  function updatePrice(price, closeTime) {
+    currentPrice = price;
+    lastCloseTime = closeTime;
+  }
+
+  function tick() {
+    if (!currentPrice || !lastCloseTime) return;
+    const now = Math.floor(Date.now() / 1000);
+    const timer = Math.max(lastCloseTime - now, 0);
+    priceText.text = currentPrice.toFixed(2);
     timerText.text = String(timer);
   }
 
-  return { render, updateText };
+  return { render, updatePrice, tick };
 }
 
-function connectLiveSocket(chartSettings, onUpdate) {
+function connectLiveSocket(chartSettings, live) {
   const { exchange, marketType, symbol, timeframe } = chartSettings;
   const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
   const ws = new WebSocket(url);
@@ -117,8 +128,8 @@ function connectLiveSocket(chartSettings, onUpdate) {
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
-      if (data.price && data.timer) {
-        onUpdate(data.price, data.timer);
+      if (data.price && data.closeTime) {
+        live.updatePrice(data.price, data.closeTime);
       }
     } catch (err) {
       console.warn('[LiveSocket] Parse error:', err);
@@ -127,7 +138,7 @@ function connectLiveSocket(chartSettings, onUpdate) {
 
   ws.onclose = () => {
     console.warn('[LiveSocket] Disconnected');
-    setTimeout(() => connectLiveSocket(chartSettings, onUpdate), 1000);
+    setTimeout(() => connectLiveSocket(chartSettings, live), 1000);
   };
 }
 
@@ -151,10 +162,10 @@ export function initLive(chartCore, chartSettings) {
     live.render(chartCore.layout);
   }
 
-  connectLiveSocket(chartSettings, (price, timer) => {
-    if (chartCore.state.livePrice) {
-      chartCore.state.livePrice.updateText(price, timer);
-    }
+  connectLiveSocket(chartSettings, live);
+
+  chartCore.app.ticker.add(() => {
+    live.tick();
   });
 
   return live;

@@ -1,6 +1,7 @@
 import { createChartCore } from "./chart-core.js";
 import { loadChartData }   from "./chart-data.js";
 import { initLive }        from "./chart-live.js";
+import { initRealtimeCandles } from "./chart-core.js";
 
 let chartCore = null;
 
@@ -48,6 +49,8 @@ export async function initPixiChart(containerId, opts) {
   if (chartCore.config.modules.livePrice) {
     initLive(chartCore, opts);
   }
+  // Обновление последней свечи
+  initRealtimeCandles(chartCore, opts);
 
   // 7) Возвращаем ядро для плагинов
   return chartCore;

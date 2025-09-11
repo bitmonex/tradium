@@ -95,8 +95,9 @@ async def kline_ws_handler(market_type, symbol, tf):
 
                 timestamp = int(k["t"]) / 1000
                 close_time = int(k["T"]) // 1000
+                from decimal import Decimal, ROUND_DOWN
                 now = int(time.time())
-                timer = max(close_time - now, 0)
+                timer = int(Decimal(close_time - now).quantize(Decimal('1'), rounding=ROUND_DOWN))
 
                 candle = {
                     "symbol":     full_symbol,
