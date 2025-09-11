@@ -1,6 +1,7 @@
 import asyncio
 import websockets
 import json
+import time
 from db import db
 from datetime import datetime
 from tickers import save_ticker_data
@@ -93,6 +94,9 @@ async def kline_ws_handler(market_type, symbol, tf):
                     full_symbol += "PERP"
 
                 timestamp = int(k["t"]) / 1000
+                close_time = int(k["T"]) // 1000
+                now = int(time.time())
+                timer = max(close_time - now, 0)
 
                 candle = {
                     "symbol":     full_symbol,
@@ -103,8 +107,10 @@ async def kline_ws_handler(market_type, symbol, tf):
                     "close":      float(k["c"]),
                     "volume":     float(k["v"]),
                     "openTime":   int(k["t"]) // 1000,
-                    "closeTime":  int(k["T"]) // 1000,
-                    "isFinal":    k["x"]
+                    "closeTime":  close_time,
+                    "isFinal":    k["x"],
+                    "price":      float(k["c"]),
+                    "timer": timer
                 }
 
                 exchange = "binance"
@@ -116,12 +122,12 @@ async def kline_ws_handler(market_type, symbol, tf):
                     upsert=True
                 )
 
-                # 🔔 Рассылаем клиентам в нужную комнату
                 room = f"{exchange}:{market_type}:{full_symbol}:{tf}"
                 await ws_manager.broadcast(room, json.dumps(candle))
 
             except Exception as e:
                 print(f"[kline_ws_handler] Error {market_type}/{tf}: {e}")
+
 
 # Главная точка запуска
 async def start_binance():
@@ -129,7 +135,7 @@ async def start_binance():
         "1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "3d", "1w", "1M"
     ]
     symbols = [
-    "btcusdt", "ethusdt"
+        "btcusdt", "ethusdt"
     ]
 
     tasks = [
