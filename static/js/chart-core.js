@@ -114,6 +114,7 @@ export function createChartCore(container, userConfig = {}) {
   // 9) Функция рисует только свечи
   function drawCandlesOnly() {
     if (!candleLayer || !state.candles.length) return;
+    if (!app?.renderer) return;
 
     const { width, height } = app.renderer;
     const cw = (config.candleWidth + config.spacing) * state.scaleX;
@@ -235,6 +236,7 @@ export function createChartCore(container, userConfig = {}) {
       const range  = max - min || 1;
 
       // 3. Центрируем последнюю свечу по горизонтали
+      if (!app?.renderer) return;
       const cw       = (config.candleWidth + config.spacing) * state.scaleX;
       const centerX  = app.renderer.width  / 2;
       const lastIdx  = candles.length - 1;
@@ -322,7 +324,7 @@ export function createChartCore(container, userConfig = {}) {
   // 16) Обновление последней свечи без полного redraw
   function updateLast(candle) {
     updateLastCandle(candle);
-    updateLastVolume(candle);
+    chartCore.state.volumes[chartCore.state.volumes.length - 1] = candle.volume;
   }
 
   // 17) Публичное API
@@ -350,16 +352,16 @@ export function initRealtimeCandles(chartCore, chartSettings) {
     try {
       const data = JSON.parse(event.data);
       if (data.openTime && data.closeTime) {
-        const candles = chartCore.state.candles ?? [];
-        const last = candles.at(-1);
+        const last = chartCore.state.candles.at(-1);
 
         if (last?.openTime === data.openTime) {
-          Object.assign(last, data); // обновляем текущую свечу
-        } else {
-          candles.push(data); // добавляем новую свечу
+          // обновляем текущую свечу
+          chartCore.updateLast(data);
+        } else if (!data.isFinal) {
+          // добавляем только незакрытую свечу
+          chartCore.updateLast(data);
         }
-
-        chartCore.draw({ candles, volumes: chartCore.state.volumes });
+        // если data.isFinal === true → игнорируем, она уже была в истории
       }
     } catch (err) {
       console.warn('[RealtimeCandles] Parse error:', err);

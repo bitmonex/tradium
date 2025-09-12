@@ -42,6 +42,12 @@ export async function initPixiChart(containerId, opts) {
   // 4) Initial render
   chartCore.draw({ candles, volumes });
 
+  // Если последняя свеча не закрыта — используем её как живую
+  const last = candles.at(-1);
+  if (last && !last.isFinal) {
+    chartCore.updateLast(last);
+  }
+
   // 5) Re-render on window resize
   window.addEventListener("resize", () => chartCore.resize());
 
