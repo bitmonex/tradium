@@ -2,6 +2,7 @@ import asyncio
 import websockets
 import json
 import time
+import math
 from db import db
 from datetime import datetime
 from tickers import save_ticker_data
@@ -11,6 +12,7 @@ SPOT_WS_URL = "wss://stream.binance.com:9443/ws/!ticker@arr"
 FUTURES_WS_URL = "wss://fstream.binance.com/ws/!ticker@arr"
 
 queue = asyncio.Queue()
+live_candles = {}  # ключ: room, значение: dict с closeTime и остальными данными
 
 # Обработчик спота
 async def spot_ws_handler():
@@ -95,9 +97,7 @@ async def kline_ws_handler(market_type, symbol, tf):
 
                 timestamp = int(k["t"]) / 1000
                 close_time = int(k["T"]) // 1000
-                from decimal import Decimal, ROUND_DOWN
-                now = int(time.time())
-                timer = int(Decimal(close_time - now).quantize(Decimal('1'), rounding=ROUND_DOWN))
+                timer = max(0, math.floor(close_time - time.time()))
 
                 candle = {
                     "symbol":     full_symbol,
@@ -124,6 +124,13 @@ async def kline_ws_handler(market_type, symbol, tf):
                 )
 
                 room = f"{exchange}:{market_type}:{full_symbol}:{tf}"
+                live_candles[room] = {
+                    "closeTime": close_time,
+                    "symbol": full_symbol,
+                    "exchange": exchange,
+                    "market_type": market_type,
+                    "tf": tf
+                }
                 await ws_manager.broadcast(room, json.dumps(candle))
 
             except Exception as e:
@@ -142,7 +149,8 @@ async def start_binance():
     tasks = [
         spot_ws_handler(),
         futures_ws_handler(),
-        consumer()
+        consumer(),
+        timer_broadcaster()
     ]
 
     for tf in timeframes:
@@ -151,3 +159,23 @@ async def start_binance():
             tasks.append(kline_ws_handler("futures", symbol, tf))
 
     await asyncio.gather(*tasks)
+    
+# Таймер до закрытия бара
+async def timer_broadcaster():
+    while True:
+        now = int(time.time())
+        for room, info in live_candles.items():
+            close_time = info["closeTime"]
+            timer = max(0, close_time - now)
+
+            payload = {
+                "symbol": info["symbol"],
+                "exchange": info["exchange"],
+                "market_type": info["market_type"],
+                "tf": info["tf"],
+                "timer": timer
+            }
+
+            await ws_manager.broadcast(room, json.dumps(payload))
+
+        await asyncio.sleep(1)

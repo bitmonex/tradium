@@ -322,10 +322,14 @@ export function createChartCore(container, userConfig = {}) {
   }
 
   // 16) Обновление последней свечи без полного redraw
-  function updateLast(candle) {
-    updateLastCandle(candle);
-    chartCore.state.volumes[chartCore.state.volumes.length - 1] = candle.volume;
-  }
+    function updateLast(candle) {
+      updateLastCandle(candle);
+      const volumes = chartCore.state.volumes;
+      if (Array.isArray(volumes)) {
+        volumes[volumes.length - 1] = candle.volume;
+      }
+    }
+
 
   // 17) Публичное API
   return {
