@@ -11,7 +11,18 @@ export function updateLastCandle(candle) {
     arr.push(candle);
   } else {
     // обновляем незакрытую свечу
-    arr[arr.length - 1] = candle;
+    const last = arr[arr.length - 1];
+    if (last && last.timestamp === candle.timestamp) {
+      last.open = candle.open;
+      last.close = candle.close;
+      last.price = candle.price;
+      last.volume = candle.volume;
+
+      last.high = Math.max(last.high, candle.high);
+      last.low = Math.min(last.low, candle.low);
+    } else {
+      arr[arr.length - 1] = candle;
+    }
   }
 
   // рисуем только слой свечей (drawCandlesOnly будет экспортирован из core)
