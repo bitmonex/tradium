@@ -37,7 +37,13 @@ export async function initPixiChart(containerId, opts) {
   });
 
   // expose for debugging
-  window.chartCore = chartCore;
+    window.chartCore = chartCore;
+
+    setInterval(() => {
+      if (window.chartCore?.drawCandlesOnly) {
+        window.chartCore.drawCandlesOnly();
+      }
+    }, 100);
 
   // 4) Initial render
   chartCore.draw({ candles, volumes });
