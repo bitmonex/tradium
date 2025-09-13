@@ -5,31 +5,31 @@ export function updateLastCandle(candle) {
   if (!core || !core.state || !Array.isArray(core.state.candles)) return;
 
   const arr = core.state.candles;
-  if (candle.isFinal) {
-    // зафайналенная свеча → удаляем первую и пушим новую
-    arr.shift();
+  if (arr.length === 0) {
     arr.push(candle);
-  } else {
-    // обновляем незакрытую свечу
-    const last = arr[arr.length - 1];
-    if (last && last.timestamp === candle.timestamp) {
-      last.open = candle.open;
-      last.close = candle.close;
-      last.price = candle.price;
-      last.volume = candle.volume;
-
-      last.high = Math.max(last.high, candle.high);
-      last.low = Math.min(last.low, candle.low);
-    } else {
-      arr[arr.length - 1] = candle;
-    }
+    return;
   }
 
-  // рисуем только слой свечей (drawCandlesOnly будет экспортирован из core)
+  const last = arr[arr.length - 1];
+
+  if (candle.isFinal) {
+    arr.shift();
+    arr.push(candle);
+  } else if (last && last.timestamp === candle.timestamp) {
+    last.open = candle.open;
+    last.close = candle.close;
+    last.price = candle.price;
+    last.volume = candle.volume;
+
+    last.high = Math.max(last.high, candle.high, candle.price);
+    last.low = Math.min(last.low, candle.low, candle.price);
+  } else {
+    arr[arr.length - 1] = candle;
+  }
+
   if (typeof core.drawCandlesOnly === 'function') {
     core.drawCandlesOnly();
   } else {
-    // fallback на полный redraw
     core.draw({ candles: arr, volumes: core.state.volumes });
   }
 }
