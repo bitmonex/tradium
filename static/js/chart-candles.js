@@ -1,5 +1,4 @@
 //chart-candles.js
-//@param {object} candle – { open, high, low, close, volume, isFinal, ... }
 export function updateLastCandle(candle) {
   const core = window.chartCore;
   if (!core || !core.state || !Array.isArray(core.state.candles)) return;
@@ -21,10 +20,18 @@ export function updateLastCandle(candle) {
     last.price = candle.price;
     last.volume = candle.volume;
 
+    // тень накапливается, даже если цена откупилась
     last.high = Math.max(last.high, candle.high, candle.price);
     last.low = Math.min(last.low, candle.low, candle.price);
   } else {
-    arr[arr.length - 1] = candle;
+    // новая незакрытая свеча
+    arr[arr.length - 1] = {
+      ...candle,
+      high: candle.price,
+      low: candle.price,
+      volume: 0,
+      isFinal: false
+    };
   }
 
   if (typeof core.drawCandlesOnly === 'function') {
