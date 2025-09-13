@@ -24,14 +24,16 @@ export function updateLastCandle(candle) {
     last.high = Math.max(last.high, candle.high, candle.price);
     last.low = Math.min(last.low, candle.low, candle.price);
   } else {
-    // новая незакрытая свеча
-    arr[arr.length - 1] = {
-      ...candle,
-      high: candle.price,
-      low: candle.price,
-      volume: 0,
-      isFinal: false
-    };
+      arr[arr.length - 1] = {
+        timestamp: candle.timestamp,
+        open: candle.price,
+        close: candle.price,
+        price: candle.price,
+        high: candle.price,
+        low: candle.price,
+        volume: 0,
+        isFinal: false
+      };
   }
 
   if (typeof core.drawCandlesOnly === 'function') {
