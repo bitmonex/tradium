@@ -47,62 +47,60 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     g.endFill();
   }
 
-  function render(layout) {
-    const { candles, width, height, scaleY, offsetY } = layout;
-    if (!candles?.length) {
-      line.clear();
-      boxBg.clear();
-      return;
-    }
-
-    const last = candles.at(-1);
-    const prev = candles.at(-2) || last;
-    const price = last.price ?? last.close;
-    lastCloseTime = last.closeTime;
-    currentPrice = price;
-
-    // Цвет из config.livePrice с дефолтами
-    const upColor   = config.livePrice.priceUpColor;
-    const downColor = config.livePrice.priceDownColor;
-
-    const isUp = price >= prev.close;
-    const currentColor = isUp ? upColor : downColor;
-
-    // Линия в цвет свечи
-    line._lineColor = currentColor;
-
-    // Координата линии
-    const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-    const minP = Math.min(...allPrices);
-    const maxP = Math.max(...allPrices);
-    const range = maxP - minP || 1;
-    const plotH = height - config.bottomOffset;
-    const rawY = plotH * (1 - (price - minP) / range);
-    const y = rawY * scaleY + offsetY;
-
-    drawDotted(line, 0, y, width);
-
-    // Фиксированная ширина плашки
-    const boxW = 70;
-    const boxH = priceText.height + timerText.height + padY * 3;
-
-    // Плашка в тот же цвет
+function render(layout) {
+  const { candles, width, height, scaleY, offsetY } = layout;
+  if (!candles?.length) {
+    line.clear();
     boxBg.clear();
-    boxBg.beginFill(currentColor);
-    boxBg.drawRect(0, 0, boxW, boxH);
-    boxBg.endFill();
-
-    const boxX = width - boxW;
-    const boxY = y - boxH / 2;
-    boxBg.x = Math.round(boxX);
-    boxBg.y = Math.round(boxY);
-
-    // Центрируем текст
-    priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
-    priceText.y = Math.round(boxY + padY);
-    timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
-    timerText.y = Math.round(priceText.y + priceText.height + padY);
+    return;
   }
+
+  const last = candles.at(-1);
+  const price = last.price ?? last.close;
+  lastCloseTime = last.closeTime;
+  currentPrice = price;
+
+  // Цвет по логике ядра: сравниваем close и open текущей свечи
+  const upColor   = config.livePrice.priceUpColor;
+  const downColor = config.livePrice.priceDownColor;
+  const isUp = last.close >= last.open;
+  const currentColor = isUp ? upColor : downColor;
+
+  // Линия в цвет свечи
+  line._lineColor = currentColor;
+
+  // Координата линии
+  const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+  const minP = Math.min(...allPrices);
+  const maxP = Math.max(...allPrices);
+  const range = maxP - minP || 1;
+  const plotH = height - config.bottomOffset;
+  const rawY = plotH * (1 - (price - minP) / range);
+  const y = rawY * scaleY + offsetY;
+
+  drawDotted(line, 0, y, width);
+
+  // Фиксированная ширина плашки
+  const boxW = 70;
+  const boxH = priceText.height + timerText.height + padY * 3;
+
+  // Плашка в тот же цвет
+  boxBg.clear();
+  boxBg.beginFill(currentColor);
+  boxBg.drawRect(0, 0, boxW, boxH);
+  boxBg.endFill();
+
+  const boxX = width - boxW;
+  const boxY = y - boxH / 2;
+  boxBg.x = Math.round(boxX);
+  boxBg.y = Math.round(boxY);
+
+  // Центрируем текст
+  priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
+  priceText.y = Math.round(boxY + padY);
+  timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
+  timerText.y = Math.round(priceText.y + priceText.height + padY);
+}
 
   function updatePrice(price, closeTime, serverTime) {
     currentPrice = price;
