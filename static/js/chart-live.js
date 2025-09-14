@@ -128,21 +128,30 @@ function connectLiveSocket(chartCore, chartSettings, live) {
   // 🔹 сохраняем ссылку в ядре
   chartCore._livePriceSocket = ws;
 
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.price && data.closeTime) {
-        live.updatePrice(data.price, data.closeTime);
+    ws.onmessage = (event) => {
+      if (!chartCore._alive) return; // ядро уже уничтожено
+      try {
+        const data = JSON.parse(event.data);
+        if (data.openTime && data.closeTime) {
+          const last = chartCore.state.candles.at(-1);
+          if (last?.openTime === data.openTime) {
+            chartCore.updateLast(data);
+          } else if (!data.isFinal) {
+            chartCore.updateLast(data);
+          }
+        }
+      } catch (err) {
+        console.warn('[RealtimeCandles] Parse error:', err);
       }
-    } catch (err) {
-      console.warn('[LiveSocket] Parse error:', err);
-    }
-  };
+    };
 
-  ws.onclose = () => {
-    console.warn('[LiveSocket] Disconnected');
-    setTimeout(() => connectLiveSocket(chartCore, chartSettings, live), 1000);
-  };
+    ws.onclose = () => {
+      console.warn('[RealtimeCandles] Disconnected');
+      if (chartCore._alive) {
+        setTimeout(() => initRealtimeCandles(chartCore, chartSettings), 1000);
+      }
+    };
+
 }
 
 export function initLive(chartCore, chartSettings) {

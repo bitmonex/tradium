@@ -316,10 +316,18 @@ export function createChartCore(container, userConfig = {}) {
 
   // 15) Очистка и уничтожение
     function destroy() {
-      mouse.destroy();
+      // если уже уничтожали — выходим
+      if (!chartCore._alive) return;
+      chartCore._alive = false;
+
+      // 1) Снимаем обработчики мыши
+      try { mouse?.destroy?.(); } 
+      catch (e) { console.warn('[ChartCore] mouse destroy error', e); }
+
+      // 2) Снимаем resize
       window.removeEventListener('resize', resize);
 
-      // 🔹 Закрываем live‑сокет цен
+      // 3) Закрываем live‑сокет цен
       if (chartCore._livePriceSocket) {
         try {
           chartCore._livePriceSocket.onmessage = null;
@@ -331,7 +339,7 @@ export function createChartCore(container, userConfig = {}) {
         chartCore._livePriceSocket = null;
       }
 
-      // 🔹 Закрываем сокет свечей
+      // 4) Закрываем сокет свечей
       if (chartCore._candleSocket) {
         try {
           chartCore._candleSocket.onmessage = null;
@@ -343,8 +351,11 @@ export function createChartCore(container, userConfig = {}) {
         chartCore._candleSocket = null;
       }
 
-      app.destroy(true, { children: true });
+      // 5) Уничтожаем Pixi‑приложение
+      try { app?.destroy?.(true, { children: true }); } 
+      catch (e) { console.warn('[ChartCore] app destroy error', e); }
     }
+
 
   // 16) Обновление последней свечи без полного redraw
     function updateLast(candle) {
@@ -377,7 +388,6 @@ export function initRealtimeCandles(chartCore, chartSettings) {
   const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
   const ws = new WebSocket(url);
 
-  // 🔹 сохраняем ссылку в ядре
   chartCore._candleSocket = ws;
 
   ws.onmessage = (event) => {
@@ -399,7 +409,11 @@ export function initRealtimeCandles(chartCore, chartSettings) {
 
   ws.onclose = () => {
     console.warn('[RealtimeCandles] Disconnected');
-    setTimeout(() => initRealtimeCandles(chartCore, chartSettings), 1000);
+    // 🔹 Не переподключаемся, если график уже уничтожен
+    if (chartCore._alive) {
+      setTimeout(() => initRealtimeCandles(chartCore, chartSettings), 1000);
+    }
   };
 }
+
 

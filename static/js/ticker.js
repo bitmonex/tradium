@@ -146,9 +146,9 @@ document.getElementById("clearStorage")?.addEventListener("click", () => {
     if (activeTF) activeTF.classList.add("on");
 
     if (window.chartCore?.destroy) {
-        window.chartCore.destroy();
-        window.chartCore = null;
+      window.chartCore.destroy();
     }
+    window.chartCore = null;
 
     const { exchange, marketType, symbol } = window.chartSettings;
     initPixiChart("pixi-chart-container", { exchange, marketType, symbol, timeframe: tfDefault });

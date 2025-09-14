@@ -242,18 +242,24 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
 
   return {
     init() {
-      app.view.addEventListener('pointerdown', onPointerDown);
+      const view = app?.view;
+      if (!view) return;
+
+      view.addEventListener('pointerdown', onPointerDown);
       window.addEventListener('pointermove',   onPointerMove);
       window.addEventListener('pointerup',     onPointerUp);
-      app.view.addEventListener('wheel',       onWheel, { passive: false });
-      app.view.addEventListener('click',       onClick);
+      view.addEventListener('wheel',           onWheel, { passive: false });
+      view.addEventListener('click',           onClick);
     },
     destroy() {
-      app.view.removeEventListener('pointerdown', onPointerDown);
-      window.removeEventListener('pointermove',   onPointerMove);
-      window.removeEventListener('pointerup',     onPointerUp);
-      app.view.removeEventListener('wheel',       onWheel);
-      app.view.removeEventListener('click',       onClick);
+      const view = app?.view;
+      if (view) {
+        view.removeEventListener('pointerdown', onPointerDown);
+        view.removeEventListener('wheel',       onWheel);
+        view.removeEventListener('click',       onClick);
+      }
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup',   onPointerUp);
     }
   };
 }
