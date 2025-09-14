@@ -181,6 +181,11 @@ export function initLive(chartCore, chartSettings) {
     live.render(chartCore.layout);
   }
 
+  if (chartCore.state.candles.length) {
+    const last = chartCore.state.candles.at(-1);
+    live.updatePrice(last.price ?? last.close, last.closeTime);
+  }
+
   connectLiveSocket(chartCore, chartSettings, live);
 
   chartCore.app.ticker.add(() => {

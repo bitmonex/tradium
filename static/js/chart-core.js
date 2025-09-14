@@ -420,22 +420,20 @@ export function initRealtimeCandles(chartCore, chartSettings) {
 
   chartCore._candleSocket = ws;
 
-  ws.onmessage = (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.openTime && data.closeTime) {
-        const last = chartCore.state.candles.at(-1);
+    ws.onmessage = (event) => {
+      if (!chartCore._alive) return;
+      try {
+        const data = JSON.parse(event.data);
+        chartCore._lastCandleData = data; // запоминаем последнее сообщение
 
-        if (last?.openTime === data.openTime) {
-          chartCore.updateLast(data);
-        } else if (!data.isFinal) {
+        const last = chartCore.state.candles.at(-1);
+        if (last?.openTime === data.openTime || !data.isFinal) {
           chartCore.updateLast(data);
         }
+      } catch (err) {
+        console.warn('[RealtimeCandles] Parse error:', err);
       }
-    } catch (err) {
-      console.warn('[RealtimeCandles] Parse error:', err);
-    }
-  };
+    };
 
   ws.onclose = () => {
     console.warn('[RealtimeCandles] Disconnected');
