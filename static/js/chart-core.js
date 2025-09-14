@@ -209,7 +209,7 @@ export function createChartCore(container, userConfig = {}) {
     if (modules.candles)    drawCandlesOnly();
     if (modules.ohlcv)      state.ohlcv.render(state.candles.at(-1));
     if (modules.indicators) { state.indicators.add(layout); state.indicators.render(layout); }
-    if (modules.livePrice) { state.livePrice.render(layout); }
+    if (modules.livePrice && state.livePrice) { state.livePrice.render(layout); }
       
     mask.clear();
     mask.beginFill(0x000000);
