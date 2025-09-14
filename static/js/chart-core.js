@@ -356,8 +356,7 @@ export function createChartCore(container, userConfig = {}) {
       catch (e) { console.warn('[ChartCore] app destroy error', e); }
     }
 
-
-  // 16) Обновление последней свечи без полного redraw
+    // 16) Обновление последней свечи без полного redraw
     function updateLast(candle) {
       updateLastCandle(candle);
       const volumes = chartCore.state.volumes;
@@ -366,22 +365,53 @@ export function createChartCore(container, userConfig = {}) {
       }
     }
 
+    // 17) Публичное API с замыканием на chartCore
+    const chartCore = {
+      draw,
+      resize,
+      zoomX,
+      zoomY,
+      pan,
+      updateLast,
+      app,
+      config,
+      state,
+      group,
+      _alive: true
+    };
 
-  // 17) Публичное API
-  return {
-    draw,
-    resize,
-    destroy,
-    zoomX,
-    zoomY,
-    pan,
-    updateLast,
-    app,
-    config,
-    state,
-    group
-  };
+    chartCore.destroy = function() {
+      if (!chartCore._alive) return;
+      chartCore._alive = false;
+
+      try { mouse?.destroy?.(); } catch (e) { console.warn('[ChartCore] mouse destroy error', e); }
+      window.removeEventListener('resize', resize);
+
+      if (chartCore._livePriceSocket) {
+        try {
+          chartCore._livePriceSocket.onmessage = null;
+          chartCore._livePriceSocket.onclose = null;
+          chartCore._livePriceSocket.close();
+        } catch (e) { console.warn('[ChartCore] live price socket close error', e); }
+        chartCore._livePriceSocket = null;
+      }
+
+      if (chartCore._candleSocket) {
+        try {
+          chartCore._candleSocket.onmessage = null;
+          chartCore._candleSocket.onclose = null;
+          chartCore._candleSocket.close();
+        } catch (e) { console.warn('[ChartCore] candle socket close error', e); }
+        chartCore._candleSocket = null;
+      }
+
+      try { app?.destroy?.(true, { children: true }); } catch (e) { console.warn('[ChartCore] app destroy error', e); }
+    };
+
+    return chartCore;
 }
+
+
 
 export function initRealtimeCandles(chartCore, chartSettings) {
   const { exchange, marketType, symbol, timeframe } = chartSettings;
