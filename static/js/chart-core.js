@@ -315,11 +315,36 @@ export function createChartCore(container, userConfig = {}) {
   window.addEventListener('resize', resize);
 
   // 15) Очистка и уничтожение
-  function destroy() {
-    mouse.destroy();
-    window.removeEventListener('resize', resize);
-    app.destroy(true, { children: true });
-  }
+    function destroy() {
+      mouse.destroy();
+      window.removeEventListener('resize', resize);
+
+      // 🔹 Закрываем live‑сокет цен
+      if (chartCore._livePriceSocket) {
+        try {
+          chartCore._livePriceSocket.onmessage = null;
+          chartCore._livePriceSocket.onclose = null;
+          chartCore._livePriceSocket.close();
+        } catch (e) {
+          console.warn('[ChartCore] live price socket close error', e);
+        }
+        chartCore._livePriceSocket = null;
+      }
+
+      // 🔹 Закрываем сокет свечей
+      if (chartCore._candleSocket) {
+        try {
+          chartCore._candleSocket.onmessage = null;
+          chartCore._candleSocket.onclose = null;
+          chartCore._candleSocket.close();
+        } catch (e) {
+          console.warn('[ChartCore] candle socket close error', e);
+        }
+        chartCore._candleSocket = null;
+      }
+
+      app.destroy(true, { children: true });
+    }
 
   // 16) Обновление последней свечи без полного redraw
     function updateLast(candle) {
@@ -352,6 +377,9 @@ export function initRealtimeCandles(chartCore, chartSettings) {
   const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
   const ws = new WebSocket(url);
 
+  // 🔹 сохраняем ссылку в ядре
+  chartCore._candleSocket = ws;
+
   ws.onmessage = (event) => {
     try {
       const data = JSON.parse(event.data);
@@ -359,13 +387,10 @@ export function initRealtimeCandles(chartCore, chartSettings) {
         const last = chartCore.state.candles.at(-1);
 
         if (last?.openTime === data.openTime) {
-          // обновляем текущую свечу
           chartCore.updateLast(data);
         } else if (!data.isFinal) {
-          // добавляем только незакрытую свечу
           chartCore.updateLast(data);
         }
-        // если data.isFinal === true → игнорируем, она уже была в истории
       }
     } catch (err) {
       console.warn('[RealtimeCandles] Parse error:', err);
@@ -377,3 +402,4 @@ export function initRealtimeCandles(chartCore, chartSettings) {
     setTimeout(() => initRealtimeCandles(chartCore, chartSettings), 1000);
   };
 }
+

@@ -120,10 +120,13 @@ export function LivePrice({ group, config, chartSettings }) {
   return { render, updatePrice, tick };
 }
 
-function connectLiveSocket(chartSettings, live) {
+function connectLiveSocket(chartCore, chartSettings, live) {
   const { exchange, marketType, symbol, timeframe } = chartSettings;
   const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
   const ws = new WebSocket(url);
+
+  // 🔹 сохраняем ссылку в ядре
+  chartCore._livePriceSocket = ws;
 
   ws.onmessage = (event) => {
     try {
@@ -138,7 +141,7 @@ function connectLiveSocket(chartSettings, live) {
 
   ws.onclose = () => {
     console.warn('[LiveSocket] Disconnected');
-    setTimeout(() => connectLiveSocket(chartSettings, live), 1000);
+    setTimeout(() => connectLiveSocket(chartCore, chartSettings, live), 1000);
   };
 }
 
@@ -162,7 +165,7 @@ export function initLive(chartCore, chartSettings) {
     live.render(chartCore.layout);
   }
 
-  connectLiveSocket(chartSettings, live);
+  connectLiveSocket(chartCore, chartSettings, live);
 
   chartCore.app.ticker.add(() => {
     live.tick();
