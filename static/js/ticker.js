@@ -7,6 +7,16 @@ function changeTimeframe(newTF) {
     timeframe = newTF;
     localStorage.setItem("timeframe", timeframe);
 
+    // 🔹 Уничтожаем старое ядро и live‑подписки, если есть
+    if (window.chartCore?.destroy) {
+        try {
+            window.chartCore.destroy();
+        } catch(e) {
+            console.warn('[Ticker] destroy error', e);
+        }
+        window.chartCore = null;
+    }
+
     document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
     const active = document.querySelector(`.timeframes i[rel='${timeframe}']`);
     if (active) active.classList.add("on");
@@ -14,6 +24,7 @@ function changeTimeframe(newTF) {
     const { exchange, marketType, symbol } = window.chartSettings;
     initPixiChart("pixi-chart-container", { exchange, marketType, symbol, timeframe });
 }
+
 // Пересчитать родитель при изменении верстки
 function resizeChart() {
     if (window.chartCore?.resize) {
