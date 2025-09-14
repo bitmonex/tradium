@@ -31,6 +31,8 @@ export function LivePrice({ group, config, chartSettings }) {
 
   let lastCloseTime = null;
   let currentPrice = null;
+  let serverOffset = 0;
+  let offsetSet = false;
 
   function drawDotted(g, x1, y, x2, dotR = 1, gap = 4) {
     g.clear();
@@ -104,19 +106,24 @@ export function LivePrice({ group, config, chartSettings }) {
     tickerText.y = Math.round(tickerBg.y + padY);
   }
 
-  function updatePrice(price, closeTime) {
-    currentPrice = price;
-    lastCloseTime = closeTime;
+  function updatePrice(price, closeTime, serverTime) {
+      currentPrice = price;
+      lastCloseTime = closeTime;
+
+      if (typeof serverTime === 'number' && !offsetSet) {
+        const localNow = Math.floor(Date.now() / 1000);
+        serverOffset = serverTime - localNow;
+        offsetSet = true;
+      }
   }
 
   function tick() {
-    if (!currentPrice || !lastCloseTime) return;
-    const now = Math.floor(Date.now() / 1000);
-    const timer = Math.max(lastCloseTime - now, 0);
-    priceText.text = currentPrice.toFixed(2);
-    timerText.text = String(timer);
+      if (!currentPrice || !lastCloseTime) return;
+      const now = Math.floor(Date.now() / 1000) + serverOffset;
+      const timer = Math.max(lastCloseTime - now, 0);
+      priceText.text = currentPrice.toFixed(2);
+      timerText.text = String(timer);
   }
-
   return { render, updatePrice, tick };
 }
 
@@ -125,34 +132,34 @@ function connectLiveSocket(chartCore, chartSettings, live) {
   const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
   const ws = new WebSocket(url);
 
-  // 🔹 сохраняем ссылку в ядре
+  // сохраняем ссылку в ядре
   chartCore._livePriceSocket = ws;
 
-    ws.onmessage = (event) => {
-      if (!chartCore._alive) return; // ядро уже уничтожено
-      try {
-        const data = JSON.parse(event.data);
-        if (data.openTime && data.closeTime) {
-          const last = chartCore.state.candles.at(-1);
-          if (last?.openTime === data.openTime) {
-            chartCore.updateLast(data);
-          } else if (!data.isFinal) {
-            chartCore.updateLast(data);
-          }
+  ws.onmessage = (event) => {
+    // ядро уже уничтожено — выходим
+    if (!chartCore._alive) return;
+
+    try {
+      const data = JSON.parse(event.data);
+
+      // ожидаем от сервера { price: Number, closeTime: UnixTimestamp }
+        if (typeof data.price === 'number' && typeof data.closeTime === 'number') {
+          // если сервер шлёт своё текущее время, передаём его третьим аргументом
+          live.updatePrice(data.price, data.closeTime, data.serverTime);
         }
-      } catch (err) {
-        console.warn('[RealtimeCandles] Parse error:', err);
-      }
-    };
+    } catch (err) {
+      console.warn('[LiveSocket] Parse error:', err);
+    }
+  };
 
-    ws.onclose = () => {
-      console.warn('[RealtimeCandles] Disconnected');
-      if (chartCore._alive) {
-        setTimeout(() => initRealtimeCandles(chartCore, chartSettings), 1000);
-      }
-    };
-
+  ws.onclose = () => {
+    console.warn('[LiveSocket] Disconnected');
+    if (chartCore._alive) {
+      setTimeout(() => connectLiveSocket(chartCore, chartSettings, live), 1000);
+    }
+  };
 }
+
 
 export function initLive(chartCore, chartSettings) {
   const config = chartCore.config;

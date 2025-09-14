@@ -31,6 +31,6 @@ export const ChartConfig = {
     indicators: true,
     scales:     false,
     fps:        true,
-    livePrice:  false
+    livePrice:  true
   }
 };
