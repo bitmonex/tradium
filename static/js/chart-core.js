@@ -32,7 +32,7 @@ export function createChartCore(container, userConfig = {}) {
     ...sections.ohlcv,
     ...sections.indicators,
     ...sections.fps,
-    ...sections.livePrice,
+    livePrice: sections.livePrice || ChartConfig.livePrice,
 
     candleWidth:  5,
     spacing:      2,

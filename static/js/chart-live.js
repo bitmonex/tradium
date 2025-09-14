@@ -62,22 +62,11 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     currentPrice = price;
 
     // Цвет из config.livePrice с дефолтами
-    const upColor   = config.livePrice?.priceUpColor   ?? 0x0C6600;
-    const downColor = config.livePrice?.priceDownColor ?? 0xBF1717;
+    const upColor   = config.livePrice.priceUpColor;
+    const downColor = config.livePrice.priceDownColor;
+
     const isUp = price >= prev.close;
     const currentColor = isUp ? upColor : downColor;
-
-    // Лог для проверки
-    console.log(
-      '[LivePrice]',
-      'last.close =', last.close,
-      'prev.close =', prev.close,
-      'price =', price,
-      'isUp =', isUp,
-      'upColor =', upColor,
-      'downColor =', downColor,
-      'currentColor =', currentColor
-    );
 
     // Линия в цвет свечи
     line._lineColor = currentColor;
