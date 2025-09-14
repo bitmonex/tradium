@@ -1,9 +1,13 @@
 import { createTextStyle } from './chart-utils.js';
 
-export function LivePrice({ group, config, chartSettings }) {
+export function LivePrice({ group, config, chartSettings, chartCore }) {
   const symbol = chartSettings?.symbol ?? '???';
   const padX   = 8;
   const padY   = 4;
+
+  if (chartCore?.state?.livePriceOverlay) {
+    chartCore.state.livePriceOverlay.destroy({ children: true });
+  }
 
   const lineLayer = new PIXI.Container();
   lineLayer.sortableChildren = true;
@@ -18,11 +22,11 @@ export function LivePrice({ group, config, chartSettings }) {
   overlay.zIndex = 101;
   group.parent.addChild(overlay);
 
-  const baseStyle = createTextStyle(config, { fill: 0xffffff });
+  if (chartCore?.state) {
+    chartCore.state.livePriceOverlay = overlay;
+  }
 
-  const tickerBg   = new PIXI.Graphics();
-  const tickerText = new PIXI.Text(symbol, baseStyle);
-  overlay.addChild(tickerBg, tickerText);
+  const baseStyle = createTextStyle(config, { fill: 0xffffff });
 
   const boxBg     = new PIXI.Graphics();
   const priceText = new PIXI.Text('', baseStyle);
@@ -34,7 +38,7 @@ export function LivePrice({ group, config, chartSettings }) {
   let serverOffset = 0;
   let offsetSet = false;
 
-  function drawDotted(g, x1, y, x2, dotR = 1, gap = 4) {
+  function drawDotted(g, x1, y, x2, dotR = 0.5, gap = 4) {
     g.clear();
     g.beginFill(g._lineColor || 0xffffff);
     for (let x = x1; x < x2; x += dotR * 2 + gap) {
@@ -48,7 +52,6 @@ export function LivePrice({ group, config, chartSettings }) {
     if (!candles?.length) {
       line.clear();
       boxBg.clear();
-      tickerBg.clear();
       return;
     }
 
@@ -58,10 +61,28 @@ export function LivePrice({ group, config, chartSettings }) {
     lastCloseTime = last.closeTime;
     currentPrice = price;
 
+    // Цвет из config.livePrice с дефолтами
+    const upColor   = config.livePrice?.priceUpColor   ?? 0x0C6600;
+    const downColor = config.livePrice?.priceDownColor ?? 0xBF1717;
     const isUp = price >= prev.close;
-    const lineClr = isUp ? +config.priceUpColor : +config.priceDownColor;
-    line._lineColor = lineClr;
+    const currentColor = isUp ? upColor : downColor;
 
+    // Лог для проверки
+    console.log(
+      '[LivePrice]',
+      'last.close =', last.close,
+      'prev.close =', prev.close,
+      'price =', price,
+      'isUp =', isUp,
+      'upColor =', upColor,
+      'downColor =', downColor,
+      'currentColor =', currentColor
+    );
+
+    // Линия в цвет свечи
+    line._lineColor = currentColor;
+
+    // Координата линии
     const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
     const minP = Math.min(...allPrices);
     const maxP = Math.max(...allPrices);
@@ -72,12 +93,13 @@ export function LivePrice({ group, config, chartSettings }) {
 
     drawDotted(line, 0, y, width);
 
-    const textW = Math.max(priceText.width, timerText.width);
-    const boxW  = textW + padX * 2;
-    const boxH  = priceText.height + timerText.height + padY * 3;
+    // Фиксированная ширина плашки
+    const boxW = 70;
+    const boxH = priceText.height + timerText.height + padY * 3;
 
+    // Плашка в тот же цвет
     boxBg.clear();
-    boxBg.beginFill(lineClr);
+    boxBg.beginFill(currentColor);
     boxBg.drawRect(0, 0, boxW, boxH);
     boxBg.endFill();
 
@@ -86,45 +108,42 @@ export function LivePrice({ group, config, chartSettings }) {
     boxBg.x = Math.round(boxX);
     boxBg.y = Math.round(boxY);
 
-    priceText.x = Math.round(boxX + padX);
+    // Центрируем текст
+    priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
     priceText.y = Math.round(boxY + padY);
-    timerText.x = Math.round(boxX + padX);
+    timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
     timerText.y = Math.round(priceText.y + priceText.height + padY);
-
-    tickerText.text = symbol;
-    const tW = tickerText.width + padX * 2;
-    const tH = tickerText.height + padY * 2;
-
-    tickerBg.clear();
-    tickerBg.beginFill(+config.tickerBgColor);
-    tickerBg.drawRect(0, 0, tW, tH);
-    tickerBg.endFill();
-
-    tickerBg.x = Math.round(boxX - tW);
-    tickerBg.y = Math.round(boxY);
-    tickerText.x = Math.round(tickerBg.x + padX);
-    tickerText.y = Math.round(tickerBg.y + padY);
   }
 
   function updatePrice(price, closeTime, serverTime) {
-      currentPrice = price;
-      lastCloseTime = closeTime;
+    currentPrice = price;
+    lastCloseTime = closeTime;
 
-      if (typeof serverTime === 'number' && !offsetSet) {
-        const localNow = Math.floor(Date.now() / 1000);
-        serverOffset = serverTime - localNow;
-        offsetSet = true;
-      }
+    if (typeof serverTime === 'number' && !offsetSet) {
+      const localNow = Math.floor(Date.now() / 1000);
+      serverOffset = serverTime - localNow;
+      offsetSet = true;
+    }
+  }
+
+  function formatTime(sec) {
+    const h = Math.floor(sec / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+    return h > 0
+      ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+      : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
 
   function tick() {
-      if (!currentPrice || !lastCloseTime) return;
-      const now = Math.floor(Date.now() / 1000) + serverOffset;
-      const timer = Math.max(lastCloseTime - now, 0);
-      priceText.text = currentPrice.toFixed(2);
-      timerText.text = String(timer);
+    if (!currentPrice || !lastCloseTime) return;
+    const now = Math.floor(Date.now() / 1000) + serverOffset;
+    const timer = Math.max(lastCloseTime - now, 0);
+    priceText.text = currentPrice.toFixed(2);
+    timerText.text = formatTime(timer);
   }
-  return { render, updatePrice, tick };
+
+  return { render, updatePrice, tick, symbol };
 }
 
 function connectLiveSocket(chartCore, chartSettings, live) {
@@ -132,21 +151,15 @@ function connectLiveSocket(chartCore, chartSettings, live) {
   const url = `ws://localhost:5002/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
   const ws = new WebSocket(url);
 
-  // сохраняем ссылку в ядре
   chartCore._livePriceSocket = ws;
 
   ws.onmessage = (event) => {
-    // ядро уже уничтожено — выходим
     if (!chartCore._alive) return;
-
     try {
       const data = JSON.parse(event.data);
-
-      // ожидаем от сервера { price: Number, closeTime: UnixTimestamp }
-        if (typeof data.price === 'number' && typeof data.closeTime === 'number') {
-          // если сервер шлёт своё текущее время, передаём его третьим аргументом
-          live.updatePrice(data.price, data.closeTime, data.serverTime);
-        }
+      if (typeof data.price === 'number' && typeof data.closeTime === 'number') {
+        live.updatePrice(data.price, data.closeTime, data.serverTime);
+      }
     } catch (err) {
       console.warn('[LiveSocket] Parse error:', err);
     }
@@ -160,7 +173,6 @@ function connectLiveSocket(chartCore, chartSettings, live) {
   };
 }
 
-
 export function initLive(chartCore, chartSettings) {
   const config = chartCore.config;
 
@@ -172,7 +184,8 @@ export function initLive(chartCore, chartSettings) {
   const live = LivePrice({
     group: chartCore.group,
     config,
-    chartSettings
+    chartSettings,
+    chartCore
   });
 
   chartCore.state.livePrice = live;
@@ -183,7 +196,8 @@ export function initLive(chartCore, chartSettings) {
 
   if (chartCore.state.candles.length) {
     const last = chartCore.state.candles.at(-1);
-    live.updatePrice(last.price ?? last.close, last.closeTime);
+    live.updatePrice(last.price ?? last.close, last.closeTime, Math.floor(Date.now() / 1000));
+    live.tick();
   }
 
   connectLiveSocket(chartCore, chartSettings, live);
