@@ -47,72 +47,6 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     g.endFill();
   }
 
-function render(layout) {
-  const { candles, width, height, scaleY, offsetY } = layout;
-  if (!candles?.length) {
-    line.clear();
-    boxBg.clear();
-    return;
-  }
-
-  const last = candles.at(-1);
-  const price = last.price ?? last.close;
-  lastCloseTime = last.closeTime;
-  currentPrice = price;
-
-  // Цвет по логике ядра: сравниваем close и open текущей свечи
-  const upColor   = config.livePrice.priceUpColor;
-  const downColor = config.livePrice.priceDownColor;
-  const isUp = last.close >= last.open;
-  const currentColor = isUp ? upColor : downColor;
-
-  // Линия в цвет свечи
-  line._lineColor = currentColor;
-
-  // Координата линии
-  const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-  const minP = Math.min(...allPrices);
-  const maxP = Math.max(...allPrices);
-  const range = maxP - minP || 1;
-  const plotH = height - config.bottomOffset;
-  const rawY = plotH * (1 - (price - minP) / range);
-  const y = rawY * scaleY + offsetY;
-
-  drawDotted(line, 0, y, width);
-
-  // Фиксированная ширина плашки
-  const boxW = 70;
-  const boxH = priceText.height + timerText.height + padY * 3;
-
-  // Плашка в тот же цвет
-  boxBg.clear();
-  boxBg.beginFill(currentColor);
-  boxBg.drawRect(0, 0, boxW, boxH);
-  boxBg.endFill();
-
-  const boxX = width - boxW;
-  const boxY = y - boxH / 2;
-  boxBg.x = Math.round(boxX);
-  boxBg.y = Math.round(boxY);
-
-  // Центрируем текст
-  priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
-  priceText.y = Math.round(boxY + padY);
-  timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
-  timerText.y = Math.round(priceText.y + priceText.height + padY);
-}
-
-  function updatePrice(price, closeTime, serverTime) {
-    currentPrice = price;
-    lastCloseTime = closeTime;
-
-    if (typeof serverTime === 'number' && !offsetSet) {
-      const localNow = Math.floor(Date.now() / 1000);
-      serverOffset = serverTime - localNow;
-      offsetSet = true;
-    }
-  }
-
   function formatTime(sec) {
     const h = Math.floor(sec / 3600);
     const m = Math.floor((sec % 3600) / 60);
@@ -122,8 +56,95 @@ function render(layout) {
       : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   }
 
+  function render(layout) {
+    const { candles, width, height, scaleY, offsetY, timeframe } = layout;
+    if (!candles?.length) {
+      line.clear();
+      boxBg.clear();
+      return;
+    }
+
+    const last = candles.at(-1);
+    const price = last.price ?? last.close;
+
+    // Безопасно определяем время закрытия текущей свечи
+    // 1) если есть last.closeTime — используем его
+    // 2) иначе вычисляем: (openTime || time || t) + timeframe
+    const baseTime = last.openTime ?? last.time ?? last.t ?? null;
+    const tfSec = Number.isFinite(timeframe) ? timeframe : 60;
+    const computedClose = Number.isFinite(baseTime) ? (baseTime + tfSec) : null;
+    lastCloseTime = Number.isFinite(last.closeTime) ? last.closeTime : computedClose;
+
+    currentPrice = price;
+
+    // Цвет по логике ядра
+    const upColor   = config.livePrice.priceUpColor;
+    const downColor = config.livePrice.priceDownColor;
+    const isUp = last.close >= last.open;
+    const currentColor = isUp ? upColor : downColor;
+
+    // Линия в цвет свечи
+    line._lineColor = currentColor;
+
+    // Координата линии
+    const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+    const minP = Math.min(...allPrices);
+    const maxP = Math.max(...allPrices);
+    const range = maxP - minP || 1;
+    const plotH = height - config.bottomOffset;
+    const rawY = plotH * (1 - (price - minP) / range);
+    const y = rawY * scaleY + offsetY;
+
+    drawDotted(line, 0, y, width);
+
+    // Фиксированная ширина плашки
+    const boxW = 70;
+    const boxH = 44;
+
+    // Плашка в тот же цвет
+    boxBg.clear();
+    boxBg.beginFill(currentColor);
+    boxBg.drawRect(0, 0, boxW, boxH);
+    boxBg.endFill();
+
+    const boxX = width - boxW;
+    const boxY = y - boxH / 1.5;
+    boxBg.x = Math.round(boxX);
+    boxBg.y = Math.round(boxY);
+
+    // Сразу задаём текст — чтобы он был при первом рендере
+    priceText.text = Number.isFinite(price) ? price.toFixed(2) : '';
+
+    // Если не удалось определить closeTime — покажем 00:00, но без NaN
+    if (Number.isFinite(lastCloseTime)) {
+      const now = Math.floor(Date.now() / 1000) + (offsetSet ? serverOffset : 0);
+      const timer = Math.max(lastCloseTime - now, 0);
+      timerText.text = formatTime(timer);
+    } else {
+      timerText.text = '00:00';
+    }
+
+    // Центрируем текст
+    priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
+    priceText.y = Math.round(boxY + padY);
+    timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
+    timerText.y = Math.round(priceText.y + priceText.height / 1.2);
+  }
+
+  function updatePrice(price, closeTime, serverTime) {
+    currentPrice = price;
+    if (Number.isFinite(closeTime)) {
+      lastCloseTime = closeTime;
+    }
+    if (typeof serverTime === 'number' && !offsetSet) {
+      const localNow = Math.floor(Date.now() / 1000);
+      serverOffset = serverTime - localNow;
+      offsetSet = true;
+    }
+  }
+
   function tick() {
-    if (!currentPrice || !lastCloseTime) return;
+    if (!Number.isFinite(currentPrice) || !Number.isFinite(lastCloseTime)) return;
     const now = Math.floor(Date.now() / 1000) + serverOffset;
     const timer = Math.max(lastCloseTime - now, 0);
     priceText.text = currentPrice.toFixed(2);
@@ -177,13 +198,20 @@ export function initLive(chartCore, chartSettings) {
 
   chartCore.state.livePrice = live;
 
+  // Если layout уже готов — сразу отрисуем с таймером
   if (chartCore.layout) {
     live.render(chartCore.layout);
   }
 
+  // Если есть свечи — сразу выставим цену/время и тикнем
   if (chartCore.state.candles.length) {
     const last = chartCore.state.candles.at(-1);
-    live.updatePrice(last.price ?? last.close, last.closeTime, Math.floor(Date.now() / 1000));
+    const initialPrice = last.price ?? last.close;
+    const initialClose = Number.isFinite(last.closeTime)
+      ? last.closeTime
+      : ((last.openTime ?? last.time ?? last.t ?? Math.floor(Date.now()/1000)) + (chartCore.state.timeframe || 60));
+
+    live.updatePrice(initialPrice, initialClose, Math.floor(Date.now() / 1000));
     live.tick();
   }
 
