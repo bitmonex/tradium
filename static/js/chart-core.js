@@ -282,6 +282,16 @@ export function createChartCore(container, userConfig = {}) {
         }
 
         renderAll();
+        if (
+          chartCore._lastCandleData &&
+          chartCore._lastCandleData.openTime === chartCore.state.candles.at(-1)?.openTime &&
+          chartCore._lastCandleData.timeframe === state.timeframe // если сервер шлёт tf
+        ) {
+          chartCore.updateLast(chartCore._lastCandleData);
+          renderAll();
+          chartCore._lastCandleData = null; // 🔹 сброс, чтобы не мешало новой свече
+        }
+
       }
 
       // ждём загрузки шрифта, затем рисуем модули
@@ -443,5 +453,4 @@ export function initRealtimeCandles(chartCore, chartSettings) {
     }
   };
 }
-
 
