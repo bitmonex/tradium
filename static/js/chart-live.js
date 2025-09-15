@@ -99,7 +99,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
 
     // Фиксированная ширина плашки
     const boxW = 70;
-    const boxH = 44;
+    const boxH = 45;
 
     // Плашка в тот же цвет
     boxBg.clear();
