@@ -1,5 +1,4 @@
 // chart-layout.js
-
 export function createLayout(
   app,           // нужен только для width/height
   config,
@@ -14,12 +13,15 @@ export function createLayout(
   const height = app.renderer.height;
 
   // один раз считаем domain
-  const spacing = config.candleWidth + config.spacing;
-  const prices  = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-  const min     = Math.min(...prices);
-  const max     = Math.max(...prices);
-  const range   = max - min || 1;
-  const time0   = candles[0]?.time ?? 0;
+    const spacing = config.candleWidth + config.spacing;
+    const prices = candles.length
+      ? candles.flatMap(c => [c.open, c.high, c.low, c.close])
+      : [0, 1];
+
+    const min = Math.min(...prices);
+    const max = Math.max(...prices);
+    const range = max - min || 1;
+    const time0 = candles[0]?.time ?? 0;
 
   // Перевод цены → Y
   function priceToY(price) {

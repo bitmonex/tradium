@@ -33,13 +33,13 @@ export function formatPrice(price) {
   return price.toFixed(4);
 }
 
-//Базовый PIXI.TextStyle по дефолту
+// Базовый PIXI.TextStyle по дефолту
 export function createTextStyle(config, overrides = {}) {
   return new PIXI.TextStyle({
-    fontFamily: config.chartFont,
-    fontSize:   config.chartFontSize,
-    fontWeight: config.chartFontWeight,
-    resolution: window.devicePixelRatio,
+    fontFamily:    config.chartFont,
+    fontSize:      config.chartFontSize,
+    fontWeight:    config.chartFontWeight,
+    resolution:    window.devicePixelRatio,
     letterSpacing: config.letterSpacing,
     ...overrides
   });

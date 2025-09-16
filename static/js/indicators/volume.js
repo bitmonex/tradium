@@ -2,7 +2,7 @@ export const meta = {
   id: "volume",
   name: "Объём",
   type: "bar",
-  color: "#777777",
+  color: "#777777", // можно и 0x777777, Pixi v8 поймёт оба формата
   height: 100,
   bottomOffset: 30,
   rightOffset: 70
@@ -36,7 +36,6 @@ export function createIndicator({ layer }, layout) {
       const c = history[i];
       const x = i * (rawBarWidth + spacing) + offsetX;
       const h = (c.volume / maxVol) * volHeight;
-      const color = PIXI.utils.string2hex(meta.color);
 
       bar.clear();
 
@@ -46,9 +45,8 @@ export function createIndicator({ layer }, layout) {
       }
 
       bar.visible = true;
-      bar.beginFill(color);
-      bar.drawRect(x, bottomY - h, barWidth, h);
-      bar.endFill();
+      // Новый API Pixi v8: rect + fill
+      bar.rect(x, bottomY - h, barWidth, h).fill(meta.color);
     });
   }
 

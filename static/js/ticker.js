@@ -1,31 +1,20 @@
-import { initPixiChart } from "./chart.js";
+import { startChartRender } from "./chart.js";
 
-// Таймфрейм будет получен из storage или DOM после загрузки
 let timeframe = null;
 
 function changeTimeframe(newTF) {
     timeframe = newTF;
     localStorage.setItem("timeframe", timeframe);
 
-    // 🔹 Уничтожаем старое ядро и live‑подписки, если есть
-    if (window.chartCore?.destroy) {
-        try {
-            window.chartCore.destroy();
-        } catch(e) {
-            console.warn('[Ticker] destroy error', e);
-        }
-        window.chartCore = null;
-    }
-
     document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
-    const active = document.querySelector(`.timeframes i[rel='${timeframe}']`);
+    const active = Array.from(document.querySelectorAll(".timeframes i"))
+        .find(i => i.getAttribute("rel") === timeframe);
     if (active) active.classList.add("on");
 
-    const { exchange, marketType, symbol } = window.chartSettings;
-    initPixiChart("pixi-chart-container", { exchange, marketType, symbol, timeframe });
+    // Передаём TF напрямую
+    startChartRender(timeframe);
 }
 
-// Пересчитать родитель при изменении верстки
 function resizeChart() {
     if (window.chartCore?.resize) {
         window.chartCore.resize();
@@ -34,15 +23,10 @@ function resizeChart() {
 
 document.addEventListener("DOMContentLoaded", () => {
     const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
-    window.chartSettings.grid = storedGrid || {
-        enabled: true,
-        color: "#ffffff"
-    };
+    window.chartSettings = { grid: storedGrid || { enabled: true, color: "#ffffff" } };
 
-    const tfSelector = document.getElementById("tf");
     const stored = localStorage.getItem("timeframe");
-    const fallback = tfSelector?.getAttribute("data-default");
-
+    const fallback = document.getElementById("tf")?.getAttribute("data-default");
     const initialTF = stored || fallback;
 
     if (!initialTF) {
@@ -50,7 +34,8 @@ document.addEventListener("DOMContentLoaded", () => {
         return;
     }
 
-    const active = document.querySelector(`#tf i[rel='${initialTF}']`);
+    const active = Array.from(document.querySelectorAll("#tf i"))
+        .find(i => i.getAttribute("rel") === initialTF);
     if (active) active.classList.add("on");
 
     changeTimeframe(initialTF);
@@ -142,16 +127,12 @@ document.getElementById("clearStorage")?.addEventListener("click", () => {
         return;
     }
 
-    const activeTF = document.querySelector(`#tf i[rel='${tfDefault}']`);
+    const activeTF = Array.from(document.querySelectorAll("#tf i"))
+        .find(i => i.getAttribute("rel") === tfDefault);
     if (activeTF) activeTF.classList.add("on");
 
-    if (window.chartCore?.destroy) {
-      window.chartCore.destroy();
-    }
-    window.chartCore = null;
-
-    const { exchange, marketType, symbol } = window.chartSettings;
-    initPixiChart("pixi-chart-container", { exchange, marketType, symbol, timeframe: tfDefault });
+    // Перезапуск графика с дефолтным TF
+    startChartRender(tfDefault);
 
     console.log("🧯 Storage очищен, график сброшен на", tfDefault);
 });

@@ -1,3 +1,4 @@
+//chart-zoom.js
 //Горизонтальный зум
 export function zoomX({ mx, scaleX, offsetX, config, direction }) {
   const cw = config.candleWidth + config.spacing;

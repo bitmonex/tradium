@@ -13,8 +13,7 @@ import { updateLastCandle }  from './chart-candles.js';
 
 // @param {HTMLElement} container – DOM-элемент для PIXI Canvas
 // @param {object} userConfig – объект, расширяющий ChartConfig
-
-export function createChartCore(container, userConfig = {}) {
+export async function createChartCore(container, userConfig = {}) {
   const fullConfig = { ...ChartConfig, ...userConfig };
   const {
     default: defStyles,
@@ -50,12 +49,13 @@ export function createChartCore(container, userConfig = {}) {
   // chartSettings передаём в OHLCV и LivePrice
   const chartSettings = { exchange, marketType, symbol };
 
-  // 4) Инициализация PIXI
-  const app = new PIXI.Application({
-    resizeTo:       container,
-    backgroundColor:+config.chartBG,
-    antialias:      true,
-    autoDensity:    true
+  // 4) Инициализация PIXI (v8: через init)
+  const app = new PIXI.Application();
+  await app.init({
+    resizeTo:        container,
+    background:     +config.chartBG, // v8: background
+    antialias:       true,
+    autoDensity:     true
   });
   app.stage.sortableChildren = true;
   container.appendChild(app.view);
@@ -83,7 +83,7 @@ export function createChartCore(container, userConfig = {}) {
     indicators:       null,
     fps:              null,
 
-    // флаги для автоцентрирования
+    // флаги автоцентрирования
     isFirstAutoCenter: true,  // центрировать только при первой загрузке
     userHasPanned:     false  // пользователь уже перетаскивал или масштабировал
   };
@@ -115,7 +115,7 @@ export function createChartCore(container, userConfig = {}) {
   let sprites = [];
   let lastKey = '';
 
-  // 9) Функция рисует только свечи
+  // 9) Функция рисует только свечи (Graphics API обновлён под v8)
   function drawCandlesOnly() {
     if (!candleLayer || !state.candles.length) return;
     if (!app?.renderer) return;
@@ -146,6 +146,7 @@ export function createChartCore(container, userConfig = {}) {
     state.candles.forEach((v, i) => {
       const g = sprites[i];
       const x = i * cw + state.offsetX;
+
       if (x + config.candleWidth < 0 || x > width - config.rightOffset) {
         g.visible = false;
         return;
@@ -161,19 +162,18 @@ export function createChartCore(container, userConfig = {}) {
 
       g.clear();
       g.visible = true;
-      g.lineStyle(1, color);
-      g.beginFill(color);
-      g.drawRect(
-        x,
-        Math.min(mapY(v.open), mapY(v.close)),
-        config.candleWidth * state.scaleX,
-        Math.max(1, Math.abs(mapY(v.close) - mapY(v.open)))
-      );
-      g.endFill();
 
+      // тело свечи
+      const bodyX = x;
+      const bodyY = Math.min(mapY(v.open), mapY(v.close));
+      const bodyH = Math.max(1, Math.abs(mapY(v.close) - mapY(v.open)));
+      const bodyW = config.candleWidth * state.scaleX;
+
+      g.rect(bodyX, bodyY, bodyW, bodyH).fill(color);
+
+      // тень
       const cx = x + (config.candleWidth * state.scaleX) / 2;
-      g.moveTo(cx, mapY(v.high));
-      g.lineTo(cx, mapY(v.low));
+      g.moveTo(cx, mapY(v.high)).lineTo(cx, mapY(v.low)).stroke({ width: 1, color });
     });
   }
 
@@ -215,18 +215,17 @@ export function createChartCore(container, userConfig = {}) {
     if (modules.indicators) { state.indicators.add(layout); state.indicators.render(layout); }
     if (modules.livePrice && state.livePrice) { state.livePrice.render(layout); }
 
+    // Маска (Graphics API v8)
     mask.clear();
-    mask.beginFill(0x000000);
-    mask.drawRect(
+    mask.rect(
       0,
       0,
       layout.width  - config.rightOffset,
       layout.height - config.bottomOffset
-    );
-    mask.endFill();
+    ).fill(0x000000);
   }
 
-  // 12) Приём новых данных и первая отрисовка
+  // 12) Приём новых данных и первая отрисовка (фикс автоцентрирования)
   function draw({ candles, volumes }) {
     const isInitialLoad = state.candles.length === 0;
 
@@ -342,31 +341,42 @@ export function createChartCore(container, userConfig = {}) {
   window.addEventListener('resize', resize);
 
   // 15) Очистка и уничтожение
-  function destroy() {
-    if (!chartCore._alive) return;
-    chartCore._alive = false;
+    function destroy() {
+        if (!chartCore._alive) return;
+        chartCore._alive = false;
 
-    try { mouse?.destroy?.(); } catch (e) { console.warn('[ChartCore] mouse destroy error', e); }
-    window.removeEventListener('resize', resize);
+        try { mouse?.destroy?.(); } catch (e) { console.warn('[ChartCore] mouse destroy error', e); }
+        window.removeEventListener('resize', resize);
 
-    if (chartCore._livePriceSocket) {
-      try {
-        chartCore._livePriceSocket.onmessage = null;
-        chartCore._livePriceSocket.onclose = null;
-        chartCore._livePriceSocket.close();
-      } catch (e) { console.warn('[ChartCore] live price socket close error', e); }
-      chartCore._livePriceSocket = null;
+        if (chartCore._livePriceSocket) {
+            try {
+                chartCore._livePriceSocket.onmessage = null;
+                chartCore._livePriceSocket.onclose = null;
+                chartCore._livePriceSocket.close();
+            } catch (e) { console.warn('[ChartCore] live price socket close error', e); }
+            chartCore._livePriceSocket = null;
+        }
+        if (chartCore._candleSocket) {
+            try {
+                chartCore._candleSocket.onmessage = null;
+                chartCore._candleSocket.onclose = null;
+                chartCore._candleSocket.close();
+            } catch (e) { console.warn('[ChartCore] candle socket close error', e); }
+            chartCore._candleSocket = null;
+        }
+
+        // Удаляем canvas из DOM до уничтожения app
+        if (app?.view && app.view.parentNode) {
+            app.view.parentNode.removeChild(app.view);
+        }
+
+        try {
+            app?.destroy?.(true, { children: true, texture: true, baseTexture: true });
+        } catch (e) {
+            console.warn('[ChartCore] app destroy error', e);
+        }
     }
-    if (chartCore._candleSocket) {
-      try {
-        chartCore._candleSocket.onmessage = null;
-        chartCore._candleSocket.onclose = null;
-        chartCore._candleSocket.close();
-      } catch (e) { console.warn('[ChartCore] candle socket close error', e); }
-      chartCore._candleSocket = null;
-    }
-    try { app?.destroy?.(true, { children: true }); } catch (e) { console.warn('[ChartCore] app destroy error', e); }
-  }
+
 
   // 16) Обновление последней свечи без полного redraw
   function updateLast(candle) {
@@ -408,7 +418,8 @@ export function initRealtimeCandles(chartCore, chartSettings) {
     if (!chartCore._alive) return;
     try {
       const data = JSON.parse(event.data);
-      chartCore._lastCandleData = data;
+      chartCore._lastCandleData = data; // запоминаем последнее сообщение
+
       const last = chartCore.state.candles.at(-1);
       if (last?.openTime === data.openTime || !data.isFinal) {
         chartCore.updateLast(data);

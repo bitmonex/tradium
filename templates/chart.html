@@ -1,10 +1,11 @@
 <div id="pixi-outer" style="width: 100%; height: 100%; position: relative;">
-    <div id="pixi-chart-container" style="width: 100%; height: 500px;"></div>
+    <div 
+        id="chart-container" 
+        style="width: 100%; height: 500px;"
+        data-exchange="{{ exchange }}"
+        data-market-type="{{ market_type }}"
+        data-symbol="{{ symbol }}"
+    ></div>
 </div>
-<script src="/static/js/pixi.js"></script>
-<script type="module">
-    import { initPixiChart } from "/static/js/chart.js";
-    const exchange = "{{ exchange }}";
-    const marketType = "{{ market_type }}";
-    const symbol = "{{ symbol }}";
-</script>
+
+<script src="/static/js/pixi.min.js"></script>

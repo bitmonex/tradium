@@ -1,3 +1,4 @@
+//chart-fps.js
 import { ChartConfig } from './chart-config.js'
 
 export class FPS {

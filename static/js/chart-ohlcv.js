@@ -1,3 +1,4 @@
+//chart-ohlcv.js
 export function OHLCV({ config, chartSettings = {}, group }) {
   const {
     ohlcvOn,

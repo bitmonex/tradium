@@ -53,13 +53,6 @@
         <i class="clear" id="clearStorage"><b class="icon-trash"></b></i>
     </div>
     {% include 'chart.html' %}
-    <script>
-        window.chartSettings = {
-            exchange: "{{ exchange }}",
-            marketType: "{{ market_type }}",
-            symbol: "{{ symbol }}"
-        };
-    </script>
     <script type="module" src="/static/js/ticker.js"></script>
 </div>
 

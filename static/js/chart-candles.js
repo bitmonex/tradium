@@ -1,3 +1,4 @@
+//chart-candles.js
 export function updateLastCandle(candle) {
   const core = window.chartCore;
   if (!core?.state?.candles) return;

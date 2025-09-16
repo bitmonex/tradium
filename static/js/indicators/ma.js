@@ -1,3 +1,4 @@
+//Indicator MA
 export function createIndicator({ layer }, layout, params = {}) {
   if (!layer || !layout?.candles?.length) return;
 
@@ -33,7 +34,6 @@ export function createIndicator({ layer }, layout, params = {}) {
     }
 
     maLine.clear();
-    maLine.lineStyle(2, 0xffd700);
 
     const cw = currentLayout.config.candleWidth + currentLayout.config.spacing;
     const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
@@ -41,19 +41,27 @@ export function createIndicator({ layer }, layout, params = {}) {
     const maxPrice = Math.max(...prices);
     const priceRange = maxPrice - minPrice || 1;
 
+    let started = false;
+
     for (let i = 0; i < maValues.length; i++) {
       const val = maValues[i];
       if (val === null) continue;
 
       const x = i * cw * currentLayout.scaleX + currentLayout.offsetX;
-      const y = ((currentLayout.height - currentLayout.config.bottomOffset) * (1 - (val - minPrice) / priceRange)) * currentLayout.scaleY + currentLayout.offsetY;
+      const y = ((currentLayout.height - currentLayout.config.bottomOffset) *
+                (1 - (val - minPrice) / priceRange)) *
+                currentLayout.scaleY + currentLayout.offsetY;
 
-      if (i === period - 1) {
+      if (!started) {
         maLine.moveTo(x, y);
+        started = true;
       } else {
         maLine.lineTo(x, y);
       }
     }
+
+    // один вызов stroke в конце
+    maLine.stroke({ width: 2, color: 0xffd700 });
   }
 
   return { layer: maLayer, render };
