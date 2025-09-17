@@ -1,5 +1,4 @@
 // chart-config.js
-
 export const ChartConfig = {
   //дефолт
   default: {
