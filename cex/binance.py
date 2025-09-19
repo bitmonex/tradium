@@ -12,33 +12,53 @@ SPOT_WS_URL = "wss://stream.binance.com:9443/ws/!ticker@arr"
 FUTURES_WS_URL = "wss://fstream.binance.com/ws/!ticker@arr"
 
 queue = asyncio.Queue()
-live_candles = {}  # ключ: room, значение: dict с closeTime и остальными данными
+live_candles = {}
+last_msg_time = {}
 
-# Обработчик спота
+# ====== Обработчики тикеров ======
+
 async def spot_ws_handler():
-    async with websockets.connect(SPOT_WS_URL) as ws:
-        async for msg in ws:
-            try:
-                data = json.loads(msg)
-                for t in data:
-                    t["market_type"] = "spot"
-                    await queue.put(t)
-            except Exception as e:
-                print("[spot_ws_handler] Error:", e)
+    name = "spot_ticker"
+    while True:
+        try:
+            async with websockets.connect(SPOT_WS_URL, ping_interval=20, ping_timeout=20) as ws:
+                print("[spot_ws_handler] Connected")
+                last_msg_time[name] = time.time()
+                async for msg in ws:
+                    last_msg_time[name] = time.time()
+                    try:
+                        data = json.loads(msg)
+                        for t in data:
+                            t["market_type"] = "spot"
+                            await queue.put(t)
+                    except Exception as e:
+                        print("[spot_ws_handler] Error:", e)
+        except Exception as e:
+            print("[spot_ws_handler] Connection error:", e)
+            await asyncio.sleep(5)
 
-# Обработчик фьючерсов
 async def futures_ws_handler():
-    async with websockets.connect(FUTURES_WS_URL) as ws:
-        async for msg in ws:
-            try:
-                data = json.loads(msg)
-                for t in data:
-                    t["market_type"] = "futures"
-                    await queue.put(t)
-            except Exception as e:
-                print("[futures_ws_handler] Error:", e)
+    name = "futures_ticker"
+    while True:
+        try:
+            async with websockets.connect(FUTURES_WS_URL, ping_interval=20, ping_timeout=20) as ws:
+                print("[futures_ws_handler] Connected")
+                last_msg_time[name] = time.time()
+                async for msg in ws:
+                    last_msg_time[name] = time.time()
+                    try:
+                        data = json.loads(msg)
+                        for t in data:
+                            t["market_type"] = "futures"
+                            await queue.put(t)
+                    except Exception as e:
+                        print("[futures_ws_handler] Error:", e)
+        except Exception as e:
+            print("[futures_ws_handler] Connection error:", e)
+            await asyncio.sleep(5)
 
-# Основной консьюмер
+# ====== Консьюмер ======
+
 async def consumer():
     while True:
         t = await queue.get()
@@ -79,88 +99,86 @@ async def consumer():
         except Exception as e:
             print("[consumer] Error:", e)
 
-# Обработчик свечей
-async def kline_ws_handler(market_type, symbol, tf):
-    base_url = "wss://stream.binance.com:9443/ws" if market_type == "spot" else "wss://fstream.binance.com/ws"
-    symbol_ws = symbol.lower()
-    ws_url = f"{base_url}/{symbol_ws}@kline_{tf}"
+# ====== Новый мульти‑подписочный обработчик свечей ======
 
-    async with websockets.connect(ws_url) as ws:
-        async for msg in ws:
-            try:
-                data = json.loads(msg)
-                k = data["k"]
+async def kline_multi_ws_handler(market_type, symbols, tf):
+    name = f"{market_type}_{tf}"
+    base_url = "wss://stream.binance.com:9443/stream?streams=" if market_type == "spot" else "wss://fstream.binance.com/stream?streams="
+    streams = "/".join(f"{s.lower()}@kline_{tf}" for s in symbols)
+    ws_url = f"{base_url}{streams}"
 
-                full_symbol = symbol.upper()
-                if market_type == "futures":
-                    full_symbol += "PERP"
+    while True:
+        try:
+            async with websockets.connect(ws_url, ping_interval=20, ping_timeout=20) as ws:
+                print(f"[kline_multi_ws_handler] Connected {market_type} {tf} ({len(symbols)} symbols)")
+                last_msg_time[name] = time.time()
+                async for msg in ws:
+                    last_msg_time[name] = time.time()
+                    try:
+                        data = json.loads(msg)
+                        stream = data.get("stream", "")
+                        k = data["data"]["k"]
 
-                timestamp = int(k["t"]) / 1000
-                close_time = int(k["T"]) // 1000
-                timer = max(0, math.floor(close_time - time.time()))
+                        full_symbol = k["s"].upper()
+                        if market_type == "futures":
+                            full_symbol += "PERP"
 
-                candle = {
-                    "symbol":     full_symbol,
-                    "timestamp":  timestamp,
-                    "open":       float(k["o"]),
-                    "high":       float(k["h"]),
-                    "low":        float(k["l"]),
-                    "close":      float(k["c"]),
-                    "volume":     float(k["v"]),
-                    "openTime":   int(k["t"]) // 1000,
-                    "closeTime":  close_time,
-                    "isFinal":    k["x"],
-                    "price":      float(k["c"]),
-                    "timer": timer
-                }
+                        timestamp = int(k["t"]) / 1000
+                        close_time = int(k["T"]) // 1000
+                        timer = max(0, math.floor(close_time - time.time()))
 
-                exchange = "binance"
-                collection_name = f"{exchange}_{market_type}_candles_{tf}"
+                        candle = {
+                            "symbol":     full_symbol,
+                            "timestamp":  timestamp,
+                            "open":       float(k["o"]),
+                            "high":       float(k["h"]),
+                            "low":        float(k["l"]),
+                            "close":      float(k["c"]),
+                            "volume":     float(k["v"]),
+                            "openTime":   int(k["t"]) // 1000,
+                            "closeTime":  close_time,
+                            "isFinal":    k["x"],
+                            "price":      float(k["c"]),
+                            "timer": timer
+                        }
 
-                await db[collection_name].update_one(
-                    {"symbol": full_symbol, "timestamp": timestamp},
-                    {"$set": candle},
-                    upsert=True
-                )
+                        exchange = "binance"
+                        collection_name = f"{exchange}_{market_type}_candles_{tf}"
 
-                room = f"{exchange}:{market_type}:{full_symbol}:{tf}"
-                live_candles[room] = {
-                    "closeTime": close_time,
-                    "symbol": full_symbol,
-                    "exchange": exchange,
-                    "market_type": market_type,
-                    "tf": tf
-                }
-                await ws_manager.broadcast(room, json.dumps(candle))
+                        await db[collection_name].update_one(
+                            {"symbol": full_symbol, "timestamp": timestamp},
+                            {"$set": candle},
+                            upsert=True
+                        )
 
-            except Exception as e:
-                print(f"[kline_ws_handler] Error {market_type}/{tf}: {e}")
+                        room = f"{exchange}:{market_type}:{full_symbol}:{tf}"
+                        live_candles[room] = {
+                            "closeTime": close_time,
+                            "symbol": full_symbol,
+                            "exchange": exchange,
+                            "market_type": market_type,
+                            "tf": tf
+                        }
+                        await ws_manager.broadcast(room, json.dumps(candle))
 
+                    except Exception as e:
+                        print(f"[kline_multi_ws_handler] Error {market_type}/{tf}: {e}")
+        except Exception as e:
+            print(f"[kline_multi_ws_handler] Connection error {market_type}/{tf}: {e}")
+            await asyncio.sleep(5)
 
-# Главная точка запуска
-async def start_binance():
-    timeframes = [
-        "1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "3d", "1w", "1M"
-    ]
-    symbols = [
-        "btcusdt", "ethusdt"
-    ]
+# ====== Watchdog ======
 
-    tasks = [
-        spot_ws_handler(),
-        futures_ws_handler(),
-        consumer(),
-        timer_broadcaster()
-    ]
+async def watchdog(timeout=30):
+    while True:
+        await asyncio.sleep(5)
+        now = time.time()
+        for name, last_time in list(last_msg_time.items()):
+            if now - last_time > timeout:
+                print(f"[watchdog] {name} stale for {int(now - last_time)}s — consider reconnect")
 
-    for tf in timeframes:
-        for symbol in symbols:
-            tasks.append(kline_ws_handler("spot", symbol, tf))
-            tasks.append(kline_ws_handler("futures", symbol, tf))
+# ====== Таймер ======
 
-    await asyncio.gather(*tasks)
-    
-# Таймер до закрытия бара
 async def timer_broadcaster():
     while True:
         now = int(time.time())
@@ -179,3 +197,28 @@ async def timer_broadcaster():
             await ws_manager.broadcast(room, json.dumps(payload))
 
         await asyncio.sleep(1)
+
+# ====== Старт ======
+
+async def start_binance():
+    timeframes = [
+        "1m", "5m", "15m", "30m", "1h", "2h", "4h", "6h", "12h", "1d", "3d", "1w", "1M"
+    ]
+    # Здесь можно указать хоть весь список тикеров
+    symbols = [
+        "btcusdt", "ethusdt", "bnbusdt", "xrpusdt"
+    ]
+
+    tasks = [
+        spot_ws_handler(),
+        futures_ws_handler(),
+        consumer(),
+        timer_broadcaster(),
+        watchdog()
+    ]
+
+    for tf in timeframes:
+        tasks.append(kline_multi_ws_handler("spot", symbols, tf))
+        tasks.append(kline_multi_ws_handler("futures", symbols, tf))
+
+    await asyncio.gather(*tasks)
