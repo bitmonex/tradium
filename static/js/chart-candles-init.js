@@ -1,71 +1,41 @@
 // chart-candles-init.js
-import { CandlesModule } from './chart-candles.js';
-
 export function initRealtimeCandles(chartCore, chartSettings) {
   chartCore._alive = true;
-
-  // Закрываем предыдущий сокет, если был
-  try {
-    chartCore._candlesSocket?.close();
-  } catch {}
-
-  // Создаём/переиспользуем модуль свечей
-  let candles = chartCore.modules?.candles;
-  if (!candles) {
-    candles = CandlesModule(chartCore);
-    chartCore.registerModule('candles', candles);
-  }
-
-  connectCandlesSocket(chartCore, chartSettings, candles);
+  try { chartCore._candlesSocket?.close(); } catch {}
+  connectCandlesSocket(chartCore, chartSettings);
 }
 
-function connectCandlesSocket(chartCore, chartSettings, candles) {
-  const { exchange, marketType, symbol, timeframe } = chartSettings;
+function connectCandlesSocket(chartCore, { exchange, marketType, symbol, timeframe, onUpdate }) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
-
-  const ws = new WebSocket(url);
+  const ws = new WebSocket(`${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`);
   chartCore._candlesSocket = ws;
-
-  ws.onopen = () => {
-    // При новом подключении пересчитаем layout под уже загруженную историю
-    chartCore.setFlag('layoutDirty');
-    chartCore.setFlag('candlesDirty');
-  };
 
   ws.onmessage = e => {
     if (!chartCore._alive) return;
-
     try {
       const data = JSON.parse(e.data);
+      const intervalMs = chartCore.state.tfMs || 60000;
+      let ts = data.timestamp ?? data.time ?? data.openTime;
+      if (!ts) return;
+      if (ts < 1e12) ts *= 1000;
+      ts = Math.floor(ts / intervalMs) * intervalMs;
 
-      // Пришёл апдейт свечи
-      if (
-        typeof data.open === 'number' &&
-        typeof data.close === 'number' &&
-        typeof data.high === 'number' &&
-        typeof data.low === 'number'
-      ) {
-        // Нормализуем возможные поля времени под updateLastCandle
-        if (data.timestamp && data.timestamp < 1e12) data.timestamp *= 1000;
-        if (data.openTime && data.openTime < 1e12) data.openTime *= 1000;
-        if (data.time && data.time < 1e12) data.time *= 1000;
-
-        candles.updateLastCandle(data);
+      const last = chartCore.state.candles.at(-1);
+      if ((last && last.timestamp === ts) || !data.isFinal) {
+        chartCore.state._needRedrawCandles = true;
+        chartCore.updateLast(data);
+        onUpdate?.(false);
+      } else {
+        chartCore.state.candles.push({ ...data, timestamp: ts });
+        chartCore.renderAll();
+        onUpdate?.(true);
       }
-    } catch (err) {
-      // некорректный пакет — пропускаем
-    }
-  };
-
-  ws.onerror = () => {
-    // можно добавить метрики/уведомления
+    } catch {}
   };
 
   ws.onclose = () => {
     if (chartCore._alive && ws.readyState !== WebSocket.OPEN) {
-      // Ре-коннект с небольшой задержкой
-      setTimeout(() => connectCandlesSocket(chartCore, chartSettings, candles), 800);
+      setTimeout(() => connectCandlesSocket(chartCore, { exchange, marketType, symbol, timeframe, onUpdate }), 800);
     }
   };
 }

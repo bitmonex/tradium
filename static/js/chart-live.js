@@ -3,20 +3,15 @@ import { createTextStyle } from './chart-utils.js';
 
 export function LivePrice({ group, config, chartSettings, chartCore }) {
   const padX = 8, padY = 4;
-  const symbol = chartSettings?.symbol ?? '???';
 
-  // Сносим старый overlay
   chartCore?.state?.livePriceOverlay?.destroy?.({ children: true });
 
-  // Слой линии
   const lineLayer = new PIXI.Container(); lineLayer.sortableChildren = true; lineLayer.zIndex = 100; group.addChild(lineLayer);
   const line = new PIXI.Graphics(); lineLayer.addChild(line);
 
-  // Overlay поверх графика
   const overlay = new PIXI.Container(); overlay.sortableChildren = true; overlay.zIndex = 101; group.parent.addChild(overlay);
   if (chartCore?.state) chartCore.state.livePriceOverlay = overlay;
 
-  // Текст и фон
   const baseStyle = createTextStyle(config, { fill: +(config.textColor ?? 0xffffff) });
   const boxBg = new PIXI.Graphics();
   const priceText = new PIXI.Text('', baseStyle);
@@ -52,19 +47,45 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     return rawY * layout.scaleY + layout.offsetY;
   };
 
-  const drawBox = (y, price, color, width) => {
+  // Прижатие плашки к правому краю без завязки на layout.width
+  const drawBox = (y, price, color) => {
     priceText.text = Number.isFinite(price) ? price.toFixed(2) : '';
+
     const textW = Math.max(priceText.width, timerText.width);
     const boxW = Math.max(70, textW + padX * 2);
     const boxH = Math.max(40, priceText.height + timerText.height + padY * 3);
+
     boxBg.clear().beginFill(color).drawRect(0, 0, boxW, boxH).endFill();
-    const boxX = width - boxW, boxY = y - boxH / 2;
-    boxBg.x = Math.round(boxX); boxBg.y = Math.round(boxY);
+
+    // Текущая ширина экрана Pixi (устойчиво при ресайзе)
+    const screenW = chartCore?.app?.renderer?.screen?.width
+      ?? overlay.parent?.width
+      ?? overlay.width
+      ?? 0;
+
+    // Прижимаем к правому краю
+    const boxX = Math.max(0, screenW - boxW);
+
+    // Лёгкий клэмп по Y, чтобы не уезжала за верх/низ
+    const screenH = chartCore?.app?.renderer?.screen?.height
+      ?? overlay.parent?.height
+      ?? overlay.height
+      ?? 0;
+
+    const halfH = boxH / 2;
+    const clampedY = Math.min(Math.max(y, halfH), Math.max(halfH, screenH - halfH));
+    const boxY = clampedY - halfH;
+
+    boxBg.x = Math.round(boxX);
+    boxBg.y = Math.round(boxY);
+
     priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
     priceText.y = Math.round(boxY + padY);
+
     timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
     timerText.y = Math.round(priceText.y + priceText.height + padY);
   };
+
 
   function render(layout) {
     const { candles, width, timeframe } = layout;
@@ -88,7 +109,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
       timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
     } else timerText.text = '00:00';
 
-    drawBox(y, price, color, width);
+    drawBox(y, price, color);
   }
 
   function updatePrice(price, closeTime, serverTime) {
@@ -106,18 +127,18 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     const last = candles.at(-1);
     if (!last) return;
 
-    // Обновляем OHLC последней свечи
     last.close = currentPrice;
     if (currentPrice > last.high) last.high = currentPrice;
     if (currentPrice < last.low)  last.low  = currentPrice;
 
     chartCore.updateLast?.(last);
 
-    // Сообщаем ядру live‑цену и перерисовываем лёгким рендером
+    // realtime-обновление OHLCV (форс)
+    chartCore.state.ohlcv?.update?.(last, { force: true });
+
     if (chartCore.state) chartCore.state._liveOverride = { price: currentPrice };
     chartCore.invalidateLight?.();
 
-    // Пересчёт и отрисовка
     const color = getCandleColor(last, currentPrice);
     line._lineColor = color;
     const y = calcY(candles, currentPrice, layout);
@@ -128,7 +149,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
       timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
     } else timerText.text = '00:00';
 
-    drawBox(y, currentPrice, color, layout.width);
+    drawBox(y, currentPrice, color);
   }
 
   function tick() {
@@ -137,54 +158,52 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
   }
 
-  return { render, updatePrice, tick, symbol };
+  return { render, updatePrice, tick, symbol: chartSettings?.symbol ?? '???' };
 }
 
 // Вебсокет‑обвязка
-function connectLiveSocket(chartCore, chartSettings, live) {
-  const { exchange, marketType, symbol, timeframe } = chartSettings;
+function connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-  const url = `${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
-  const ws = new WebSocket(url);
+  const ws = new WebSocket(
+    `${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`
+  );
   chartCore._livePriceSocket = ws;
 
   ws.onmessage = e => {
     if (!chartCore._alive) return;
     try {
-      const data = JSON.parse(e.data);
-      if (typeof data.price === 'number' && typeof data.closeTime === 'number') {
-        live.updatePrice(data.price, data.closeTime, data.serverTime);
+      const d = JSON.parse(e.data);
+      if (typeof d.price === 'number' && typeof d.closeTime === 'number') {
+        chartCore.state._needRedrawLive = true;
+        live.updatePrice(d.price, d.closeTime, d.serverTime);
       }
-    } catch (err) {
-      console.warn('[LiveSocket] Parse error:', err);
-    }
+    } catch {}
   };
 
   ws.onclose = () => {
-    console.warn('[LiveSocket] Disconnected');
-    if (chartCore._alive) setTimeout(() => connectLiveSocket(chartCore, chartSettings, live), 1000);
+    if (chartCore._alive && ws.readyState !== WebSocket.OPEN) {
+      setTimeout(() => connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live), 1000);
+    }
   };
 }
 
 export function initLive(chartCore, chartSettings) {
   const config = chartCore.config;
-  if (!chartSettings?.symbol) {
-    console.warn('[initLive] chartSettings missing or invalid:', chartSettings);
-    return;
-  }
+  if (!chartSettings?.symbol) return;
 
   const live = LivePrice({ group: chartCore.group, config, chartSettings, chartCore });
   chartCore.state.livePrice = live;
 
   if (chartCore.layout) live.render(chartCore.layout);
 
-  // Стартовые значения
-  if (chartCore.state.candles.length) {
-    const last = chartCore.state.candles.at(-1);
+  const arr = chartCore.state.candles;
+  if (arr.length) {
+    const last = arr.at(-1);
     const initialPrice = last.price ?? last.close;
     const initialClose = Number.isFinite(last.closeTime)
       ? last.closeTime
-      : ((last.openTime ?? last.time ?? last.t ?? Math.floor(Date.now() / 1000)) + (chartCore.state.timeframe || 60));
+      : ((last.openTime ?? last.time ?? last.t ?? Math.floor(Date.now() / 1000)) +
+         (chartCore.state.timeframe || 60));
     live.updatePrice(initialPrice, initialClose, Math.floor(Date.now() / 1000));
     live.tick();
   }

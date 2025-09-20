@@ -78,13 +78,17 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     _updateAll(candle);
   }
 
-  function update(candle) {
+  function update(candle, opts) {
     if (!staticInited || !candle) return;
 
-    const idx = candles.findIndex(c => c.time === candle.time);
-    if (idx < 0 || idx === lastHoverIdx) return;
-    lastHoverIdx = idx;
+    const force = opts?.force === true;
 
+    const idx = candles.findIndex(c => c.time === candle.time);
+    const isLast = idx === candles.length - 1;
+
+    if (!force && !isLast && (idx < 0 || idx === lastHoverIdx)) return;
+
+    lastHoverIdx = idx;
     _updateAll(candle);
   }
 
