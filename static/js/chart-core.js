@@ -337,11 +337,13 @@ export async function createChartCore(container, userConfig = {}) {
   const panWrapped = (...a) => {
     state.userHasPanned = true;
     state.isFirstAutoCenter = false;
+    state.indicators?.volume?.render?.(state.layout);
     return pan(...a);
   };
   const zoomXWrapped = (...a) => {
     state.userHasPanned = true;
     state.isFirstAutoCenter = false;
+    state.indicators?.volume?.render?.(state.layout);
     return zoomX(...a);
   };
   const zoomYWrapped = (...a) => {
@@ -408,6 +410,9 @@ export async function createChartCore(container, userConfig = {}) {
 
     // Перерисовываем только слой свечей из кеша (без полного renderAll)
     drawCandlesOnly();
+
+    // мгновенное обновление индикатора объёма
+    state.indicators?.volume?.render?.(state.layout);
 
     // Live‑слой тоже обновляем мгновенно (без троттлинга)
     if (modules.livePrice && state.livePrice && state.layout) {

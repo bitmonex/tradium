@@ -3,5 +3,5 @@ import * as ma from './ma.js';
 
 export const Indicators = {
   volume,
-  ma
+  //ma
 };
