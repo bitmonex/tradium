@@ -40,5 +40,7 @@ export function updateLastCandle(candle) {
 
   core.state._needRedrawCandles = true;
   core.drawCandlesOnly?.();
+
+  // realtime-обновление OHLCV (форс)
   core.state.ohlcv?.update?.(lastCandleRef, { force: true });
 }

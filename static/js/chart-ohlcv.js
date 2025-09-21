@@ -32,7 +32,6 @@ export function OHLCV({ config, chartSettings = {}, group }) {
   const valueStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvData });
 
   let candles = [];
-  let staticInited = false;
   let lastRenderIdx = -1;
   let lastHoverIdx = -1;
 
@@ -42,9 +41,9 @@ export function OHLCV({ config, chartSettings = {}, group }) {
 
   function init(newCandles, newVolumes) {
     candles = newCandles;
-    staticInited = false;
     lastRenderIdx = -1;
     lastHoverIdx = -1;
+    tickerText = null;
     layer.removeChildren();
     labelTexts.length = 0;
     valueTexts.length = 0;
@@ -57,7 +56,7 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     if (idx === lastRenderIdx) return;
     lastRenderIdx = idx;
 
-    if (!staticInited) {
+    if (!tickerText) {
       tickerText = new PIXI.Text('', tickerStyle);
       tickerText.x = 15;
       tickerText.y = 12;
@@ -71,18 +70,15 @@ export function OHLCV({ config, chartSettings = {}, group }) {
         labelTexts.push(lbl);
         valueTexts.push(val);
       }
-
-      staticInited = true;
     }
 
     _updateAll(candle);
   }
 
   function update(candle, opts) {
-    if (!staticInited || !candle) return;
+    if (!tickerText || !candle) return;
 
     const force = opts?.force === true;
-
     const idx = candles.findIndex(c => c.time === candle.time);
     const isLast = idx === candles.length - 1;
 
@@ -96,9 +92,9 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     const exch  = chartSettings.exchange   || '';
     const mType = chartSettings.marketType || '';
     const symb  = chartSettings.symbol     || '';
-    tickerText.text = `${exch} - ${mType} - ${symb}`.toUpperCase();
+    tickerText.text = `${exch} - ${mType} - ${symb}`;
 
-    let x = Math.round(tickerText.x + tickerText.width + 20);
+    let x = tickerText.x + tickerText.width + 20;
     const items = getOHLCVItems(candle, candles);
 
     for (let i = 0; i < items.length; i++) {
@@ -109,9 +105,9 @@ export function OHLCV({ config, chartSettings = {}, group }) {
       lbl.text = label;
       val.text = value;
 
-      lbl.x = Math.round(x);
+      lbl.x = x;
       lbl.y = 12;
-      val.x = Math.round(lbl.x + lbl.width + 2);
+      val.x = lbl.x + lbl.width + 2;
       val.y = 12;
 
       x += lbl.width + val.width + 15;

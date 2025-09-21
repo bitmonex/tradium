@@ -1,20 +1,15 @@
 //chart-data.js
 export async function loadChartData(exchange, marketType, symbol, timeframe) {
-    const url = `/${exchange}/${marketType}/${symbol}/history?tf=${timeframe}`;
-    console.log("Запрос:", url);
-    const res = await fetch(url);
-    const raw = await res.json();
-    const candles = [], volumes = [];
-    for (const c of raw) {
-        const time = Math.floor(c.timestamp);
-        const open = parseFloat(c.open);
-        const high = parseFloat(c.high);
-        const low = parseFloat(c.low);
-        const close = parseFloat(c.close);
-        const volume = parseFloat(c.volume);
-        if ([open, high, low, close, volume].some(v => isNaN(v))) continue;
-        candles.push({ time, open, high, low, close, volume });
-        volumes.push({ time, value: volume });
-    }
-    return { candles, volumes };
+  const res = await fetch(`/${exchange}/${marketType}/${symbol}/history?tf=${timeframe}`);
+  const raw = await res.json();
+  const candles = [], volumes = [];
+  for (let i = 0; i < raw.length; i++) {
+    const c = raw[i];
+    const t = Math.floor(c.timestamp);
+    const o = +c.open, h = +c.high, l = +c.low, cl = +c.close, v = +c.volume;
+    if ([o, h, l, cl, v].some(isNaN)) continue;
+    candles.push({ time: t, open: o, high: h, low: l, close: cl, volume: v });
+    volumes.push({ time: t, value: v });
+  }
+  return { candles, volumes };
 }

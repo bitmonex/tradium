@@ -36,7 +36,6 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
   }
 
   function onPointerMove(e) {
-    // Сохраняем координаты мыши относительно канвы
     const r = app.view.getBoundingClientRect();
     state.mouseX = e.clientX - r.left;
     state.mouseY = e.clientY - r.top;
@@ -52,13 +51,13 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       render();
     } else if (resizingX && dx !== 0) {
       movedScale = true;
-      let f = Math.max(config.minScaleX / state.scaleX, Math.min(config.maxScaleX / state.scaleX, 1 - dx * 0.05));
+      const f = Math.max(config.minScaleX / state.scaleX, Math.min(config.maxScaleX / state.scaleX, 1 - dx * 0.05));
       state.scaleX *= f;
       state.offsetX = centerX - worldX0 * (cw * state.scaleX);
       render();
     } else if (resizingY && dy !== 0) {
       movedScale = true;
-      let f = Math.max(config.minScaleY / state.scaleY, Math.min(config.maxScaleY / state.scaleY, 1 - dy * 0.05));
+      const f = Math.max(config.minScaleY / state.scaleY, Math.min(config.maxScaleY / state.scaleY, 1 - dy * 0.05));
       state.scaleY *= f;
       state.offsetY = centerY - worldY0 * (canvasH * state.scaleY);
       render();
@@ -66,29 +65,25 @@ export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update })
       const x = e.clientX, y = e.clientY;
       if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
 
-      const xCanvas = x - r.left;
       const L = state.layout;
       if (!L || !state.candles.length) return;
 
-      const inside =
-        state.mouseX >= L.plotX &&
-        state.mouseX <= L.plotX + L.plotW &&
-        state.mouseY >= L.plotY &&
-        state.mouseY <= L.plotY + L.plotH;
+      const { plotX, plotY, plotW, plotH } = L;
+      if (
+        state.mouseX < plotX ||
+        state.mouseX > plotX + plotW ||
+        state.mouseY < plotY ||
+        state.mouseY > plotY + plotH
+      ) return;
 
-      if (!inside) return;
-
-      const t = L.screenToTime(xCanvas);
+      const t = L.screenToTime(state.mouseX);
       const C = state.candles;
       const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
-
       if (idx === state._lastHoverIdx) return;
       state._lastHoverIdx = idx;
-
       update(C[idx]);
-      scheduleRender();
+      render();
     }
-
   }
   
   function onPointerUp() {

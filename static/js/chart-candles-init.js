@@ -1,14 +1,14 @@
 // chart-candles-init.js
 export function initRealtimeCandles(chartCore, chartSettings) {
   chartCore._alive = true;
-  try { chartCore._candlesSocket?.close(); } catch {}
+  try { chartCore._candleSocket?.close(); } catch {}
   connectCandlesSocket(chartCore, chartSettings);
 }
 
 function connectCandlesSocket(chartCore, { exchange, marketType, symbol, timeframe, onUpdate }) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`);
-  chartCore._candlesSocket = ws;
+  chartCore._candleSocket = ws;
 
   ws.onmessage = e => {
     if (!chartCore._alive) return;
