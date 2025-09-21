@@ -1,10 +1,8 @@
-// indicators/volume.js
-
 export const meta = {
   id: "volume",
   name: "Объём",
   type: "bar",
-  color: "#777777", 
+  color: "#777777", // можно и 0x777777, Pixi v8 поймёт оба формата
   height: 100,
   bottomOffset: 30,
   rightOffset: 70
@@ -47,6 +45,7 @@ export function createIndicator({ layer }, layout) {
       }
 
       bar.visible = true;
+      // Новый API Pixi v8: rect + fill
       bar.rect(x, bottomY - h, barWidth, h).fill(meta.color);
     });
   }
