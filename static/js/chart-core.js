@@ -9,6 +9,7 @@ import { zoomX, zoomY, pan } from './chart-zoom.js';
 import { ChartConfig } from './chart-config.js';
 import { LivePrice } from './chart-live.js';
 import { updateLastCandle } from './chart-candles.js';
+import { createIndicatorsManager } from './chart-indicators.js';
 
 export async function createChartCore(container, userConfig = {}) {
   const fullConfig = { ...ChartConfig, ...userConfig };
@@ -53,7 +54,6 @@ export async function createChartCore(container, userConfig = {}) {
   if (modules.candles) { candleLayer = new PIXI.Container(); candleLayer.zIndex = 10; group.addChild(candleLayer); }
   if (modules.ohlcv) { state.ohlcv = OHLCV({ config, chartSettings, group }); state.ohlcv.init(state.candles, state.volumes); }
   if (modules.fps) state.fps = new FPS(app.stage, config.fpsColor);
-  if (modules.livePrice) state.livePrice = LivePrice({ group, config, chartSettings, chartCore: null });
 
   let sprites = [], lastKey = '';
 
@@ -109,6 +109,7 @@ export async function createChartCore(container, userConfig = {}) {
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
     mask.clear().rect(0, 0, layout.width - config.rightOffset, layout.height - config.bottomOffset).fill(0x000000);
   };
 
@@ -117,6 +118,7 @@ export async function createChartCore(container, userConfig = {}) {
     const layout = createFullLayout(); state.layout = layout;
     drawCandlesOnly();
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
   };
 
   const redrawLayoutOnly = () => {
@@ -124,6 +126,7 @@ export async function createChartCore(container, userConfig = {}) {
     const layout = createFullLayout(); state.layout = layout;
     drawCandlesOnly();
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
   };
 
   const draw = ({ candles, volumes }) => {
@@ -148,6 +151,8 @@ export async function createChartCore(container, userConfig = {}) {
         drawCandlesOnly();
         if (modules.livePrice && state.livePrice)
           state.livePrice.render(state.layout);
+        if (modules.indicators && chartCore.indicators && state.layout)
+          chartCore.indicators.renderAll(state.layout);
         chartCore._lastCandleData = null;
       }
       if (init) state.isFirstAutoCenter = false;
@@ -184,6 +189,7 @@ export async function createChartCore(container, userConfig = {}) {
     if (!chartCore._alive) return;
     chartCore._alive = false;
     try { mouse?.destroy?.(); } catch {}
+    try { chartCore.indicators?.destroy?.(); } catch {}
     if (chartCore._livePriceSocket) { try { chartCore._livePriceSocket.onmessage = null; chartCore._livePriceSocket.onclose = null; chartCore._livePriceSocket.close(); } catch {} chartCore._livePriceSocket = null; }
     if (chartCore._candleSocket) { try { chartCore._candleSocket.onmessage = null; chartCore._candleSocket.onclose = null; chartCore._candleSocket.close(); } catch {} chartCore._candleSocket = null; }
     if (app?.view?.parentNode) app.view.parentNode.removeChild(app.view);
@@ -195,6 +201,7 @@ export async function createChartCore(container, userConfig = {}) {
     if (Array.isArray(state.volumes)) state.volumes[state.volumes.length - 1] = candle.volume;
     drawCandlesOnly();
     if (modules.livePrice && state.livePrice && state.layout) state.livePrice.render(state.layout);
+    if (modules.indicators && chartCore.indicators && state.layout) chartCore.indicators.renderAll(state.layout);
   };
 
   const chartCore = {
@@ -215,6 +222,15 @@ export async function createChartCore(container, userConfig = {}) {
     invalidateLight: () => { state._needRedrawCandles = true; renderLight(); },
     _alive: true
   };
+
+  if (modules.livePrice) {
+    state.livePrice = LivePrice({ group, config, chartSettings, chartCore });
+  }
+
+  if (modules.indicators) {
+    chartCore.indicators = createIndicatorsManager(chartCore);
+    chartCore.indicators.initFromConfig(config.indicators || []);
+  }
 
   chartCore.destroy = destroy;
   return chartCore;

@@ -1,3 +1,4 @@
+//Indicators | Volume
 export const meta = {
   id: "volume",
   name: "Объём",

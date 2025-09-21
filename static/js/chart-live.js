@@ -20,7 +20,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
 
   let lastCloseTime = null, currentPrice = null, serverOffset = 0, offsetSet = false;
 
-  const drawDotted = (g, x1, y, x2, dotR = 1, gap = 4) => {
+  const drawDotted = (g, x1, y, x2, dotR = 0.5, gap = 5) => {
     g.clear().beginFill(g._lineColor || 0xffffff);
     for (let x = x1; x < x2; x += dotR * 2 + gap) g.drawCircle(x, y, dotR);
     g.endFill();
