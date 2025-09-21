@@ -1,46 +1,25 @@
 // chart-utils.js
-export function getAdaptiveStepX(scaleX, candleWidth, spacing) {
+export const getAdaptiveStepX = (scaleX, candleWidth, spacing) => {
   const spacingPx = (candleWidth + spacing) * scaleX;
-  const minSpacing = 100;
-  if (spacingPx < minSpacing) {
-    const boostFactor = Math.ceil(minSpacing / spacingPx);
-    return Math.max(1, boostFactor);
-  }
-  return 1;
-}
+  return spacingPx < 100 ? Math.max(1, Math.ceil(100 / spacingPx)) : 1;
+};
 
-export function getAdaptiveStepY(scaleY) {
-  const baseStep = 50;
-  const minStep = 30;
-  const zoomedStep = Math.round(baseStep * scaleY);
-  return Math.max(minStep, zoomedStep);
-}
+export const getAdaptiveStepY = scaleY => Math.max(30, Math.round(50 * scaleY));
 
-export function formatTime(timestamp, tfMs) {
-  const date = new Date(timestamp);
-  if (tfMs >= 86400000) {
-    return date.toLocaleDateString(); // дни
-  } else if (tfMs >= 3600000) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); // часы
-  } else {
-    return date.toLocaleTimeString(); // минуты/секунды
-  }
-}
+export const formatTime = (timestamp, tfMs) => {
+  const d = new Date(timestamp);
+  if (tfMs >= 86400000) return d.toLocaleDateString();
+  if (tfMs >= 3600000) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return d.toLocaleTimeString();
+};
 
-export function formatPrice(price) {
-  if (price >= 1000) return price.toFixed(0);
-  if (price >= 1) return price.toFixed(2);
-  return price.toFixed(4);
-}
+export const formatPrice = p => p >= 1000 ? p.toFixed(0) : p >= 1 ? p.toFixed(2) : p.toFixed(4);
 
-// Базовый PIXI.TextStyle по дефолту
-export function createTextStyle(config, overrides = {}) {
-  return new PIXI.TextStyle({
-    fontFamily:    config.chartFont,
-    fontSize:      config.chartFontSize,
-    fontWeight:    config.chartFontWeight,
-    resolution:    window.devicePixelRatio,
-    letterSpacing: config.letterSpacing,
-    ...overrides
-  });
-}
+export const createTextStyle = (config, overrides = {}) => new PIXI.TextStyle({
+  fontFamily: config.chartFont,
+  fontSize: config.chartFontSize,
+  fontWeight: config.chartFontWeight,
+  resolution: window.devicePixelRatio,
+  letterSpacing: config.letterSpacing,
+  ...overrides
+});

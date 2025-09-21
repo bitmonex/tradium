@@ -1,31 +1,16 @@
 //chart-zoom.js
-//Горизонтальный зум
-export function zoomX({ mx, scaleX, offsetX, config, direction }) {
+export const zoomX = ({ mx, scaleX, offsetX, config, direction }) => {
   const cw = config.candleWidth + config.spacing;
   const worldX = (mx - offsetX) / (cw * scaleX);
+  const newScaleX = Math.max(config.minScaleX, Math.min(config.maxScaleX, scaleX * direction));
+  return { scaleX: newScaleX, offsetX: mx - worldX * (cw * newScaleX) };
+};
 
-  let newScaleX = scaleX * direction;
-  newScaleX = Math.max(config.minScaleX, Math.min(config.maxScaleX, newScaleX));
-
-  let newOffsetX = mx - worldX * (cw * newScaleX);
-  return { scaleX: newScaleX, offsetX: newOffsetX };
-}
-
-//Вертикальный зум
-export function zoomY({ my, scaleY, offsetY, config, direction, height }) {
+export const zoomY = ({ my, scaleY, offsetY, config, direction, height }) => {
   const worldY = (my - offsetY) / (height * scaleY);
+  const newScaleY = Math.max(config.minScaleY, Math.min(config.maxScaleY, scaleY * direction));
+  return { scaleY: newScaleY, offsetY: my - worldY * (height * newScaleY) };
+};
 
-  let newScaleY = scaleY * direction;
-  newScaleY = Math.max(config.minScaleY, Math.min(config.maxScaleY, newScaleY));
+export const pan = ({ offsetX, offsetY, dx, dy }) => ({ offsetX: offsetX + dx, offsetY: offsetY + dy });
 
-  let newOffsetY = my - worldY * (height * newScaleY);
-  return { scaleY: newScaleY, offsetY: newOffsetY };
-}
-
-//Панорама на dx, dy
-export function pan({ offsetX, offsetY, dx, dy }) {
-  return {
-    offsetX: offsetX + dx,
-    offsetY: offsetY + dy
-  };
-}
