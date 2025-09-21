@@ -1,54 +1,56 @@
-//Indicators | Volume
+// indicators/volume.js
 export const meta = {
   id: "volume",
   name: "Объём",
   type: "bar",
-  color: "#777777", // можно и 0x777777, Pixi v8 поймёт оба формата
-  height: 100,
-  bottomOffset: 30,
-  rightOffset: 70
+  position: "bottom",   // под графиком
+  height: 60,           // высота области объёмов
+  zIndex: 5
 };
 
 export function createIndicator({ layer }, layout) {
   const bars = [];
+  const shiftY = 30; // ← поднимаем бары на 20px для теста
 
-  function render(currentLayout) {
-    const history = currentLayout.candles;
+  function render(L) {
+    const history = L.candles;
     if (!history?.length) return;
 
-    const maxVol = Math.max(...history.map(c => c.volume || 0));
-    const volHeight = meta.height;
-    const width = currentLayout.width;
-    const offsetX = currentLayout.offsetX;
-    const scaleX = currentLayout.scaleX;
-    const rawBarWidth = currentLayout.config.candleWidth * scaleX;
-    const barWidth = Math.max(rawBarWidth, 1);
-    const spacing = currentLayout.config.spacing * scaleX;
-    const bottomY = currentLayout.height - meta.bottomOffset;
+    const maxVol = Math.max(...history.map(c => c.volume || 0)) || 1;
+    const cw = (L.config.candleWidth + L.config.spacing) * L.scaleX;
+    const barWidth = Math.max(L.config.candleWidth * L.scaleX, 1);
 
-    // Создаём недостающие бары
+    // Зона объёмов
+    const volTop = L.height - meta.height;
+    const volBottom = L.height - shiftY; // ← смещаем вверх
+
+    // Оптимизация: рендерим только видимые бары
+    const startIdx = Math.max(0, Math.floor((-L.offsetX) / cw) - 2);
+    const endIdx = Math.min(history.length, Math.ceil((L.width - L.config.rightOffset - L.offsetX) / cw) + 2);
+
+    // Создаём недостающие графические объекты
     while (bars.length < history.length) {
       const bar = new PIXI.Graphics();
       layer.addChild(bar);
       bars.push(bar);
     }
 
-    bars.forEach((bar, i) => {
-      const c = history[i];
-      const x = i * (rawBarWidth + spacing) + offsetX;
-      const h = (c.volume / maxVol) * volHeight;
-
-      bar.clear();
-
-      if (x + barWidth < 0 || x > width - meta.rightOffset) {
+    for (let i = 0; i < bars.length; i++) {
+      const bar = bars[i];
+      if (i < startIdx || i > endIdx) {
         bar.visible = false;
-        return;
+        continue;
       }
 
+      const c = history[i];
+      const x = i * cw + L.offsetX;
+      const h = (c.volume / maxVol) * meta.height;
+      const color = c.close >= c.open ? L.config.candleBull : L.config.candleBear;
+
+      bar.clear();
       bar.visible = true;
-      // Новый API Pixi v8: rect + fill
-      bar.rect(x, bottomY - h, barWidth, h).fill(meta.color);
-    });
+      bar.rect(x, volBottom - h, barWidth, h).fill(color);
+    }
   }
 
   return { layer, render };

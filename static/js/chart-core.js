@@ -30,7 +30,8 @@ export async function createChartCore(container, userConfig = {}) {
     maxScaleX: 40,
     minScaleY: 0.1,
     maxScaleY: 40,
-    modules
+    modules,
+    indicators: fullConfig.indicators || []
   };
   const chartSettings = { exchange, marketType, symbol };
 
