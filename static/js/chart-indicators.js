@@ -1,7 +1,8 @@
 // chart-indicators.js
 import { Indicators } from './indicators/index.js';
 
-export function createIndicatorsManager(chartCore) {
+export function createIndicatorsManager(chartCore, groups) {
+  const { plotGroup, bottomGroup } = groups;
   const active = new Map(); // id -> { meta, instance, layer }
 
   function add(id) {
@@ -16,15 +17,26 @@ export function createIndicatorsManager(chartCore) {
     const def = Indicators[id];
     const layer = new PIXI.Container();
     layer.zIndex = def.meta.zIndex ?? 50;
-    chartCore.group.addChild(layer);
-    const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);
+
+    // Выбираем родительский контейнер по позиции индикатора
+    const parent = def.meta.position === 'bottom' ? bottomGroup : plotGroup;
+    parent.addChild(layer);
+
+    const instance = def.createIndicator({ layer, chartCore }, chartCore.state.layout);
     active.set(id, { meta: def.meta, instance, layer });
   }
 
   function remove(id) {
     const obj = active.get(id);
     if (!obj) return;
-    chartCore.group.removeChild(obj.layer);
+
+    // Удаляем слой из того контейнера, куда он был добавлен
+    if (plotGroup.children.includes(obj.layer)) {
+      plotGroup.removeChild(obj.layer);
+    } else if (bottomGroup.children.includes(obj.layer)) {
+      bottomGroup.removeChild(obj.layer);
+    }
+
     obj.layer.destroy({ children: true });
     active.delete(id);
   }
@@ -44,7 +56,7 @@ export function createIndicatorsManager(chartCore) {
     for (const id of active.keys()) remove(id);
   }
 
-  // Новый метод: суммарная высота всех bottom-индикаторов
+  // Суммарная высота всех bottom-индикаторов
   function getBottomStackHeight() {
     let total = 0;
     for (const { meta } of active.values()) {

@@ -1,4 +1,4 @@
-//chart-core.js
+// chart-core.js
 import { createLayout } from './chart-layout.js';
 import { TF } from './chart-tf.js';
 import { Grid } from './chart-grid-render.js';
@@ -40,20 +40,23 @@ export async function createChartCore(container, userConfig = {}) {
   app.stage.sortableChildren = true;
   container.appendChild(app.view);
 
-  const group = new PIXI.Container(); group.sortableChildren = true; app.stage.addChild(group);
-  const mask = new PIXI.Graphics(); group.mask = mask; app.stage.addChild(mask);
+  // контейнеры
+  const plotGroup = new PIXI.Container(); plotGroup.sortableChildren = true; app.stage.addChild(plotGroup);
+  const bottomGroup = new PIXI.Container(); bottomGroup.sortableChildren = true; app.stage.addChild(bottomGroup);
+  const mask = new PIXI.Graphics(); plotGroup.mask = mask; app.stage.addChild(mask);
 
   const state = {
     candles: [], volumes: [], timeframe: 0,
     offsetX: 0, offsetY: 150, scaleX: 1, scaleY: 1,
     layout: null, ohlcv: null, fps: null,
     isFirstAutoCenter: true, userHasPanned: false,
-    _needRedrawCandles: false, _liveOverride: null
+    _needRedrawCandles: false, _liveOverride: null,
+    bottomOffsetEff: config.bottomOffset
   };
 
   let candleLayer;
-  if (modules.candles) { candleLayer = new PIXI.Container(); candleLayer.zIndex = 10; group.addChild(candleLayer); }
-  if (modules.ohlcv) { state.ohlcv = OHLCV({ config, chartSettings, group }); state.ohlcv.init(state.candles, state.volumes); }
+  if (modules.candles) { candleLayer = new PIXI.Container(); candleLayer.zIndex = 10; plotGroup.addChild(candleLayer); }
+  if (modules.ohlcv) { state.ohlcv = OHLCV({ config, chartSettings, plotGroup }); state.ohlcv.init(state.candles, state.volumes); }
   if (modules.fps) state.fps = new FPS(app.stage, config.fpsColor);
 
   let sprites = [], lastKey = '';
@@ -87,9 +90,10 @@ export async function createChartCore(container, userConfig = {}) {
     const endIdx = Math.min(state.candles.length, Math.ceil((width - config.rightOffset - state.offsetX) / cw) + 2);
     while (sprites.length < state.candles.length) { const g = new PIXI.Graphics(); g.zIndex = 10; sprites.push(g); candleLayer.addChild(g); }
     for (let i = 0; i < sprites.length; i++) sprites[i].visible = i >= startIdx && i < endIdx;
+    const boEff = state.bottomOffsetEff ?? config.bottomOffset;
     for (let i = startIdx; i < endIdx; i++) {
       const v = state.candles[i], g = sprites[i], x = i * cw + state.offsetX;
-      const mapY = val => ((height - config.bottomOffset) * (1 - (val - min) / range)) * state.scaleY + state.offsetY;
+      const mapY = val => ((height - boEff) * (1 - (val - min) / range)) * state.scaleY + state.offsetY;
       const color = v.close >= v.open ? +config.candleBull : +config.candleBear;
       g.clear().visible = true;
       g.rect(x, Math.min(mapY(v.open), mapY(v.close)), config.candleWidth * state.scaleX, Math.max(1, Math.abs(mapY(v.close) - mapY(v.open)))).fill(color);
@@ -105,36 +109,29 @@ export async function createChartCore(container, userConfig = {}) {
       plotX: 0, plotY: 0, plotW: base.width - config.rightOffset, plotH: base.height - bottomOffsetEff };
   };
 
-  const renderAll = () => {
+  function renderBase(full) {
     if (!state.candles.length) return;
     const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
-    const layout = createFullLayout(bo); state.layout = layout;
-    if (modules.grid) Grid(app, layout, config);
-    if (modules.candles) drawCandlesOnly();
-    if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
-    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
-    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-    mask.clear().rect(0, 0, layout.width - config.rightOffset, layout.height - bo).fill(0x000000);
-  };
+    state.bottomOffsetEff = bo;
+    const layout = createFullLayout(bo);
+    state.layout = layout;
 
-  const renderLight = () => {
-    if (!state.candles.length) return;
-    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
-    const layout = createFullLayout(bo); state.layout = layout;
+    if (full && modules.grid) Grid(app, layout, config);
+    if (full && modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
+
     drawCandlesOnly();
+
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-  };
 
-  const redrawLayoutOnly = () => {
-    if (!state.candles.length) return;
-    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
-    const layout = createFullLayout(bo); state.layout = layout;
-    drawCandlesOnly();
-    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
-    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-  };
+    if (full) {
+      mask.clear().rect(0, 0, layout.width - config.rightOffset, layout.height - bo).fill(0x000000);
+    }
+  }
 
+  const renderAll = () => renderBase(true);
+  const renderLight = () => renderBase(false);
+  const redrawLayoutOnly = () => renderBase(false);
 
   const draw = ({ candles, volumes }) => {
     const init = state.candles.length === 0;
@@ -223,21 +220,16 @@ export async function createChartCore(container, userConfig = {}) {
     app,
     config,
     state,
-    group,
+    plotGroup,
+    bottomGroup,
     renderAll,
     renderLight,
     invalidateLight: () => { state._needRedrawCandles = true; renderLight(); },
     _alive: true
   };
 
-  if (modules.livePrice) {
-    state.livePrice = LivePrice({ group, config, chartSettings, chartCore });
-  }
-
-  if (modules.indicators) {
-    chartCore.indicators = createIndicatorsManager(chartCore);
-    chartCore.indicators.initFromConfig(config.indicators || []);
-  }
+  if (modules.livePrice) { state.livePrice = LivePrice({ group: plotGroup, config, chartSettings, chartCore }); }
+  if (modules.indicators) { chartCore.indicators = createIndicatorsManager(chartCore, { plotGroup, bottomGroup }); chartCore.indicators.initFromConfig(config.indicators || []); }
 
   chartCore.destroy = destroy;
   return chartCore;

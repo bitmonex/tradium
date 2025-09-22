@@ -6,10 +6,13 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
 
   chartCore?.state?.livePriceOverlay?.destroy?.({ children: true });
 
-  const lineLayer = new PIXI.Container(); lineLayer.sortableChildren = true; lineLayer.zIndex = 100; group.addChild(lineLayer);
+  const lineLayer = new PIXI.Container(); lineLayer.sortableChildren = true; lineLayer.zIndex = 100;
+  group.addChild(lineLayer);
   const line = new PIXI.Graphics(); lineLayer.addChild(line);
 
-  const overlay = new PIXI.Container(); overlay.sortableChildren = true; overlay.zIndex = 101; group.parent.addChild(overlay);
+  const overlay = new PIXI.Container(); overlay.sortableChildren = true; overlay.zIndex = 101;
+  // если по какой-то причине parent не задан — добавляем в stage
+  (group.parent || chartCore.app.stage).addChild(overlay);
   if (chartCore?.state) chartCore.state.livePriceOverlay = overlay;
 
   const baseStyle = createTextStyle(config, { fill: +(config.textColor ?? 0xffffff) });
@@ -47,7 +50,6 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     return rawY * layout.scaleY + layout.offsetY;
   };
 
-  // Прижатие плашки к правому краю без завязки на layout.width
   const drawBox = (y, price, color) => {
     priceText.text = Number.isFinite(price) ? price.toFixed(2) : '';
 
@@ -57,16 +59,13 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
 
     boxBg.clear().beginFill(color).drawRect(0, 0, boxW, boxH).endFill();
 
-    // Текущая ширина экрана Pixi (устойчиво при ресайзе)
     const screenW = chartCore?.app?.renderer?.screen?.width
       ?? overlay.parent?.width
       ?? overlay.width
       ?? 0;
 
-    // Прижимаем к правому краю
     const boxX = Math.max(0, screenW - boxW);
 
-    // Лёгкий клэмп по Y, чтобы не уезжала за верх/низ
     const screenH = chartCore?.app?.renderer?.screen?.height
       ?? overlay.parent?.height
       ?? overlay.height
@@ -85,7 +84,6 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
     timerText.y = Math.round(priceText.y + priceText.height + padY);
   };
-
 
   function render(layout) {
     const { candles, width, timeframe } = layout;
@@ -132,10 +130,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     if (currentPrice < last.low)  last.low  = currentPrice;
 
     chartCore.updateLast?.(last);
-
-    // realtime-обновление OHLCV (форс)
     chartCore.state.ohlcv?.update?.(last, { force: true });
-
     if (chartCore.state) chartCore.state._liveOverride = { price: currentPrice };
     chartCore.invalidateLight?.();
 
@@ -161,7 +156,6 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
   return { render, updatePrice, tick, symbol: chartSettings?.symbol ?? '???' };
 }
 
-// Вебсокет‑обвязка
 function connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live) {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(
@@ -191,10 +185,13 @@ export function initLive(chartCore, chartSettings) {
   const config = chartCore.config;
   if (!chartSettings?.symbol) return;
 
-  const live = LivePrice({ group: chartCore.group, config, chartSettings, chartCore });
+  // Передаём в LivePrice именно plotGroup, а не chartCore.group
+  const live = LivePrice({ group: chartCore.plotGroup, config, chartSettings, chartCore });
   chartCore.state.livePrice = live;
 
-  if (chartCore.layout) live.render(chartCore.layout);
+  if (chartCore.layout) {
+    live.render(chartCore.layout);
+  }
 
   const arr = chartCore.state.candles;
   if (arr.length) {
@@ -204,6 +201,7 @@ export function initLive(chartCore, chartSettings) {
       ? last.closeTime
       : ((last.openTime ?? last.time ?? last.t ?? Math.floor(Date.now() / 1000)) +
          (chartCore.state.timeframe || 60));
+
     live.updatePrice(initialPrice, initialClose, Math.floor(Date.now() / 1000));
     live.tick();
   }
