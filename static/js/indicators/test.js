@@ -2,7 +2,7 @@
 export const test = {
   meta: {
     position: 'bottom',
-    height: 100,
+    height: 70,
     zIndex: 10
   },
   createIndicator({ layer }) {
