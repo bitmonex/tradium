@@ -21,6 +21,14 @@ export function createIndicatorsManager(chartCore) {
       ? chartCore.state.subGroup
       : chartCore.state.graphGroup;
 
+    // Если индикатор нижний — смещаем его слой на накопленную высоту уже добавленных нижних индикаторов
+    if (def.meta.position === 'bottom') {
+      const offsetY = Array.from(active.values())
+        .filter(v => v.meta.position === 'bottom')
+        .reduce((sum, v) => sum + (v.meta.height || 0), 0);
+      layer.y = offsetY;
+    }
+
     parent.addChild(layer);
 
     const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);

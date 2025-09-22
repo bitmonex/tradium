@@ -64,17 +64,40 @@ export async function createChartCore(container, userConfig = {}) {
     return { ...base, candles: state.candles, volumes: state.volumes, config, offsetX: state.offsetX, offsetY: state.offsetY, scaleX: state.scaleX, scaleY: state.scaleY,
       timeframe: state.timeframe, plotX: 0, plotY: 0, plotW: base.width - config.rightOffset, plotH: base.height - bo }; };
 
-  const renderAll = () => { if (!state.candles.length) return;
-    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0), layout = createFullLayout(bo); state.layout = layout; subGroup.y = layout.plotH;
-    if (!state.debugFill) { state.debugFill = new PIXI.Graphics(); state.debugFill.zIndex = 9999; app.stage.addChild(state.debugFill); }
-    state.debugFill.clear().beginFill(0xff0000, 0.3).drawRect(0, 0, layout.plotW, layout.plotH).endFill();
-    if (modules.grid) Grid(app, layout, config); if (modules.candles) drawCandlesOnly(); if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
-    if (modules.livePrice && state.livePrice) state.livePrice.render(layout); if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-    mask.clear().rect(0, 0, layout.plotW, layout.plotH).fill(0x000000); };
+  const renderAll = () => {
+    if (!state.candles.length) return;
+    const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const layout = createFullLayout(bo);
+    state.layout = layout;
+    subGroup.y = layout.plotH;
+    if (!state.debugFill) {
+      state.debugFill = new PIXI.Graphics();
+      state.debugFill.zIndex = 9999;
+      app.stage.addChild(state.debugFill);
+    }
+    state.debugFill.clear()
+      .beginFill(0xff0000, 0.3)
+      .drawRect(0, 0, layout.plotW, layout.plotH)
+      .endFill();
+    if (modules.grid) Grid(app, layout, config);
+    if (modules.candles) drawCandlesOnly();
+    if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
+    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
+    mask.clear()
+      .rect(0, 0, layout.plotW, layout.plotH)
+      .fill(0x000000);
+  };
 
-  const renderLight = () => { if (!state.candles.length) return;
-    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0), layout = createFullLayout(bo); state.layout = layout;
-    drawCandlesOnly(); if (modules.livePrice && state.livePrice) state.livePrice.render(layout); if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout); };
+  const renderLight = () => {
+    if (!state.candles.length) return;
+    const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const layout = createFullLayout(bo);
+    state.layout = layout;
+    drawCandlesOnly();
+    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
+  };
 
   const redrawLayoutOnly = () => { if (!state.candles.length) return;
     const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0), layout = createFullLayout(bo); state.layout = layout;
