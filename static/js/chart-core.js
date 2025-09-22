@@ -98,25 +98,29 @@ export async function createChartCore(container, userConfig = {}) {
     state._needRedrawCandles = false;
   };
 
-  const createFullLayout = () => {
-    const baseLayout = createLayout(app, config, state.candles, state.offsetX, state.offsetY, state.scaleX, state.scaleY, state.timeframe);
-    return { ...baseLayout, candles: state.candles, volumes: state.volumes, config, offsetX: state.offsetX, offsetY: state.offsetY, scaleX: state.scaleX, scaleY: state.scaleY, timeframe: state.timeframe, plotX: 0, plotY: 0, plotW: baseLayout.width - config.rightOffset, plotH: baseLayout.height - config.bottomOffset };
+  const createFullLayout = bottomOffsetEff => {
+    const base = createLayout(app, config, state.candles, state.offsetX, state.offsetY, state.scaleX, state.scaleY, state.timeframe);
+    return { ...base, candles: state.candles, volumes: state.volumes, config,
+      offsetX: state.offsetX, offsetY: state.offsetY, scaleX: state.scaleX, scaleY: state.scaleY, timeframe: state.timeframe,
+      plotX: 0, plotY: 0, plotW: base.width - config.rightOffset, plotH: base.height - bottomOffsetEff };
   };
 
   const renderAll = () => {
     if (!state.candles.length) return;
-    const layout = createFullLayout(); state.layout = layout;
+    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const layout = createFullLayout(bo); state.layout = layout;
     if (modules.grid) Grid(app, layout, config);
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-    mask.clear().rect(0, 0, layout.width - config.rightOffset, layout.height - config.bottomOffset).fill(0x000000);
+    mask.clear().rect(0, 0, layout.width - config.rightOffset, layout.height - bo).fill(0x000000);
   };
 
   const renderLight = () => {
     if (!state.candles.length) return;
-    const layout = createFullLayout(); state.layout = layout;
+    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const layout = createFullLayout(bo); state.layout = layout;
     drawCandlesOnly();
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
@@ -124,11 +128,13 @@ export async function createChartCore(container, userConfig = {}) {
 
   const redrawLayoutOnly = () => {
     if (!state.candles.length) return;
-    const layout = createFullLayout(); state.layout = layout;
+    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const layout = createFullLayout(bo); state.layout = layout;
     drawCandlesOnly();
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
   };
+
 
   const draw = ({ candles, volumes }) => {
     const init = state.candles.length === 0;

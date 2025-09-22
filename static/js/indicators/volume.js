@@ -1,4 +1,3 @@
-// indicators/volume.js
 export const meta = {
   id: "volume",
   name: "Объём",
@@ -10,7 +9,6 @@ export const meta = {
 
 export function createIndicator({ layer }, layout) {
   const bars = [];
-  const shiftY = 30; // ← поднимаем бары на 20px для теста
 
   function render(L) {
     const history = L.candles;
@@ -20,9 +18,9 @@ export function createIndicator({ layer }, layout) {
     const cw = (L.config.candleWidth + L.config.spacing) * L.scaleX;
     const barWidth = Math.max(L.config.candleWidth * L.scaleX, 1);
 
-    // Зона объёмов
+    // Зона объёмов: низ = вся высота канвы, верх = низ минус высота индикатора
     const volTop = L.height - meta.height;
-    const volBottom = L.height - shiftY; // ← смещаем вверх
+    const volBottom = L.height;
 
     // Оптимизация: рендерим только видимые бары
     const startIdx = Math.max(0, Math.floor((-L.offsetX) / cw) - 2);

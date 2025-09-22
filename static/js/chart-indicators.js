@@ -2,12 +2,9 @@
 import { Indicators } from './indicators/index.js';
 
 export function createIndicatorsManager(chartCore) {
-  //console.log('[IndicatorsManager] Создан менеджер индикаторов');
-
-  const active = new Map(); // id -> { meta, instance }
+  const active = new Map(); // id -> { meta, instance, layer }
 
   function add(id) {
-    //console.log(`[IndicatorsManager] add(${id})`);
     if (active.has(id)) {
       console.warn(`[IndicatorsManager] Индикатор ${id} уже активен`);
       return;
@@ -20,46 +17,43 @@ export function createIndicatorsManager(chartCore) {
     const layer = new PIXI.Container();
     layer.zIndex = def.meta.zIndex ?? 50;
     chartCore.group.addChild(layer);
-    //console.log(`[IndicatorsManager] Слой для ${id} добавлен в chartCore.group`);
     const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);
     active.set(id, { meta: def.meta, instance, layer });
-    //console.log(`[IndicatorsManager] Индикатор ${id} создан и активирован`);
   }
 
   function remove(id) {
-    //console.log(`[IndicatorsManager] remove(${id})`);
     const obj = active.get(id);
-    if (!obj) {
-      console.warn(`[IndicatorsManager] Индикатор ${id} не найден среди активных`);
-      return;
-    }
+    if (!obj) return;
     chartCore.group.removeChild(obj.layer);
     obj.layer.destroy({ children: true });
     active.delete(id);
-    //console.log(`[IndicatorsManager] Индикатор ${id} удалён`);
   }
 
   function renderAll(layout) {
-    //console.log(`[IndicatorsManager] renderAll() — активных: ${active.size}`);
-    for (const [id, { instance }] of active.entries()) {
-      //console.log(`  → рендер индикатора: ${id}`);
+    for (const { instance } of active.values()) {
       instance.render?.(layout);
     }
   }
 
   function initFromConfig(configList) {
-    //console.log('[IndicatorsManager] initFromConfig()', configList);
-    if (!Array.isArray(configList) || !configList.length) {
-      console.warn('[IndicatorsManager] Список индикаторов пуст или не массив');
-      return;
-    }
+    if (!Array.isArray(configList) || !configList.length) return;
     configList.forEach(id => add(id));
   }
 
   function destroy() {
-    //console.log('[IndicatorsManager] destroy()');
     for (const id of active.keys()) remove(id);
   }
 
-  return { add, remove, renderAll, initFromConfig, destroy };
+  // Новый метод: суммарная высота всех bottom-индикаторов
+  function getBottomStackHeight() {
+    let total = 0;
+    for (const { meta } of active.values()) {
+      if (meta.position === 'bottom' && typeof meta.height === 'number') {
+        total += meta.height;
+      }
+    }
+    return total;
+  }
+
+  return { add, remove, renderAll, initFromConfig, destroy, getBottomStackHeight };
 }
