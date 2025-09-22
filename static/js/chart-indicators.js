@@ -1,62 +1,62 @@
 // chart-indicators.js
 import { Indicators } from './indicators/index.js';
 
-export function createIndicatorsManager(chartCore, groups) {
-  const { plotGroup, bottomGroup } = groups;
-  const active = new Map(); // id -> { meta, instance, layer }
+export function createIndicatorsManager(chartCore) {
+  const active = new Map();
 
   function add(id) {
-    if (active.has(id)) {
-      console.warn(`[IndicatorsManager] Индикатор ${id} уже активен`);
-      return;
-    }
-    if (!Indicators[id]) {
-      console.warn(`[IndicatorsManager] Индикатор ${id} не найден в index.js`);
-      return;
-    }
+    if (active.has(id)) return;
+
     const def = Indicators[id];
+    if (!def?.meta || typeof def.createIndicator !== 'function') {
+      console.warn(`[IndicatorsManager] Индикатор ${id} некорректный`);
+      return;
+    }
+
     const layer = new PIXI.Container();
     layer.zIndex = def.meta.zIndex ?? 50;
 
-    // Выбираем родительский контейнер по позиции индикатора
-    const parent = def.meta.position === 'bottom' ? bottomGroup : plotGroup;
+    // Куда добавлять слой
+    const parent = def.meta.position === 'bottom'
+      ? chartCore.state.subGroup
+      : chartCore.state.graphGroup;
+
     parent.addChild(layer);
 
-    const instance = def.createIndicator({ layer, chartCore }, chartCore.state.layout);
+    const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);
     active.set(id, { meta: def.meta, instance, layer });
   }
 
   function remove(id) {
     const obj = active.get(id);
     if (!obj) return;
-
-    // Удаляем слой из того контейнера, куда он был добавлен
-    if (plotGroup.children.includes(obj.layer)) {
-      plotGroup.removeChild(obj.layer);
-    } else if (bottomGroup.children.includes(obj.layer)) {
-      bottomGroup.removeChild(obj.layer);
-    }
-
+    const parent = obj.meta.position === 'bottom'
+      ? chartCore.state.subGroup
+      : chartCore.state.graphGroup;
+    parent.removeChild(obj.layer);
     obj.layer.destroy({ children: true });
     active.delete(id);
   }
 
   function renderAll(layout) {
-    for (const { instance } of active.values()) {
-      instance.render?.(layout);
+    // Смещаем нижнюю группу под текущую высоту графика
+    if (chartCore?.state?.subGroup && layout?.plotH != null) {
+      chartCore.state.subGroup.y = layout.plotH;
+    }
+    for (const { instance, meta, layer } of active.values()) {
+      instance.render?.(layout, meta, layer);
     }
   }
 
-  function initFromConfig(configList) {
-    if (!Array.isArray(configList) || !configList.length) return;
-    configList.forEach(id => add(id));
+  function initFromConfig(list) {
+    if (!Array.isArray(list) || !list.length) return;
+    list.forEach(id => add(id));
   }
 
   function destroy() {
     for (const id of active.keys()) remove(id);
   }
 
-  // Суммарная высота всех bottom-индикаторов
   function getBottomStackHeight() {
     let total = 0;
     for (const { meta } of active.values()) {
