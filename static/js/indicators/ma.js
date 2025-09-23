@@ -3,18 +3,16 @@ export const ma = {
   meta: {
     id: 'ma',
     name: 'Moving Average',
-    position: 'top',       // слой поверх графика
-    zIndex: 60,
-    period: 50,
-    color: 0xffd700
+    position: 'top',
+    zIndex: 60
   },
 
   createIndicator({ layer, chartCore }, layout, params = {}) {
-    const period = params.period || ma.meta.period;
-    const color = params.color || ma.meta.color;
+    const periods = params.periods ?? [50, 200, null];
+    const colors  = params.colors  ?? [0x00ff00, 0xff0000, null];
 
-    const maLine = new PIXI.Graphics();
-    layer.addChild(maLine);
+    const lines = periods.map(() => new PIXI.Graphics());
+    lines.forEach(line => layer.addChild(line));
 
     function calculateMA(data, period) {
       const result = [];
@@ -30,16 +28,9 @@ export const ma = {
       return result;
     }
 
-    let maValues = [];
-
     function render(currentLayout) {
       const candles = currentLayout.candles;
       if (!candles?.length) return;
-
-      // Пересчитываем всегда, чтобы линия тянулась при скролле/зуме
-      maValues = calculateMA(candles, period);
-
-      maLine.clear();
 
       const cw = (currentLayout.config.candleWidth + currentLayout.config.spacing) * currentLayout.scaleX;
       const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
@@ -47,24 +38,35 @@ export const ma = {
       const maxPrice = Math.max(...prices);
       const priceRange = maxPrice - minPrice || 1;
 
-      let started = false;
-
-      for (let i = 0; i < maValues.length; i++) {
-        const val = maValues[i];
-        if (val === null) continue;
-
-        const x = i * cw + currentLayout.offsetX;
-        const y = (currentLayout.plotH * (1 - (val - minPrice) / priceRange)) * currentLayout.scaleY + currentLayout.offsetY;
-
-        if (!started) {
-          maLine.moveTo(x, y);
-          started = true;
-        } else {
-          maLine.lineTo(x, y);
+      lines.forEach((line, idx) => {
+        const period = periods[idx];
+        const color  = colors[idx];
+        if (!period || !color) {
+          line.clear();
+          return;
         }
-      }
 
-      maLine.stroke({ width: 2, color });
+        const maValues = calculateMA(candles, period);
+        line.clear();
+
+        let started = false;
+        for (let i = 0; i < maValues.length; i++) {
+          const val = maValues[i];
+          if (val === null) continue;
+
+          const x = i * cw + currentLayout.offsetX;
+          const y = (currentLayout.plotH * (1 - (val - minPrice) / priceRange)) * currentLayout.scaleY + currentLayout.offsetY;
+
+          if (!started) {
+            line.moveTo(x, y);
+            started = true;
+          } else {
+            line.lineTo(x, y);
+          }
+        }
+
+        line.stroke({ width: 2, color });
+      });
     }
 
     return { render };

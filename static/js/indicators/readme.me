@@ -1,0 +1,85 @@
+Шаблон индикатора для TradiumPro
+Каждый индикатор — это объект с двумя ключевыми частями:
+
+1. meta — описание индикатора
+js
+meta: {
+  id: 'ma',                 // Уникальный идентификатор
+  name: 'Moving Average',   // Название для UI
+  position: 'top',          // 'top' — поверх графика, 'bottom' — под графиком
+  zIndex: 60,               // Порядок отрисовки
+  defaultParams: {          // Дефолтные параметры (опционально)
+    periods: [50, 200, null],
+    colors: [0x00ff00, 0xff0000, null]
+  },
+  height: 100               // Только для bottom-индикаторов (высота панели)
+}
+
+createIndicator() — функция создания
+
+createIndicator({ layer, chartCore }, layout, params = {}) {
+  // layer — PIXI.Container, куда рисовать
+  // chartCore — доступ к данным и методам
+  // layout — геометрия графика
+  // params — пользовательские настройки (если есть)
+
+  // Создаём графику
+  const line = new PIXI.Graphics();
+  layer.addChild(line);
+
+  // Основной метод отрисовки
+  function render(layout) {
+    // layout.candles — массив свечей
+    // layout.plotH, layout.offsetY — геометрия графика
+    // layout.scaleX, scaleY — масштаб
+
+    line.clear();
+    // ... логика отрисовки
+    line.stroke({ width: 2, color: 0xffcc00 });
+  }
+
+  return { render };
+}
+
+Пример минимального индикатора
+
+export const myIndicator = {
+  meta: {
+    id: 'myIndicator',
+    name: 'My Custom Line',
+    position: 'top',
+    zIndex: 70,
+    defaultParams: {
+      color: 0xffcc00
+    }
+  },
+
+  createIndicator({ layer }, layout, params = {}) {
+    const color = params.color ?? 0xffcc00;
+    const line = new PIXI.Graphics();
+    layer.addChild(line);
+
+    function render(layout) {
+      const candles = layout.candles;
+      if (!candles?.length) return;
+
+      line.clear();
+      for (let i = 0; i < candles.length; i++) {
+        const x = i * 10 + layout.offsetX;
+        const y = layout.plotH / 2 * layout.scaleY + layout.offsetY;
+        if (i === 0) line.moveTo(x, y);
+        else line.lineTo(x, y);
+      }
+      line.stroke({ width: 2, color });
+    }
+
+    return { render };
+  }
+};
+
+
+Как включать индикаторы в конфиг
+
+Теперь в ChartConfig достаточно просто включить нужные:
+indicators: ['ma', 'rsi', 'volume']
+А параметры будут браться из meta.defaultParams внутри каждого индикатора.
