@@ -102,47 +102,47 @@ export async function createChartCore(container, userConfig = {}) {
     const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0), layout = createFullLayout(bo); state.layout = layout;
     drawCandlesOnly(); if (modules.livePrice && state.livePrice) state.livePrice.render(layout); if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout); };
 
-const draw = async ({ candles, volumes }) => {
-  const init = state.candles.length === 0;
+  const draw = async ({ candles, volumes }) => {
+    const init = state.candles.length === 0;
 
-  // Считаем всё сразу с учётом индикаторов
-  applyAutoCenter(candles, volumes, init);
-  state.layout = createFullLayout(
-    (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0)
-  );
+    // Считаем всё сразу с учётом индикаторов
+    applyAutoCenter(candles, volumes, init);
+    state.layout = createFullLayout(
+      (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0)
+    );
 
-  // Быстрый рендер свечей
-  drawCandlesOnly();
-
-  // Запускаем загрузку шрифтов
-  const fontSpec = `${config.chartFontSize}px ${config.chartFont}`;
-  await document.fonts.load(fontSpec);
-
-  // Когда шрифты готовы — рендерим всё остальное
-  if (modules.ohlcv) {
-    state.ohlcv.init(candles, volumes);
-    state.ohlcv.render(candles.at(-1));
-  }
-  renderAll();
-
-  if (
-    chartCore._lastCandleData &&
-    chartCore._lastCandleData.openTime === state.candles.at(-1)?.openTime &&
-    chartCore._lastCandleData.timeframe === state.timeframe
-  ) {
-    updateLastCandle(chartCore._lastCandleData);
-    if (Array.isArray(state.volumes))
-      state.volumes[state.volumes.length - 1] = chartCore._lastCandleData.volume;
+    // Быстрый рендер свечей
     drawCandlesOnly();
-    if (modules.livePrice && state.livePrice)
-      state.livePrice.render(state.layout);
-    if (modules.indicators && chartCore.indicators && state.layout)
-      chartCore.indicators.renderAll(state.layout);
-    chartCore._lastCandleData = null;
-  }
 
-  if (init) state.isFirstAutoCenter = false;
-};
+    // Запускаем загрузку шрифтов
+    const fontSpec = `${config.chartFontSize}px ${config.chartFont}`;
+    await document.fonts.load(fontSpec);
+
+    // Когда шрифты готовы — рендерим всё остальное
+    if (modules.ohlcv) {
+      state.ohlcv.init(candles, volumes);
+      state.ohlcv.render(candles.at(-1));
+    }
+    renderAll();
+
+    if (
+      chartCore._lastCandleData &&
+      chartCore._lastCandleData.openTime === state.candles.at(-1)?.openTime &&
+      chartCore._lastCandleData.timeframe === state.timeframe
+    ) {
+      updateLastCandle(chartCore._lastCandleData);
+      if (Array.isArray(state.volumes))
+        state.volumes[state.volumes.length - 1] = chartCore._lastCandleData.volume;
+      drawCandlesOnly();
+      if (modules.livePrice && state.livePrice)
+        state.livePrice.render(state.layout);
+      if (modules.indicators && chartCore.indicators && state.layout)
+        chartCore.indicators.renderAll(state.layout);
+      chartCore._lastCandleData = null;
+    }
+
+    if (init) state.isFirstAutoCenter = false;
+  };
 
   const onHoverFiltered = candle => {
     const L = state.layout;

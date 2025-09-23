@@ -34,7 +34,7 @@ export const ChartConfig = {
   },
   //индикаторы
   indicators: [
-    'test',
+    //'test',
     //'test2',
     //'test3'
   ]
