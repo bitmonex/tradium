@@ -37,12 +37,21 @@ export async function createChartCore(container, userConfig = {}) {
   if (modules.fps) state.fps = new FPS(app.stage, config.fpsColor);
 
   let sprites = [], lastKey = '';
-  const applyAutoCenter = (candles, volumes, init) => { state.candles = candles; state.volumes = volumes; state.timeframe = TF(candles);
-    if (init && state.isFirstAutoCenter && !state.userHasPanned) { const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-      const min = Math.min(...prices), max = Math.max(...prices), range = max - min || 1, cw = (config.candleWidth + config.spacing) * state.scaleX;
-      const centerX = app.renderer.width / 2, lastIdx = candles.length - 1, halfW = (config.candleWidth * state.scaleX) / 2;
-      state.offsetX = centerX - lastIdx * cw - halfW; const lastC = candles[lastIdx].close, ratio = 1 - (lastC - min) / range;
-      const H = app.renderer.height, plotH = H - config.bottomOffset; state.offsetY = H / 2 - ratio * plotH * state.scaleY; } };
+  const applyAutoCenter = (candles, volumes, init) => {
+    state.candles = candles; state.volumes = volumes; state.timeframe = TF(candles);
+    if (init && state.isFirstAutoCenter && !state.userHasPanned) {
+      const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]),
+            min = Math.min(...prices), max = Math.max(...prices), range = max - min || 1,
+            cw = (config.candleWidth + config.spacing) * state.scaleX,
+            centerX = app.renderer.width / 2, lastIdx = candles.length - 1,
+            halfW = (config.candleWidth * state.scaleX) / 2;
+      state.offsetX = centerX - lastIdx * cw - halfW;
+      const lastC = candles[lastIdx].close, ratio = 1 - (lastC - min) / range,
+            bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0),
+            plotH = app.renderer.height - bo;
+      state.offsetY = app.renderer.height / 2 - ratio * plotH * state.scaleY;
+    }
+  };
 
   const drawCandlesOnly = () => { if (!candleLayer || !state.candles.length || !app?.renderer) return;
     if (state._liveOverride && state.candles.length) { const last = state.candles.at(-1), p = state._liveOverride.price;
@@ -66,27 +75,17 @@ export async function createChartCore(container, userConfig = {}) {
 
   const renderAll = () => {
     if (!state.candles.length) return;
-    const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
-    const layout = createFullLayout(bo);
-    state.layout = layout;
-    subGroup.y = layout.plotH;
-    if (!state.debugFill) {
-      state.debugFill = new PIXI.Graphics();
-      state.debugFill.zIndex = 9999;
-      app.stage.addChild(state.debugFill);
-    }
-    state.debugFill.clear()
-      .beginFill(0xff0000, 0.3)
-      .drawRect(0, 0, layout.plotW, layout.plotH)
-      .endFill();
+    const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0),
+          layout = createFullLayout(bo);
+    state.layout = layout; subGroup.y = layout.plotH;
+    //if (!state.debugFill) { state.debugFill = new PIXI.Graphics(); state.debugFill.zIndex = 9999; app.stage.addChild(state.debugFill); }
+    //state.debugFill.clear().beginFill(0xff0000, 0.3).drawRect(0, 0, layout.plotW, layout.plotH).endFill();
     if (modules.grid) Grid(app, layout, config);
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-    mask.clear()
-      .rect(0, 0, layout.plotW, layout.plotH)
-      .fill(0x000000);
+    mask.clear().rect(0, 0, layout.plotW, layout.plotH).fill(0x000000);
   };
 
   const renderLight = () => {
@@ -224,14 +223,12 @@ export async function createChartCore(container, userConfig = {}) {
     invalidateLight: () => { state._needRedrawCandles = true; renderLight(); },
     _alive: true
   };
-
-  if (modules.livePrice) {
-    state.livePrice = LivePrice({ group: graphGroup, config, chartSettings, chartCore });
-  }
-
   if (modules.indicators) {
     chartCore.indicators = createIndicatorsManager(chartCore);
     chartCore.indicators.initFromConfig(config.indicators || []);
+  }
+  if (modules.livePrice) {
+    state.livePrice = LivePrice({ group: graphGroup, config, chartSettings, chartCore });
   }
 
   chartCore.destroy = destroy;

@@ -33,5 +33,9 @@ export const ChartConfig = {
     livePrice:  true
   },
   //индикаторы
-  indicators: ['test','test2','test3']
+  indicators: [
+    'test',
+    //'test2',
+    //'test3'
+  ]
 };
