@@ -44,3 +44,74 @@ export function updateLastCandle(candle) {
   // realtime-обновление OHLCV (форс)
   core.state.ohlcv?.update?.(lastCandleRef, { force: true });
 }
+
+// 🔥 Основная функция отрисовки
+export function attachDrawCandles(core) {
+  core.drawCandlesOnly = function() {
+    const candles = core.state.candles;
+    const style = core.state.chartStyle || "candles";
+
+    const g = new PIXI.Graphics();
+    core.layer.removeChildren();
+    core.layer.addChild(g);
+
+    const cw = (core.state.config.candleWidth + core.state.config.spacing) * core.state.scaleX;
+    const usableW = core.state.usableW ?? core.state.plotW;
+    const plotH = core.state.plotH;
+
+    if (style === "line") {
+      // 🔹 Линия по close
+      g.lineStyle(1, 0xffffff);
+      candles.forEach((c, i) => {
+        const x = i * cw + core.state.offsetX;
+        if (x > usableW) return;
+        const y = plotH * (1 - c.close / core.state.maxPrice);
+        if (i === 0) g.moveTo(x, y);
+        else g.lineTo(x, y);
+      });
+    } else {
+      // 🔹 Свечи (обычные или Heikin Ashi)
+      let prevHAopen = candles[0]?.open ?? 0;
+      let prevHAclose = candles[0]?.close ?? 0;
+
+      candles.forEach((c, i) => {
+        const x = i * cw + core.state.offsetX;
+        if (x > usableW) return;
+
+        let open = c.open, close = c.close, high = c.high, low = c.low;
+
+        if (style === "heikin") {
+          const haClose = (c.open + c.high + c.low + c.close) / 4;
+          const haOpen = (prevHAopen + prevHAclose) / 2;
+          const haHigh = Math.max(c.high, haOpen, haClose);
+          const haLow = Math.min(c.low, haOpen, haClose);
+
+          open = haOpen;
+          close = haClose;
+          high = haHigh;
+          low = haLow;
+
+          prevHAopen = haOpen;
+          prevHAclose = haClose;
+        }
+
+        const yOpen = plotH * (1 - open / core.state.maxPrice);
+        const yClose = plotH * (1 - close / core.state.maxPrice);
+        const yHigh = plotH * (1 - high / core.state.maxPrice);
+        const yLow = plotH * (1 - low / core.state.maxPrice);
+
+        const color = close >= open ? 0x00ff00 : 0xff0000;
+
+        // тень
+        g.lineStyle(1, color);
+        g.moveTo(x + cw / 2, yHigh);
+        g.lineTo(x + cw / 2, yLow);
+
+        // тело
+        g.beginFill(color);
+        g.drawRect(x, Math.min(yOpen, yClose), cw, Math.abs(yClose - yOpen) || 1);
+        g.endFill();
+      });
+    }
+  };
+}

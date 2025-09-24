@@ -113,12 +113,56 @@ orderbook?.addEventListener("click", () => {
     }
 });
 
+
+
+// Полный экран
+document.getElementById("full-open")?.addEventListener("click", () => {
+    const el = document.documentElement;
+    if (el.requestFullscreen) el.requestFullscreen();
+    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+});
+
+// Линейный или свечной
+function changeStyle(newStyle) {
+    const style = newStyle; // "candles" | "heikin" | "line"
+    localStorage.setItem("chartStyle", style);
+
+    // подсветка активного пункта меню
+    document.querySelectorAll(".view .drop a").forEach(a => a.classList.remove("on"));
+    const active = document.querySelector(`.view .drop a[rel="${style}"]`);
+    if (active) active.classList.add("on");
+
+    // передаём в график
+    if (window.chartCore) {
+        window.chartCore.state.chartStyle = style;
+        window.chartCore.drawCandlesOnly?.();
+    }
+}
+
+// инициализация при загрузке
+document.addEventListener("DOMContentLoaded", () => {
+    const storedStyle = localStorage.getItem("chartStyle") || "candles";
+    changeStyle(storedStyle);
+});
+
+// меню свеч
+document.querySelectorAll(".view .drop a").forEach(a => {
+    a.addEventListener("click", () => {
+        changeStyle(a.getAttribute("rel"));
+    });
+});
+
+
 // Очистка Storage
 document.getElementById("clearStorage")?.addEventListener("click", () => {
     localStorage.removeItem("timeframe");
-    localStorage.removeItem("chartStyle");
     localStorage.removeItem("activeIndicator");
 
+    // сбрасываем стиль графика в дефолт (candles)
+    localStorage.setItem("chartStyle", "candles");
+
+    // сброс подсветки таймфреймов
     document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
 
     const tfDefault = document.getElementById("tf")?.getAttribute("data-default");
@@ -131,16 +175,16 @@ document.getElementById("clearStorage")?.addEventListener("click", () => {
         .find(i => i.getAttribute("rel") === tfDefault);
     if (activeTF) activeTF.classList.add("on");
 
-    // Перезапуск графика с дефолтным TF
+    // 🔥 сброс подсветки стиля графика
+    document.querySelectorAll(".view .drop a").forEach(a => a.classList.remove("on"));
+    const defaultStyle = document.querySelector('.view .drop a[rel="candles"]');
+    if (defaultStyle) defaultStyle.classList.add("on");
+
+    // Перезапуск графика с дефолтным TF и дефолтным стилем
+    if (window.chartCore) {
+        window.chartCore.state.chartStyle = "candles";
+    }
     startChartRender(tfDefault);
 
-    console.log("🧯 Storage очищен, график сброшен на", tfDefault);
-});
-
-// Полный экран
-document.getElementById("full-open")?.addEventListener("click", () => {
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.msRequestFullscreen) el.msRequestFullscreen();
+    console.log("🧯 Storage очищен, график сброшен на", tfDefault, "и стиль сброшен на candles");
 });
