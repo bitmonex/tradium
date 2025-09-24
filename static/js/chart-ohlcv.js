@@ -60,6 +60,13 @@ export function OHLCV({ config, chartSettings = {}, group }) {
       tickerText = new PIXI.Text('', tickerStyle);
       tickerText.x = 15;
       tickerText.y = 12;
+      
+      tickerText.interactive = true;
+      tickerText.cursor = 'pointer';
+      tickerText.on('pointertap', () => {
+        alert('Открыть меню выбора тикера!');
+      });
+
       layer.addChild(tickerText);
 
       const items = getOHLCVItems(candle, candles);
@@ -89,9 +96,9 @@ export function OHLCV({ config, chartSettings = {}, group }) {
   }
 
   function _updateAll(candle) {
-    const exch  = chartSettings.exchange   || '';
-    const mType = chartSettings.marketType || '';
-    const symb  = chartSettings.symbol     || '';
+    const exch  = (chartSettings.exchange   || '').toUpperCase();
+    const mType = (chartSettings.marketType || '').toUpperCase();
+    const symb  = chartSettings.symbol || '';
     tickerText.text = `${exch} - ${mType} - ${symb}`;
 
     let x = tickerText.x + tickerText.width + 20;

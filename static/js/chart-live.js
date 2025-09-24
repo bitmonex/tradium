@@ -61,7 +61,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     priceText.text = Number.isFinite(price) ? price.toFixed(2) : '';
     const textW = Math.max(priceText.width, timerText.width);
     const boxW = Math.max(70);
-    const boxH = Math.max(42);
+    const boxH = Math.max(41);
 
     boxBg.clear().beginFill(color).drawRect(0, 0, boxW, boxH).endFill();
 
