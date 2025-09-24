@@ -191,7 +191,6 @@ export function initLive(chartCore, chartSettings) {
   const live = LivePrice({ group: chartCore.graphGroup, config, chartSettings, chartCore });
   chartCore.state.livePrice = live;
 
-  // ❌ убрали вызов render() на старте, чтобы не рисовать "статическую" линию
   const arr = chartCore.state.candles;
   if (arr.length) {
     const last = arr.at(-1);

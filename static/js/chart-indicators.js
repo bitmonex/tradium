@@ -13,52 +13,81 @@ export function createIndicatorsManager(chartCore) {
       return;
     }
 
-    const layer = new PIXI.Container();
-    layer.zIndex = def.meta.zIndex ?? 50;
+    // Внешний контейнер для индикатора + наша линия
+    const decor = new PIXI.Container();
+    decor.zIndex = def.meta.zIndex ?? 50;
+    decor.sortableChildren = true;
 
-    // Куда добавлять слой
+    // Внутренний контейнер, в который рендерит сам индикатор
+    const content = new PIXI.Container();
+    decor.addChild(content);
+
     const parent = def.meta.position === 'bottom'
       ? chartCore.state.subGroup
       : chartCore.state.graphGroup;
 
-    // Если индикатор нижний — смещаем его слой на накопленную высоту уже добавленных нижних индикаторов
     if (def.meta.position === 'bottom') {
+      // Смещение вниз для стека
       const offsetY = Array.from(active.values())
         .filter(v => v.meta.position === 'bottom')
         .reduce((sum, v) => sum + (v.meta.height || 0), 0);
-      layer.y = offsetY;
+      decor.y = offsetY;
+
+      // Линия у верхнего края
+      const line = new PIXI.Graphics();
+      line.name = '__line';
+      line.zIndex = 9999;
+      decor.addChild(line);
     }
 
-    parent.addChild(layer);
+    parent.addChild(decor);
 
-    const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);
-    active.set(id, { meta: def.meta, instance, layer });
+    // Индикатор рисует только в content
+    const instance = def.createIndicator({ layer: content, chartCore }, chartCore.layout);
+    active.set(id, { meta: def.meta, instance, decor, content });
   }
 
   function remove(id) {
     const obj = active.get(id);
     if (!obj) return;
+
     const parent = obj.meta.position === 'bottom'
       ? chartCore.state.subGroup
       : chartCore.state.graphGroup;
-    parent.removeChild(obj.layer);
-    obj.layer.destroy({ children: true });
+
+    parent.removeChild(obj.decor);
+
+    // Полная очистка GPU‑ресурсов
+    obj.decor.destroy({ children: true, texture: false, baseTexture: false });
+
     active.delete(id);
   }
 
   function renderAll(layout) {
-    // Смещаем нижнюю группу под текущую высоту графика
     if (chartCore?.state?.subGroup && layout?.plotH != null) {
       chartCore.state.subGroup.y = layout.plotH;
     }
-    for (const { instance, meta, layer } of active.values()) {
-      instance.render?.(layout, meta, layer);
+
+    for (const { instance, meta, decor, content } of active.values()) {
+      instance.render?.(layout, meta, content);
+
+      if (meta.position === 'bottom') {
+        const line = decor.getChildByName('__line');
+        if (line) {
+          const y = 0; // верхний край
+          const fullW = layout.plotW || 500; // подстраховка
+
+          line.clear();
+          line.moveTo(0, y);
+          line.lineTo(fullW, y);
+          line.stroke({ width: 0.3, color: 0x333333 });
+        }
+      }
     }
   }
 
   function initFromConfig(list) {
-    if (!Array.isArray(list) || !list.length) return;
-    list.forEach(id => add(id));
+    if (Array.isArray(list)) list.forEach(add);
   }
 
   function destroy() {
@@ -66,13 +95,9 @@ export function createIndicatorsManager(chartCore) {
   }
 
   function getBottomStackHeight() {
-    let total = 0;
-    for (const { meta } of active.values()) {
-      if (meta.position === 'bottom' && typeof meta.height === 'number') {
-        total += meta.height;
-      }
-    }
-    return total;
+    return Array.from(active.values())
+      .filter(v => v.meta.position === 'bottom')
+      .reduce((sum, v) => sum + (v.meta.height || 0), 0);
   }
 
   return { add, remove, renderAll, initFromConfig, destroy, getBottomStackHeight };

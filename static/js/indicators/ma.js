@@ -8,8 +8,8 @@ export const ma = {
   },
 
   createIndicator({ layer, chartCore }, layout, params = {}) {
-    const periods = params.periods ?? [50, 200, null];
-    const colors  = params.colors  ?? [0x00ff00, 0xff0000, null];
+    const periods = params.periods ?? [50, 200];
+    const colors  = params.colors  ?? [0x00ff00, 0xff0000, 0x333333];
 
     const lines = periods.map(() => new PIXI.Graphics());
     lines.forEach(line => layer.addChild(line));

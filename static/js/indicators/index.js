@@ -1,13 +1,14 @@
 // indicators/index.js
-import { test } from './test.js';
-import { test2 } from './test2.js';
-import { test3 } from './test3.js';
+import { test, test2, test3 } from './test.js';
+import { volume } from './volume.js';
 import { ma } from './ma.js';
+import { rsi } from './rsi.js';
 
 export const Indicators = {
-  //volume,
+  volume,
   ma,
-  //test,
-  //test2,
-  //test3
+  rsi,
+  test,
+  test2,
+  test3
 };
