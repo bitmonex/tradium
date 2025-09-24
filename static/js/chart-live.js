@@ -60,8 +60,8 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
   const drawBox = (y, price, color, layout) => {
     priceText.text = Number.isFinite(price) ? price.toFixed(2) : '';
     const textW = Math.max(priceText.width, timerText.width);
-    const boxW = Math.max(70, textW + padX * 2);
-    const boxH = Math.max(40, priceText.height + timerText.height + padY * 3);
+    const boxW = Math.max(70);
+    const boxH = Math.max(42);
 
     boxBg.clear().beginFill(color).drawRect(0, 0, boxW, boxH).endFill();
 
@@ -78,7 +78,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     priceText.x = Math.round(boxX + (boxW - priceText.width) / 2);
     priceText.y = Math.round(boxY + padY);
     timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
-    timerText.y = Math.round(priceText.y + priceText.height + padY);
+    timerText.y = Math.round(priceText.y + priceText.height + 2);
 
     const inViewport = y >= layout.plotY && y <= layout.plotY + layout.plotH;
     overlay.alpha = inViewport ? 1 : 0;
