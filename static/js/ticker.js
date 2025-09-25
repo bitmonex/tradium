@@ -136,7 +136,7 @@ function changeStyle(newStyle) {
     // передаём в график
     if (window.chartCore) {
         window.chartCore.state.chartStyle = style;
-        window.chartCore.drawCandlesOnly?.();
+        window.chartCore.renderAll?.();
     }
 }
 

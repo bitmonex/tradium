@@ -5,8 +5,8 @@ export function initRealtimeCandles(chartCore, chartSettings) {
   chartCore._alive = true;
 
   // читаем стиль из localStorage или дефолт
-  chartCore.state.chartStyle = localStorage.getItem("chartStyle") || "candles";
-
+  //chartCore.state.chartStyle = localStorage.getItem("chartStyle") || "candles";
+  chartCore.state.chartStyle = "line"; 
   // подключаем функцию отрисовки
   attachDrawCandles(chartCore);
 

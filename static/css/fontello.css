@@ -29,6 +29,9 @@
 .icon-ping:before { content: '\e80f'; } /* '' */
 .icon-full:before { content: '\e810'; } /* '' */
 .icon-full-2:before { content: '\e811'; } /* '' */
+.icon-settings:before { content: '\e812'; } /* '' */
+.icon-view:before { content: '\e813'; } /* '' */
+.icon-view-off:before { content: '\e814'; } /* '' */
 .icon-copy:before { content: '\f0c5'; } /* '' */
 .icon-left:before { content: '\f137'; } /* '' */
 .icon-right:before { content: '\f138'; } /* '' */
