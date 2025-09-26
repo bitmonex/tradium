@@ -1,18 +1,21 @@
-fastapi
-uvicorn
+fastapi+
+uvicorn+
 requests
 uvloop
 aiohttp
-redis
+redis+
 itsdangerous
-jinja2
+jinja2+
 python-dotenv
-httpx
+httpx+
 sqlalchemy
 psycopg2
 
 
 aioredis
-motor
-websockets
+motor+
+bs4+
+websocket-client+
+websockets+
 mongodb-community
+requests

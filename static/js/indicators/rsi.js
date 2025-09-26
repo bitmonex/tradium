@@ -10,8 +10,8 @@ export const rsi = {
       period: 14,
       color: 0xffffff,
       levels: [30, 70],
-      levelColors: [0xff0000, 0x00ff00],
-      fillColor: 0x222222
+      levelColors: [0xFF2E2E, 0x00ff00],
+      fillColor: 0x090909
     }
   },
   createIndicator({ layer }, layout, params = {}) {
@@ -79,7 +79,8 @@ export const rsi = {
           rsiLine.lineTo(x, y);
         }
       }
-      rsiLine.stroke({ width: 1, color });
+      //толщина rsi
+      rsiLine.stroke({ width: 1.5, color });
       //Dashed уровней
       function drawDashedLine(g, x1, y, x2, dash = 6, gap = 4, c = 0xffffff) {
         let x = x1;
@@ -93,7 +94,7 @@ export const rsi = {
       }
       levels.forEach((level, idx) => {
         const y = offsetY + plotH * (1 - level / 100);
-        const lineColor = levelColors[idx] ?? 0x666666;
+        const lineColor = levelColors[idx] ?? 0xffffff;
         drawDashedLine(levelLine, 0, y, usableW, 6, 4, lineColor);
       });
     }
