@@ -210,7 +210,7 @@ export async function createChartCore(container, userConfig = {}) {
         try { sprites[i].clear(); } catch {}
       }
     }
-
+    
     const plotH = state.layout?.plotH ?? (height - config.bottomOffset);
     const mapY = val => (plotH * (1 - (val - min) / range)) * state.scaleY + state.offsetY;
     //line
@@ -240,59 +240,55 @@ export async function createChartCore(container, userConfig = {}) {
       return;
     }
     //bars
-if (style === 'bars') {
-  try {
-    candleLayer.removeChildren();
-    destroyGraphicsArray(sprites);
-    sprites = [];
-  } catch {}
+    if (style === 'bars') {
+      try {
+        candleLayer.removeChildren();
+        destroyGraphicsArray(sprites);
+        sprites = [];
+      } catch {}
 
-  const gBull = new PIXI.Graphics();
-  const gBear = new PIXI.Graphics();
-  gBull.zIndex = gBear.zIndex = 10;
-  candleLayer.addChild(gBull, gBear);
+      const gBull = new PIXI.Graphics();
+      const gBear = new PIXI.Graphics();
+      gBull.zIndex = gBear.zIndex = 10;
+      candleLayer.addChild(gBull, gBear);
 
-  const tickLen = Math.max(
-    2,
-    Math.min(12, config.candleWidth * state.scaleX * settings.barTickRatio)
-  );
+      const tickLen = Math.max(
+        2,
+        Math.min(12, config.candleWidth * state.scaleX * settings.barTickRatio)
+      );
+      // бычьи бары
+      for (let i = startIdx; i < endIdx; i++) {
+        const v = series[i];
+        if (v.close < v.open) continue;
+        const x = i * cw + state.offsetX;
+        const yOpen  = mapY(v.open);
+        const yClose = mapY(v.close);
+        const yHigh  = mapY(v.high);
+        const yLow   = mapY(v.low);
 
-  // бычьи бары (одним stroke)
-  for (let i = startIdx; i < endIdx; i++) {
-    const v = series[i];
-    if (v.close < v.open) continue;
-    const x = i * cw + state.offsetX;
-    const yOpen  = mapY(v.open);
-    const yClose = mapY(v.close);
-    const yHigh  = mapY(v.high);
-    const yLow   = mapY(v.low);
+        gBull.moveTo(x, yHigh).lineTo(x, yLow);
+        gBull.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
+        gBull.moveTo(x, yClose).lineTo(x + tickLen, yClose);
+      }
+      gBull.stroke({ width: settings.barLineWidth, color: +config.candleBull, alpha: 1 });
+      // медвежьи бары
+      for (let i = startIdx; i < endIdx; i++) {
+        const v = series[i];
+        if (v.close >= v.open) continue;
+        const x = i * cw + state.offsetX;
+        const yOpen  = mapY(v.open);
+        const yClose = mapY(v.close);
+        const yHigh  = mapY(v.high);
+        const yLow   = mapY(v.low);
 
-    gBull.moveTo(x, yHigh).lineTo(x, yLow);
-    gBull.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
-    gBull.moveTo(x, yClose).lineTo(x + tickLen, yClose);
-  }
-  gBull.stroke({ width: settings.barLineWidth, color: +config.candleBull, alpha: 1 });
-
-  // медвежьи бары (одним stroke)
-  for (let i = startIdx; i < endIdx; i++) {
-    const v = series[i];
-    if (v.close >= v.open) continue;
-    const x = i * cw + state.offsetX;
-    const yOpen  = mapY(v.open);
-    const yClose = mapY(v.close);
-    const yHigh  = mapY(v.high);
-    const yLow   = mapY(v.low);
-
-    gBear.moveTo(x, yHigh).lineTo(x, yLow);
-    gBear.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
-    gBear.moveTo(x, yClose).lineTo(x + tickLen, yClose);
-  }
-  gBear.stroke({ width: settings.barLineWidth, color: +config.candleBear, alpha: 1 });
-
-  state._needRedrawCandles = false;
-  return;
-}
-
+        gBear.moveTo(x, yHigh).lineTo(x, yLow);
+        gBear.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
+        gBear.moveTo(x, yClose).lineTo(x + tickLen, yClose);
+      }
+      gBear.stroke({ width: settings.barLineWidth, color: +config.candleBear, alpha: 1 });
+      state._needRedrawCandles = false;
+      return;
+    }
 
     // render candles/heikin using pooled Graphics per index
     for (let i = startIdx; i < endIdx; i++) {
@@ -300,19 +296,15 @@ if (style === 'bars') {
       const g = sprites[i];
       const x = i * cw + state.offsetX;
       const color = v.close >= v.open ? +config.candleBull : +config.candleBear;
-
       const yOpen  = mapY(v.open);
       const yClose = mapY(v.close);
       const yHigh  = mapY(v.high);
       const yLow   = mapY(v.low);
-
       g.clear().visible = true;
-
       // wick
       g.moveTo(x + (config.candleWidth * state.scaleX) / 2, yHigh)
        .lineTo(x + (config.candleWidth * state.scaleX) / 2, yLow)
        .stroke({ width: 1, color });
-
       // body
       g.rect(
         x,

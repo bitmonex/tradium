@@ -11,13 +11,10 @@ function changeTimeframe(newTF) {
     const active = Array.from(document.querySelectorAll(".timeframes i"))
         .find(i => i.getAttribute("rel") === timeframe);
     if (active) active.classList.add("on");
-    // перед сменой таймфрейма — снести старый график
     if (window.chartCore) {
         window.chartCore.destroy();
     }
-    // запуск с новым TF
     startChartRender(timeframe);
-    // восстановить стиль (если не candles)
     const storedStyle = localStorage.getItem("chartStyle") || "candles";
     if (storedStyle !== "candles") {
         changeChartStyle(storedStyle);
@@ -34,15 +31,18 @@ function highlightStyle(style) {
     if (active) active.classList.add("on");
 }
 
-// переключение моделей свеч
+//переключение моделей свеч
 function changeChartStyle(style) {
     if (!window.chartCore) return;
+
     resetCandleCursor();
     window.chartCore.setChartStyle(style);
     localStorage.setItem("chartStyle", style);
-    highlightStyle(style);
+
+    highlightStyle(style); // ← всегда вызывается
     window.chartCore.drawCandlesOnly?.();
 }
+
 
 document.addEventListener("DOMContentLoaded", () => {
     const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
@@ -58,7 +58,6 @@ document.addEventListener("DOMContentLoaded", () => {
         .find(i => i.getAttribute("rel") === initialTF);
     if (active) active.classList.add("on");
     changeTimeframe(initialTF);
-    // восстановить стиль и подсветку
     const savedStyle = localStorage.getItem("chartStyle") || "candles";
     highlightStyle(savedStyle);
     if (savedStyle !== "candles") {
@@ -160,19 +159,47 @@ document.getElementById("clearStorage")?.addEventListener("click", () => {
     const activeTF = Array.from(document.querySelectorAll("#tf i"))
         .find(i => i.getAttribute("rel") === tfDefault);
     if (activeTF) activeTF.classList.add("on");
-
     if (window.chartCore) {
         window.chartCore.destroy();
     }
+    // Перезапуск графика
     startChartRender(tfDefault);
+    // Сбросить стиль на candles
+    localStorage.setItem("chartStyle", "candles");
     changeChartStyle("candles");
-    console.log("Storage очищен, график сброшен на", tfDefault);
+    // Принудительно обновить меню: снять все и подсветить candles
+    document.querySelectorAll(".view .drop a").forEach(a => a.classList.remove("on"));
+    const defaultItem = document.querySelector(`.view .drop a[rel="candles"]`);
+    if (defaultItem) defaultItem.classList.add("on");
+    console.log("🧯 Storage очищен, график сброшен на", tfDefault);
 });
 
 // Полный экран
-document.getElementById("full-open")?.addEventListener("click", () => {
-    const el = document.documentElement;
-    if (el.requestFullscreen) el.requestFullscreen();
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (el.msRequestFullscreen) el.msRequestFullscreen();
-});
+const fullBtn = document.getElementById("full-open");
+const fullIcon = fullBtn?.querySelector("b");
+
+function toggleFullscreen() {
+    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
+    if (isFullscreen) {
+        // Выход из полноэкранного
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+        else if (document.msExitFullscreen) document.msExitFullscreen();
+
+        // Смена иконки
+        fullIcon?.classList.remove("icon-full-2");
+        fullIcon?.classList.add("icon-full");
+    } else {
+        // Вход в полноэкранный
+        const el = document.documentElement;
+        if (el.requestFullscreen) el.requestFullscreen();
+        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+        else if (el.msRequestFullscreen) el.msRequestFullscreen();
+
+        // Смена иконки
+        fullIcon?.classList.remove("icon-full");
+        fullIcon?.classList.add("icon-full-2");
+    }
+}
+
+fullBtn?.addEventListener("click", toggleFullscreen);
