@@ -43,7 +43,6 @@ function changeChartStyle(style) {
     window.chartCore.drawCandlesOnly?.();
 }
 
-
 document.addEventListener("DOMContentLoaded", () => {
     const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
     window.chartSettings = { grid: storedGrid || { enabled: true, color: "#ffffff" } };
