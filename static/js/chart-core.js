@@ -394,7 +394,14 @@ export async function createChartCore(container, userConfig = {}) {
     state.layout = createFullLayout(
       (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0)
     );
-
+    // Ограничение длины массивов
+    const MAX_CANDLES = 10000;
+    if (state.candles.length > MAX_CANDLES) {
+      state.candles.splice(0, state.candles.length - MAX_CANDLES);
+    }
+    if (state.volumes.length > MAX_CANDLES) {
+      state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
+    }
     // quick render
     if (modules.candles) drawCandlesOnly();
 
@@ -524,9 +531,15 @@ export async function createChartCore(container, userConfig = {}) {
     updateLastCandle(candle);
     if (Array.isArray(state.volumes))
       state.volumes[state.volumes.length - 1] = candle.volume;
-
+    //Ограничение длины массивов
+    const MAX_CANDLES = 10000;
+    if (state.candles.length > MAX_CANDLES) {
+      state.candles.splice(0, state.candles.length - MAX_CANDLES);
+    }
+    if (state.volumes.length > MAX_CANDLES) {
+      state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
+    }
     if (modules.candles) drawCandlesOnly();
-
     if (modules.livePrice && state.livePrice && state.layout)
       state.livePrice.render(state.layout);
     if (modules.indicators && chartCore.indicators && state.layout)

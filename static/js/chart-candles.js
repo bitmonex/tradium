@@ -15,6 +15,9 @@ export const candleRenderSettings = {
 };
 window.candleRenderSettings = candleRenderSettings;
 
+// лимит хранимых свечей
+const MAX_CANDLES = 10000;
+
 export function updateLastCandle(candle) {
   const core = window.chartCore;
   if (!core) return;
@@ -24,7 +27,7 @@ export function updateLastCandle(candle) {
   if (!ts) return;
   if (ts < 1e12) ts *= 1000;
 
-  //LINE
+  // LINE
   if (core.state.chartStyle === "line") {
     const c = toNum(candle.close ?? candle.price ?? candle.c ?? candle.lastPrice);
     if (!isFinite(c)) {
@@ -40,6 +43,7 @@ export function updateLastCandle(candle) {
         volume: 0,
         timestamp: candle.timestamp
       });
+      if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     } else {
       last.open = last.high = last.low = last.close = c;
     }
@@ -47,7 +51,7 @@ export function updateLastCandle(candle) {
     return;
   }
 
-  //BARS
+  // BARS
   ts = Math.floor(ts / intervalMs) * intervalMs;
   if (core.state.chartStyle === "bars") {
     const obj = {
@@ -61,6 +65,7 @@ export function updateLastCandle(candle) {
     const last = arr[arr.length - 1];
     if (!last || last.timestamp !== ts) {
       arr.push(obj);
+      if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
       lastCandleRef = arr[arr.length - 1];
       lastTs = ts;
     } else {
@@ -76,7 +81,7 @@ export function updateLastCandle(candle) {
     return;
   }
 
-  //CANDLES/HEIKIN
+  // CANDLES / HEIKIN
   ts = Math.floor(ts / intervalMs) * intervalMs;
   if (!lastCandleRef || lastCandleRef !== arr[arr.length - 1]) {
     lastCandleRef = arr[arr.length - 1];
@@ -92,6 +97,7 @@ export function updateLastCandle(candle) {
       timestamp: ts
     };
     arr.push(obj);
+    if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
   } else if (lastTs === ts) {
@@ -113,6 +119,7 @@ export function updateLastCandle(candle) {
       timestamp: ts
     };
     arr.push(obj);
+    if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
   } else {
