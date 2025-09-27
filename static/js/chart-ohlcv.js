@@ -92,8 +92,7 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     const exch  = chartSettings.exchange   || '';
     const mType = chartSettings.marketType || '';
     const symb  = chartSettings.symbol     || '';
-    tickerText.text = `${exch} - ${mType} - ${symb}`;
-
+    tickerText.text = `${exch.toUpperCase()} - ${mType.toUpperCase()} - ${symb}`;
     let x = tickerText.x + tickerText.width + 20;
     const items = getOHLCVItems(candle, candles);
 

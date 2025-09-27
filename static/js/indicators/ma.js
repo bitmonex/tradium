@@ -1,4 +1,3 @@
-// indicators/ma.js
 export const ma = {
   meta: {
     id: 'ma',
@@ -7,23 +6,19 @@ export const ma = {
     zIndex: 60
   },
 
-  createIndicator({ layer, chartCore }, layout, params = {}) {
+  createIndicator({ layer }, layout, params = {}) {
     const periods = params.periods ?? [50, 200];
     const colors  = params.colors  ?? [0x00ff00, 0xff0000, 0x333333];
 
-    const lines = periods.map(() => new PIXI.Graphics());
-    lines.forEach(line => layer.addChild(line));
+    let lines = [];
 
     function calculateMA(data, period) {
-      const result = [];
+      const result = Array(period - 1).fill(null);
+      let sum = 0;
       for (let i = 0; i < data.length; i++) {
-        if (i < period - 1) {
-          result.push(null);
-          continue;
-        }
-        const slice = data.slice(i - period + 1, i + 1);
-        const sum = slice.reduce((acc, c) => acc + c.close, 0);
-        result.push(sum / period);
+        sum += data[i].close;
+        if (i >= period) sum -= data[i - period].close;
+        if (i >= period - 1) result.push(sum / period);
       }
       return result;
     }
@@ -38,16 +33,21 @@ export const ma = {
       const maxPrice = Math.max(...prices);
       const priceRange = maxPrice - minPrice || 1;
 
+      // Удаляем старые линии
+      lines.forEach(line => {
+        layer.removeChild(line);
+        line.destroy({ children: true });
+      });
+
+      lines = periods.map(() => new PIXI.Graphics());
+      lines.forEach(line => layer.addChild(line));
+
       lines.forEach((line, idx) => {
         const period = periods[idx];
         const color  = colors[idx];
-        if (!period || !color) {
-          line.clear();
-          return;
-        }
+        if (!period || !color) return;
 
         const maValues = calculateMA(candles, period);
-        line.clear();
 
         let started = false;
         for (let i = 0; i < maValues.length; i++) {
@@ -65,7 +65,7 @@ export const ma = {
           }
         }
 
-        line.stroke({ width: 2, color });
+        line.stroke({ width: 1.5, color });
       });
     }
 
