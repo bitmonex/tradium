@@ -18,26 +18,21 @@ function connectCandlesSocket(chartCore, { exchange, marketType, symbol, timefra
     `${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`
   );
   chartCore._candleSocket = ws;
-
   ws.onmessage = e => {
     if (!chartCore._alive) return;
     try {
       const data = JSON.parse(e.data);
       const style = chartCore.state.chartStyle || "candles";
       const intervalMs = chartCore.state.tfMs || 60000;
-
       let ts = data.timestamp ?? data.time ?? data.openTime;
       if (!ts) return;
       if (ts < 1e12) ts *= 1000;
-
-      // для line берём «живой» ts (округляем до секунды), для остальных — по интервалу
       let tsFinal;
       if (style === "line") {
         tsFinal = Math.floor(ts / 1000) * 1000;
       } else {
         tsFinal = Math.floor(ts / intervalMs) * intervalMs;
       }
-
       const norm = {
         open:   num(data.open   ?? data.price ?? data.c ?? data.close),
         high:   num(data.high   ?? data.price ?? data.c ?? data.close),
@@ -46,19 +41,15 @@ function connectCandlesSocket(chartCore, { exchange, marketType, symbol, timefra
         volume: num(data.volume),
         timestamp: tsFinal
       };
-
       const last = chartCore.state.candles.at(-1);
       const isSameBar = !!(last && last.timestamp === tsFinal);
-
       updateLastCandle(norm);
       chartCore.drawCandlesOnly?.();
-
       onUpdate?.(!isSameBar);
     } catch (err) {
       console.warn("[kline] parse error:", err);
     }
   };
-
   ws.onclose = () => {
     if (chartCore._alive && ws.readyState !== WebSocket.OPEN) {
       setTimeout(

@@ -19,42 +19,35 @@ export function updateLastCandle(candle) {
   const core = window.chartCore;
   if (!core) return;
   const arr = core.state.candles;
-
   const intervalMs = core.state.tfMs || 60000;
   let ts = candle.timestamp ?? candle.time ?? Date.now();
   if (!ts) return;
   if (ts < 1e12) ts *= 1000;
 
-  // --- LINE режим ---
+  //LINE
   if (core.state.chartStyle === "line") {
     const c = toNum(candle.close ?? candle.price ?? candle.c ?? candle.lastPrice);
     if (!isFinite(c)) {
       console.warn("⚠️ LINE: нет валидного close", candle);
       return;
     }
-
     const last = arr[arr.length - 1];
-
     if (last && last.timestamp === candle.timestamp) {
-      // обновляем текущую точку
       last.open = last.high = last.low = last.close = c;
     } else if (!last || candle.timestamp > last.timestamp) {
-      // новый интервал — создаём новую точку
       arr.push({
         open: c, high: c, low: c, close: c,
         volume: 0,
         timestamp: candle.timestamp
       });
     } else {
-      // тик со старым временем — обновляем последнюю
       last.open = last.high = last.low = last.close = c;
     }
-
     core.state._needRedrawCandles = true;
     return;
   }
 
-  // --- BARS режим ---
+  //BARS
   ts = Math.floor(ts / intervalMs) * intervalMs;
   if (core.state.chartStyle === "bars") {
     const obj = {
@@ -65,7 +58,6 @@ export function updateLastCandle(candle) {
       volume: toNum(candle.volume),
       timestamp: ts
     };
-
     const last = arr[arr.length - 1];
     if (!last || last.timestamp !== ts) {
       arr.push(obj);
@@ -80,19 +72,16 @@ export function updateLastCandle(candle) {
       lastCandleRef = last;
       lastTs = ts;
     }
-
     core.state._needRedrawCandles = true;
     return;
   }
 
-  // --- свечи / heikin ---
+  //CANDLES/HEIKIN
   ts = Math.floor(ts / intervalMs) * intervalMs;
-
   if (!lastCandleRef || lastCandleRef !== arr[arr.length - 1]) {
     lastCandleRef = arr[arr.length - 1];
     lastTs = lastCandleRef?.timestamp;
   }
-
   if (!lastCandleRef) {
     const obj = {
       open: toNum(candle.open),
@@ -138,9 +127,7 @@ export function updateLastCandle(candle) {
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
   }
-
   core.state._needRedrawCandles = true;
-
   if (core.state.chartStyle !== "line" && core.state.chartStyle !== "bars") {
     core.state.ohlcv?.update?.(lastCandleRef, { force: true });
   }
