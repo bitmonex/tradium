@@ -60,6 +60,15 @@ export function OHLCV({ config, chartSettings = {}, group }) {
       tickerText = new PIXI.Text('', tickerStyle);
       tickerText.x = 15;
       tickerText.y = 12;
+      tickerText.interactive = true;
+      tickerText.buttonMode = true;
+      // хитовая область по размеру текста
+      tickerText.hitArea = new PIXI.Rectangle(0, 0, 400, chartFontSize * 2);
+
+      tickerText.on('pointertap', () => {
+        alert(tickerText.text);
+      });
+
       layer.addChild(tickerText);
 
       const items = getOHLCVItems(candle, candles);
@@ -71,7 +80,6 @@ export function OHLCV({ config, chartSettings = {}, group }) {
         valueTexts.push(val);
       }
     }
-
     _updateAll(candle);
   }
 
