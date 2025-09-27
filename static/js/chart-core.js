@@ -313,7 +313,6 @@ export async function createChartCore(container, userConfig = {}) {
         Math.max(1, Math.abs(yClose - yOpen))
       ).fill(color);
     }
-
     state._needRedrawCandles = false;
   };
 

@@ -26,11 +26,11 @@ export const ChartConfig = {
   modules: {
     candles:    true,
     grid:       false,
-    ohlcv:      true, //проверить ограничение на макс массивы
-    indicators: false, //проверить на 8пикси и играничения на массивы
+    ohlcv:      true,
+    indicators: false,
     scales:     false,
     fps:        true,
-    livePrice:  true  // проверить ограничение на массивы
+    livePrice:  true
   },
   //индикаторы
   indicators: [
