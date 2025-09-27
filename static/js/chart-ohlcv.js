@@ -9,16 +9,13 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     chartFontSize,
     chartFontWeight
   } = config;
-
   if (!group || !ohlcvOn) {
     const stub = new PIXI.Container();
     return { layer: stub, init: () => {}, render: () => {}, update: () => {} };
   }
-
   const layer = new PIXI.Container();
   layer.zIndex = 30;
   group.addChild(layer);
-
   const resolution = window.devicePixelRatio;
   const baseStyle = {
     fontFamily: chartFont,
@@ -26,19 +23,15 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     fontWeight: chartFontWeight,
     resolution
   };
-
   const tickerStyle = new PIXI.TextStyle({ ...baseStyle, fill: tickerColor });
   const labelStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvLabel });
   const valueStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvData });
-
   let candles = [];
   let lastRenderIdx = -1;
   let lastHoverIdx = -1;
-
   let tickerText;
   const labelTexts = [];
   const valueTexts = [];
-
   function init(newCandles, newVolumes) {
     candles = newCandles;
     lastRenderIdx = -1;
@@ -51,26 +44,20 @@ export function OHLCV({ config, chartSettings = {}, group }) {
 
   function render(candle) {
     if (!candle) return;
-
     const idx = candles.findIndex(c => c.time === candle.time);
     if (idx === lastRenderIdx) return;
     lastRenderIdx = idx;
-
     if (!tickerText) {
       tickerText = new PIXI.Text('', tickerStyle);
       tickerText.x = 15;
       tickerText.y = 12;
       tickerText.interactive = true;
       tickerText.buttonMode = true;
-      // хитовая область по размеру текста
       tickerText.hitArea = new PIXI.Rectangle(0, 0, 400, chartFontSize * 2);
-
       tickerText.on('pointertap', () => {
         alert(tickerText.text);
       });
-
       layer.addChild(tickerText);
-
       const items = getOHLCVItems(candle, candles);
       for (const it of items) {
         const lbl = new PIXI.Text(it.label, labelStyle);
@@ -85,13 +72,10 @@ export function OHLCV({ config, chartSettings = {}, group }) {
 
   function update(candle, opts) {
     if (!tickerText || !candle) return;
-
     const force = opts?.force === true;
     const idx = candles.findIndex(c => c.time === candle.time);
     const isLast = idx === candles.length - 1;
-
     if (!force && !isLast && (idx < 0 || idx === lastHoverIdx)) return;
-
     lastHoverIdx = idx;
     _updateAll(candle);
   }
@@ -103,24 +87,19 @@ export function OHLCV({ config, chartSettings = {}, group }) {
     tickerText.text = `${exch.toUpperCase()} - ${mType.toUpperCase()} - ${symb}`;
     let x = tickerText.x + tickerText.width + 20;
     const items = getOHLCVItems(candle, candles);
-
     for (let i = 0; i < items.length; i++) {
       const lbl = labelTexts[i];
       const val = valueTexts[i];
       const { label, value } = items[i];
-
       lbl.text = label;
       val.text = value;
-
       lbl.x = x;
       lbl.y = 12;
       val.x = lbl.x + lbl.width + 2;
       val.y = 12;
-
       x += lbl.width + val.width + 15;
     }
   }
-
   return { layer, init, render, update };
 }
 
@@ -128,18 +107,15 @@ function getOHLCVItems(candle, candles) {
   const volBtc   = candle.volume || 0;
   const volUsd   = volBtc * candle.close;
   const volLabel = formatMoney(volUsd);
-
   const idx      = candles.findIndex(c => c.time === candle.time);
   const prevVol  = idx > 0 ? candles[idx - 1].volume : 0;
   const delta    = volBtc - prevVol;
   const pct      = prevVol > 0 ? (delta / prevVol) * 100 : 0;
   const sign     = delta >= 0 ? '+' : '–';
   const change   = `${sign}${formatMoney(Math.abs(delta))} (${pct.toFixed(2)}%)`;
-
   const ampAbs   = candle.high - candle.low;
   const ampPct   = candle.low !== 0 ? (ampAbs / candle.low) * 100 : 0;
   const amp      = `${ampAbs.toFixed(2)} (${ampPct.toFixed(2)}%)`;
-
   return [
     { label: 'O',      value: candle.open.toFixed(2) },
     { label: 'H',      value: candle.high.toFixed(2) },

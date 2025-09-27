@@ -6,7 +6,6 @@ export function initLive(chartCore, chartSettings) {
   chartCore._alive = true;
   const live = LiveModule(chartCore);
   chartCore.registerModule('live', live);
-
   const arr = chartCore.state.candles;
   if (arr.length) {
     const last = arr.at(-1);
@@ -16,7 +15,6 @@ export function initLive(chartCore, chartSettings) {
     live.updatePrice(last.price ?? last.close, closeSec, toSec(Date.now()));
     live.tick();
   }
-
   connectLiveSocket(chartCore, chartSettings, live);
   chartCore.app.ticker.add(live.tick);
 }
@@ -25,7 +23,6 @@ function connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe 
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`);
   chartCore._livePriceSocket = ws;
-
   ws.onmessage = e => {
     if (!chartCore._alive) return;
     try {
@@ -37,11 +34,9 @@ function connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe 
       if (typeof d.timer === 'number' && typeof live.updateTimer === 'function') live.updateTimer(d.timer);
     } catch {}
   };
-
   ws.onclose = () => {
     if (chartCore._alive && ws.readyState !== WebSocket.OPEN) {
       setTimeout(() => connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live), 1000);
     }
   };
 }
-
