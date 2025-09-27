@@ -1,44 +1,69 @@
+//ticker.js
 import { startChartRender } from "./chart.js";
+import { resetCandleCursor } from "./chart-candles.js";
 
 let timeframe = null;
 
 function changeTimeframe(newTF) {
     timeframe = newTF;
     localStorage.setItem("timeframe", timeframe);
-
     document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
     const active = Array.from(document.querySelectorAll(".timeframes i"))
         .find(i => i.getAttribute("rel") === timeframe);
     if (active) active.classList.add("on");
-
-    // Передаём TF напрямую
+    // перед сменой таймфрейма — снести старый график
+    if (window.chartCore) {
+        window.chartCore.destroy();
+    }
+    // запуск с новым TF
     startChartRender(timeframe);
+    // восстановить стиль (если не candles)
+    const storedStyle = localStorage.getItem("chartStyle") || "candles";
+    if (storedStyle !== "candles") {
+        changeChartStyle(storedStyle);
+    } else {
+        highlightStyle("candles");
+    }
 }
 
-function resizeChart() {
-    if (window.chartCore?.resize) {
-        window.chartCore.resize();
-    }
+function resizeChart() {if (window.chartCore?.resize) { window.chartCore.resize();}}
+
+function highlightStyle(style) {
+    document.querySelectorAll(".view .drop a").forEach(a => a.classList.remove("on"));
+    const active = document.querySelector(`.view .drop a[rel="${style}"]`);
+    if (active) active.classList.add("on");
+}
+
+// переключение моделей свеч
+function changeChartStyle(style) {
+    if (!window.chartCore) return;
+    resetCandleCursor();
+    window.chartCore.setChartStyle(style);
+    localStorage.setItem("chartStyle", style);
+    highlightStyle(style);
+    window.chartCore.drawCandlesOnly?.();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
     const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
     window.chartSettings = { grid: storedGrid || { enabled: true, color: "#ffffff" } };
-
     const stored = localStorage.getItem("timeframe");
     const fallback = document.getElementById("tf")?.getAttribute("data-default");
     const initialTF = stored || fallback;
-
     if (!initialTF) {
         console.warn("⛔ Не удалось определить таймфрейм — график не будет загружен");
         return;
     }
-
     const active = Array.from(document.querySelectorAll("#tf i"))
         .find(i => i.getAttribute("rel") === initialTF);
     if (active) active.classList.add("on");
-
     changeTimeframe(initialTF);
+    // восстановить стиль и подсветку
+    const savedStyle = localStorage.getItem("chartStyle") || "candles";
+    highlightStyle(savedStyle);
+    if (savedStyle !== "candles") {
+        changeChartStyle(savedStyle);
+    }
 });
 
 document.querySelectorAll(".timeframes i").forEach(item => {
@@ -61,6 +86,14 @@ document.addEventListener("click", (event) => {
             menu.classList.remove("show");
             menu.previousElementSibling?.classList.remove("on");
         }
+    });
+});
+
+// клики по пунктам меню стилей
+document.querySelectorAll(".view .drop a").forEach(item => {
+    item.addEventListener("click", () => {
+        const style = item.getAttribute("rel");
+        changeChartStyle(style);
     });
 });
 
@@ -118,23 +151,22 @@ document.getElementById("clearStorage")?.addEventListener("click", () => {
     localStorage.removeItem("timeframe");
     localStorage.removeItem("chartStyle");
     localStorage.removeItem("activeIndicator");
-
     document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
-
     const tfDefault = document.getElementById("tf")?.getAttribute("data-default");
     if (!tfDefault) {
         console.warn("⛔ Не удалось получить таймфрейм из шаблона");
         return;
     }
-
     const activeTF = Array.from(document.querySelectorAll("#tf i"))
         .find(i => i.getAttribute("rel") === tfDefault);
     if (activeTF) activeTF.classList.add("on");
 
-    // Перезапуск графика с дефолтным TF
+    if (window.chartCore) {
+        window.chartCore.destroy();
+    }
     startChartRender(tfDefault);
-
-    console.log("🧯 Storage очищен, график сброшен на", tfDefault);
+    changeChartStyle("candles");
+    console.log("Storage очищен, график сброшен на", tfDefault);
 });
 
 // Полный экран

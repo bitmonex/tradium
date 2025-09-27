@@ -8,7 +8,7 @@ import { Mouse } from './chart-mouse.js';
 import { zoomX, zoomY, pan } from './chart-zoom.js';
 import { ChartConfig } from './chart-config.js';
 import { LivePrice } from './chart-live.js';
-import { updateLastCandle } from './chart-candles.js';
+import { updateLastCandle, resetCandleCursor } from './chart-candles.js';
 import { createIndicatorsManager } from './chart-indicators.js';
 
 export async function createChartCore(container, userConfig = {}) {
@@ -240,54 +240,59 @@ export async function createChartCore(container, userConfig = {}) {
       return;
     }
     //bars
-    if (style === 'bars') {
-      try {
-        candleLayer.removeChildren();
-        destroyGraphicsArray(sprites);
-        sprites = [];
-      } catch {}
-      const gBars = new PIXI.Graphics();
-      gBars.zIndex = 10;
-      candleLayer.addChild(gBars);
+if (style === 'bars') {
+  try {
+    candleLayer.removeChildren();
+    destroyGraphicsArray(sprites);
+    sprites = [];
+  } catch {}
 
-      // динамическая длина усика
-      const tickLen = Math.max(
-        2,
-        Math.min(12, config.candleWidth * state.scaleX * settings.barTickRatio)
-      );
+  const gBull = new PIXI.Graphics();
+  const gBear = new PIXI.Graphics();
+  gBull.zIndex = gBear.zIndex = 10;
+  candleLayer.addChild(gBull, gBear);
 
-      for (let i = startIdx; i < endIdx; i++) {
-        const v = series[i];
-        const x = i * cw + state.offsetX;
+  const tickLen = Math.max(
+    2,
+    Math.min(12, config.candleWidth * state.scaleX * settings.barTickRatio)
+  );
 
-        const yOpen  = mapY(v.open);
-        const yClose = mapY(v.close);
-        const yHigh  = mapY(v.high);
-        const yLow   = mapY(v.low);
+  // бычьи бары (одним stroke)
+  for (let i = startIdx; i < endIdx; i++) {
+    const v = series[i];
+    if (v.close < v.open) continue;
+    const x = i * cw + state.offsetX;
+    const yOpen  = mapY(v.open);
+    const yClose = mapY(v.close);
+    const yHigh  = mapY(v.high);
+    const yLow   = mapY(v.low);
 
-        // вертикальная линия high‑low
-        gBars.moveTo(x, yHigh);
-        gBars.lineTo(x, yLow);
+    gBull.moveTo(x, yHigh).lineTo(x, yLow);
+    gBull.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
+    gBull.moveTo(x, yClose).lineTo(x + tickLen, yClose);
+  }
+  gBull.stroke({ width: settings.barLineWidth, color: +config.candleBull, alpha: 1 });
 
-        // левый усик (open)
-        gBars.moveTo(x - tickLen, yOpen);
-        gBars.lineTo(x, yOpen);
+  // медвежьи бары (одним stroke)
+  for (let i = startIdx; i < endIdx; i++) {
+    const v = series[i];
+    if (v.close >= v.open) continue;
+    const x = i * cw + state.offsetX;
+    const yOpen  = mapY(v.open);
+    const yClose = mapY(v.close);
+    const yHigh  = mapY(v.high);
+    const yLow   = mapY(v.low);
 
-        // правый усик (close)
-        gBars.moveTo(x, yClose);
-        gBars.lineTo(x + tickLen, yClose);
+    gBear.moveTo(x, yHigh).lineTo(x, yLow);
+    gBear.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
+    gBear.moveTo(x, yClose).lineTo(x + tickLen, yClose);
+  }
+  gBear.stroke({ width: settings.barLineWidth, color: +config.candleBear, alpha: 1 });
 
-        // stroke именно этого бара
-        gBars.stroke({
-          width: settings.barLineWidth,
-          color: v.close >= v.open ? +config.candleBull : +config.candleBear,
-          alpha: 1
-        });
-      }
+  state._needRedrawCandles = false;
+  return;
+}
 
-      state._needRedrawCandles = false;
-      return;
-    }
 
     // render candles/heikin using pooled Graphics per index
     for (let i = startIdx; i < endIdx; i++) {
@@ -538,6 +543,13 @@ export async function createChartCore(container, userConfig = {}) {
 
   const setChartStyle = style => {
     if (!['candles', 'line', 'heikin', 'bars'].includes(style)) return;
+
+    resetCandleCursor();
+
+    candleLayer?.removeChildren();
+    destroyGraphicsArray(sprites);
+    sprites = [];
+
     state.chartStyle = style;
     state._needRedrawCandles = true;
     renderAll();

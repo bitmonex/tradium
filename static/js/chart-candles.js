@@ -1,6 +1,11 @@
 // chart-candles.js
 let lastCandleRef = null, lastTs = null;
 
+export function resetCandleCursor() {
+  lastCandleRef = null;
+  lastTs = null;
+}
+
 export const candleRenderSettings = {
   barTickRatio: 0.9,
   barTickLen: 6,

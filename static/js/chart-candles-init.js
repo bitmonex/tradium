@@ -4,10 +4,10 @@ import { updateLastCandle, candleRenderSettings } from "./chart-candles.js";
 export function initRealtimeCandles(chartCore, chartSettings) {
   chartCore._alive = true;
   chartCore.state.candleRenderSettings = candleRenderSettings;
-
   // candles heikin bars line
-  chartCore.setChartStyle("candles");
-
+  //chartCore.setChartStyle("candles");
+  const savedStyle = localStorage.getItem("chartStyle") || chartCore.state.chartStyle || "candles";
+  chartCore.setChartStyle(savedStyle);
   try { chartCore._candleSocket?.close(); } catch {}
   connectCandlesSocket(chartCore, chartSettings);
 }
