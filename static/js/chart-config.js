@@ -27,7 +27,7 @@ export const ChartConfig = {
     candles:    true,
     grid:       false,
     ohlcv:      true,
-    indicators: false,
+    indicators: true,
     scales:     false,
     fps:        true,
     livePrice:  true
@@ -38,7 +38,7 @@ export const ChartConfig = {
     //'test2',
     //'test3',
     'volume',
-    'ma',
+    //'ma',
     'rsi'
   ]
 };

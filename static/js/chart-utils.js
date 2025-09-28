@@ -42,7 +42,6 @@ export const MemoryTracker = {
   }
 };
 
-
 //Трекер памяти
 export const MemoryProfiler = {
   intervalId: null,

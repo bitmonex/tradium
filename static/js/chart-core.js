@@ -90,7 +90,7 @@ export async function createChartCore(container, userConfig = {}) {
   }
   if (modules.fps) state.fps = new FPS(app.stage, config.fpsColor);
 
-  // internal graphics pool for candles layer
+  //pool
   let sprites = [];
   let lastKey = '';
   let lastStyle = state.chartStyle;
@@ -387,7 +387,7 @@ export async function createChartCore(container, userConfig = {}) {
     state.layout = createFullLayout(
       (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0)
     );
-    const MAX_CANDLES = 10000;
+    const MAX_CANDLES = 5000;
     if (state.candles.length > MAX_CANDLES) {
       state.candles.splice(0, state.candles.length - MAX_CANDLES);
     }
@@ -514,8 +514,12 @@ export async function createChartCore(container, userConfig = {}) {
     if (modules.livePrice && state.livePrice) {
       state.livePrice.setLast(candle);
     }
-    if (modules.indicators && chartCore.indicators && state.layout)
+    if (modules.indicators && chartCore.indicators && state.layout) {
       chartCore.indicators.renderAll(state.layout);
+      if (modules.livePrice && state.livePrice) {
+        state.livePrice.setLayout(state.layout);
+      }
+    }
   };
 
   const setChartStyle = style => {
