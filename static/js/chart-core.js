@@ -328,7 +328,7 @@ export async function createChartCore(container, userConfig = {}) {
     state._needRedrawCandles = false;
   };
 
-  const createFullLayout = bo => {
+  const createFullLayout = (bo) => {
     const base = createLayout(
       app,
       config,
@@ -339,6 +339,10 @@ export async function createChartCore(container, userConfig = {}) {
       state.scaleY,
       state.timeframe
     );
+    const highs = state.candles.map(c => c.high ?? c.close);
+    const lows  = state.candles.map(c => c.low ?? c.close);
+    const min = Math.min(...lows);
+    const max = Math.max(...highs);
     return {
       ...base,
       candles: state.candles,
@@ -352,7 +356,10 @@ export async function createChartCore(container, userConfig = {}) {
       plotX: 0,
       plotY: 0,
       plotW: base.width - config.rightOffset,
-      plotH: base.height - bo
+      plotH: base.height - bo,
+      priceToY: (val) => priceToY(val, { ...base, plotH: base.height - bo }, min, max),
+      min,
+      max
     };
   };
 
