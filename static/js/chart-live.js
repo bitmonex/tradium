@@ -1,5 +1,5 @@
 // chart-live.js
-import { createTextStyle } from './chart-utils.js';
+import { createTextStyle, MemoryTracker } from './chart-utils.js';
 
 const toSec = ts => ts == null ? null : (ts > 1e12 ? Math.floor(ts / 1000) : Math.floor(ts));
 
@@ -169,8 +169,8 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     if (!Number.isFinite(lastCloseTime)) return;
     const now = Math.floor(Date.now() / 1000) + serverOffset;
     timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
-    // таймер меняется — обновим позицию и цвет без пересчёта layout
     renderLive();
+
     if (performance && performance.memory) {
       console.log(
         'Heap used:',
@@ -178,9 +178,8 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
       );
     }
     MemoryTracker.report();
-
-    }
   };
+
 
   return {
     render: setLayout,              // совместимость: render(layout)

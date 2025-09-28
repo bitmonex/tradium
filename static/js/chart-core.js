@@ -530,33 +530,34 @@ export async function createChartCore(container, userConfig = {}) {
     } catch {}
   };
 
-const updateLast = candle => {
-  updateLastCandle(candle);
+  const updateLast = candle => {
+    updateLastCandle(candle);
 
-  if (Array.isArray(state.volumes))
-    state.volumes[state.volumes.length - 1] = candle.volume;
+    if (Array.isArray(state.volumes))
+      state.volumes[state.volumes.length - 1] = candle.volume;
 
-  // Ограничение длины массивов
-  const MAX_CANDLES = 10000;
-  if (state.candles.length > MAX_CANDLES) {
-    state.candles.splice(0, state.candles.length - MAX_CANDLES);
-  }
-  if (state.volumes.length > MAX_CANDLES) {
-    state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
-  }
+    // Ограничение длины массивов
+    const MAX_CANDLES = 10000;
+    if (state.candles.length > MAX_CANDLES) {
+      state.candles.splice(0, state.candles.length - MAX_CANDLES);
+    }
+    if (state.volumes.length > MAX_CANDLES) {
+      state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
+    }
 
-  // перерисовали свечи
-  if (modules.candles) drawCandlesOnly();
+    // перерисовали свечи
+    if (modules.candles) drawCandlesOnly();
 
-  // 🔧 сразу обновляем live по тем же свечам
-  if (modules.livePrice && state.livePrice) {
-    state.livePrice.setCandles(state.candles);
-    state.livePrice.setLast(state.candles.at(-1));
-  }
+    // 🔧 сразу обновляем live по тем же свечам
+    if (modules.livePrice && state.livePrice) {
+      //state.livePrice.setCandles(state.candles);
+      //state.livePrice.setLast(state.candles.at(-1));
+      state.livePrice.setLast(candle);
+    }
 
-  if (modules.indicators && chartCore.indicators && state.layout)
-    chartCore.indicators.renderAll(state.layout);
-};
+    if (modules.indicators && chartCore.indicators && state.layout)
+      chartCore.indicators.renderAll(state.layout);
+  };
 
 
 
