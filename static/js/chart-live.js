@@ -48,28 +48,39 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     g.endFill();
   };
 
-  const formatTime = (sec) => {
-    if (!Number.isFinite(sec)) return '00:00';
-    const d = Math.floor(sec / 86400);
-    const h = Math.floor((sec % 86400) / 3600);
-    const m = Math.floor((sec % 3600) / 60);
-    const s = sec % 60;
+const formatTime = (sec) => {
+  if (!Number.isFinite(sec)) return '0:00';
 
-    const tfSec = Number.isFinite(layout?.timeframe)
-      ? layout.timeframe
-      : (chartCore?.state?.timeframe || 60);
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = sec % 60;
 
-    if (tfSec <= 3600) {
-      // до часа включительно → MM:SS
-      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    } else if (tfSec <= 86400) {
-      // от 2h до 1d → H:MM:SS
+  const tfSec = Number.isFinite(layout?.timeframe)
+    ? layout.timeframe
+    : (chartCore?.state?.timeframe || 60);
+
+  if (tfSec <= 3600) {
+    // до часа → M:SS
+    return `${m}:${String(s).padStart(2,'0')}`;
+  } else if (tfSec <= 86400) {
+    // от 2h до 1d → H:MM:SS
+    // если h = 0, то показываем только M:SS
+    if (h > 0) {
       return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
     } else {
-      // больше суток → Dd Hh
-      return `${d}d ${h}h`;
+      return `${m}:${String(s).padStart(2,'0')}`;
     }
-  };
+  } else {
+    // больше суток → Dd Hh
+    if (d > 0) {
+      return `${d}d ${h}h`;
+    } else {
+      return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+  }
+};
+
 
   const getCandleColor = c => {
     const upColor = +(config.priceUpColor ?? config.livePrice?.priceUpColor ?? 0x0C6600);
