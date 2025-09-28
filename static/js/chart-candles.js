@@ -1,4 +1,6 @@
 // chart-candles.js
+import { syncLive } from './chart-utils.js';
+
 let lastCandleRef = null, lastTs = null;
 
 export function resetCandleCursor() {
@@ -15,7 +17,6 @@ export const candleRenderSettings = {
 };
 window.candleRenderSettings = candleRenderSettings;
 
-// лимит хранимых свечей
 const MAX_CANDLES = 10000;
 
 export function updateLastCandle(candle) {
@@ -44,12 +45,8 @@ export function updateLastCandle(candle) {
         timestamp: candle.timestamp
       });
       if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
-
-      // 🔧 обновляем live при новой свече
-      if (core.config.modules.livePrice && core.state.livePrice) {
-        core.state.livePrice.setCandles(core.state.candles);
-        core.state.livePrice.setLast(core.state.candles.at(-1));
-      }
+      // 🔧 обновляем live
+      syncLive(core);
     } else {
       last.open = last.high = last.low = last.close = c;
     }
@@ -74,12 +71,8 @@ export function updateLastCandle(candle) {
       if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
       lastCandleRef = arr[arr.length - 1];
       lastTs = ts;
-
-      // 🔧 обновляем live при новой свече
-      if (core.config.modules.livePrice && core.state.livePrice) {
-        core.state.livePrice.setCandles(core.state.candles);
-        core.state.livePrice.setLast(core.state.candles.at(-1));
-      }
+      // 🔧 обновляем live
+      syncLive(core);
     } else {
       last.open   = obj.open   ?? last.open;
       last.close  = obj.close  ?? last.close;
@@ -112,17 +105,12 @@ export function updateLastCandle(candle) {
     if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
-
-    // 🔧 обновляем live при первой свече
-    if (core.config.modules.livePrice && core.state.livePrice) {
-      core.state.livePrice.setCandles(core.state.candles);
-      core.state.livePrice.setLast(core.state.candles.at(-1));
-    }
+    // 🔧 обновляем live
+    syncLive(core);
   } else if (lastTs === ts) {
     lastCandleRef.open   = toNum(candle.open)   ?? lastCandleRef.open;
     lastCandleRef.close  = toNum(candle.close ?? candle.price) ?? lastCandleRef.close;
     lastCandleRef.volume = toNum(candle.volume) ?? lastCandleRef.volume;
-
     const h = toNum(candle.high);
     const l = toNum(candle.low);
     if (isFinite(h) && (lastCandleRef.high == null || h > lastCandleRef.high)) lastCandleRef.high = h;
@@ -140,12 +128,8 @@ export function updateLastCandle(candle) {
     if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
-
-    // 🔧 обновляем live при новой свече
-    if (core.config.modules.livePrice && core.state.livePrice) {
-      core.state.livePrice.setCandles(core.state.candles);
-      core.state.livePrice.setLast(core.state.candles.at(-1));
-    }
+    // 🔧 обновляем live
+    syncLive(core);
   } else {
     arr[arr.length - 1] = {
       open: toNum(candle.open),

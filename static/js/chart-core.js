@@ -132,7 +132,6 @@ export async function createChartCore(container, userConfig = {}) {
     state.candles = candles;
     state.volumes = volumes;
     state.timeframe = TF(candles);
-
     if (init && state.isFirstAutoCenter && !state.userHasPanned && candles.length) {
       const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
       const min = Math.min(...prices);
@@ -331,7 +330,6 @@ export async function createChartCore(container, userConfig = {}) {
       state.scaleY,
       state.timeframe
     );
-
     return {
       ...base,
       candles: state.candles,
@@ -351,28 +349,23 @@ export async function createChartCore(container, userConfig = {}) {
 
   const renderAll = () => {
     if (!state.candles.length) return;
-
     const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
     if (modules.livePrice && state.livePrice) state.livePrice.setLayout(layout);
     subGroup.y = layout.plotH;
-
     if (modules.grid) Grid(app, layout, config);
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
-
     mask.clear().rect(0, 0, layout.plotW, layout.plotH).fill(0x000000);
   };
 
   const renderLight = () => {
     if (!state.candles.length) return;
-
     const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
-
     if (modules.candles) drawCandlesOnly();
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
@@ -380,11 +373,9 @@ export async function createChartCore(container, userConfig = {}) {
 
   const redrawLayoutOnly = () => {
     if (!state.candles.length) return;
-
     const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
-
     if (modules.candles) drawCandlesOnly();
     if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
@@ -392,12 +383,10 @@ export async function createChartCore(container, userConfig = {}) {
 
   const draw = async ({ candles, volumes }) => {
     const init = state.candles.length === 0;
-
     applyAutoCenter(candles, volumes, init);
     state.layout = createFullLayout(
       (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0)
     );
-    // Ограничение длины массивов
     const MAX_CANDLES = 10000;
     if (state.candles.length > MAX_CANDLES) {
       state.candles.splice(0, state.candles.length - MAX_CANDLES);
@@ -405,18 +394,14 @@ export async function createChartCore(container, userConfig = {}) {
     if (state.volumes.length > MAX_CANDLES) {
       state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
     }
-    // quick render
     if (modules.candles) drawCandlesOnly();
-
     const fontSpec = `${config.chartFontSize}px ${config.chartFont}`;
     await document.fonts.load(fontSpec);
-
     if (modules.ohlcv) {
       state.ohlcv.init(candles, volumes);
       state.ohlcv.render(candles.at(-1));
     }
     renderAll();
-
     if (
       chartCore._lastCandleData &&
       chartCore._lastCandleData.openTime === state.candles.at(-1)?.openTime &&
@@ -425,17 +410,13 @@ export async function createChartCore(container, userConfig = {}) {
       updateLastCandle(chartCore._lastCandleData);
       if (Array.isArray(state.volumes))
         state.volumes[state.volumes.length - 1] = chartCore._lastCandleData.volume;
-
       if (modules.candles) drawCandlesOnly();
-
       if (modules.livePrice && state.livePrice)
         state.livePrice.render(state.layout);
       if (modules.indicators && chartCore.indicators && state.layout)
         chartCore.indicators.renderAll(state.layout);
-
       chartCore._lastCandleData = null;
     }
-
     if (init) state.isFirstAutoCenter = false;
   };
 
@@ -445,11 +426,9 @@ export async function createChartCore(container, userConfig = {}) {
       if (modules.ohlcv) state.ohlcv.update(candle);
       return;
     }
-
     const mx = state.mouseX, my = state.mouseY;
     const inside = mx >= L.plotX && mx <= L.plotX + L.plotW && my >= L.plotY && my <= L.plotH;
     if (!inside) return;
-
     if (modules.ohlcv) state.ohlcv.update(candle);
   };
 
@@ -478,7 +457,7 @@ export async function createChartCore(container, userConfig = {}) {
     onPanEnd: () => renderAll()
   });
   mouse.init();
-
+  
   const resize = () => {
     const { width, height } = container.getBoundingClientRect();
     app.renderer.resize(width, height);
@@ -486,21 +465,15 @@ export async function createChartCore(container, userConfig = {}) {
     app.view.style.height = height + 'px';
     renderAll();
   };
-
+  
   const destroy = () => {
     if (!chartCore._alive) return;
     chartCore._alive = false;
-
     try { mouse?.destroy?.(); } catch {}
     try { chartCore.indicators?.destroy?.(); } catch {}
-
-    // destroy candle graphics & layer
     try { destroyGraphicsArray(sprites); sprites = []; } catch {}
     try { candleLayer?.destroy?.({ children: true }); } catch {}
-
-    // clear texture caches
     clearPixiTextureCaches();
-
     if (chartCore._livePriceSocket) {
       try {
         chartCore._livePriceSocket.onmessage = null;
@@ -509,7 +482,6 @@ export async function createChartCore(container, userConfig = {}) {
       } catch {}
       chartCore._livePriceSocket = null;
     }
-
     if (chartCore._candleSocket) {
       try {
         chartCore._candleSocket.onmessage = null;
@@ -518,12 +490,9 @@ export async function createChartCore(container, userConfig = {}) {
       } catch {}
       chartCore._candleSocket = null;
     }
-
-    // destroy mask and groups
     try { mask?.destroy?.({ children: true, texture: true, baseTexture: true }); } catch {}
     try { subGroup?.destroy?.({ children: true }); } catch {}
     try { graphGroup?.destroy?.({ children: true }); } catch {}
-
     if (app?.view?.parentNode) app.view.parentNode.removeChild(app.view);
     try {
       app?.destroy?.(true, { children: true, texture: true, baseTexture: true });
@@ -532,11 +501,8 @@ export async function createChartCore(container, userConfig = {}) {
 
   const updateLast = candle => {
     updateLastCandle(candle);
-
     if (Array.isArray(state.volumes))
       state.volumes[state.volumes.length - 1] = candle.volume;
-
-    // Ограничение длины массивов
     const MAX_CANDLES = 10000;
     if (state.candles.length > MAX_CANDLES) {
       state.candles.splice(0, state.candles.length - MAX_CANDLES);
@@ -544,32 +510,20 @@ export async function createChartCore(container, userConfig = {}) {
     if (state.volumes.length > MAX_CANDLES) {
       state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
     }
-
-    // перерисовали свечи
     if (modules.candles) drawCandlesOnly();
-
-    // 🔧 сразу обновляем live по тем же свечам
     if (modules.livePrice && state.livePrice) {
-      //state.livePrice.setCandles(state.candles);
-      //state.livePrice.setLast(state.candles.at(-1));
       state.livePrice.setLast(candle);
     }
-
     if (modules.indicators && chartCore.indicators && state.layout)
       chartCore.indicators.renderAll(state.layout);
   };
 
-
-
   const setChartStyle = style => {
     if (!['candles', 'line', 'heikin', 'bars'].includes(style)) return;
-
     resetCandleCursor();
-
     candleLayer?.removeChildren();
     destroyGraphicsArray(sprites);
     sprites = [];
-
     state.chartStyle = style;
     state._needRedrawCandles = true;
     renderAll();

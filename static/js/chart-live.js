@@ -48,12 +48,27 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     g.endFill();
   };
 
-  const formatTime = sec => {
+  const formatTime = (sec) => {
     if (!Number.isFinite(sec)) return '00:00';
-    const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
-    return h > 0
-      ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-      : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
+
+    const tfSec = Number.isFinite(layout?.timeframe)
+      ? layout.timeframe
+      : (chartCore?.state?.timeframe || 60);
+
+    if (tfSec <= 3600) {
+      // до часа включительно → MM:SS
+      return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    } else if (tfSec <= 86400) {
+      // от 2h до 1d → H:MM:SS
+      return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    } else {
+      // больше суток → Dd Hh
+      return `${d}d ${h}h`;
+    }
   };
 
   const getCandleColor = c => {
@@ -170,14 +185,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     const now = Math.floor(Date.now() / 1000) + serverOffset;
     timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
     renderLive();
-
-    if (performance && performance.memory) {
-      console.log(
-        'Total Used:',
-        (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2), 'MB'
-      );
-    }
-    MemoryTracker.report();
+    //MemoryTracker.report();
   };
 
 

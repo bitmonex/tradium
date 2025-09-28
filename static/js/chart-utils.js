@@ -38,9 +38,10 @@ export const MemoryTracker = {
   },
   report() {
     const total = Object.values(this.modules).reduce((a, b) => a + b, 0);
-    console.table({ ...this.modules, TOTAL: total });
+    console.log('Total Used:', (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2), 'MB');
   }
 };
+
 
 //Трекер памяти
 export const MemoryProfiler = {
@@ -50,12 +51,11 @@ export const MemoryProfiler = {
     this.intervalId = setInterval(() => {
       if (performance && performance.memory) {
         console.log(
-          'Heap used:',
+          'Total Used:',
           (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2),
           'MB'
         );
       }
-      MemoryTracker.report();
     }, period);
   },
   stop() {
@@ -63,3 +63,11 @@ export const MemoryProfiler = {
     this.intervalId = null;
   }
 };
+
+//Helper
+export function syncLive(core) {
+  if (core?.config?.modules?.livePrice && core.state?.livePrice) {
+    core.state.livePrice.setCandles(core.state.candles);
+    core.state.livePrice.setLast(core.state.candles.at(-1));
+  }
+}

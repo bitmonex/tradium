@@ -26,7 +26,7 @@ export const ChartConfig = {
   modules: {
     candles:    true,
     grid:       false,
-    ohlcv:      false,
+    ohlcv:      true,
     indicators: false,
     scales:     false,
     fps:        true,
