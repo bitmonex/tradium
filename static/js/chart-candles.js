@@ -44,6 +44,12 @@ export function updateLastCandle(candle) {
         timestamp: candle.timestamp
       });
       if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
+
+      // 🔧 обновляем live при новой свече
+      if (core.config.modules.livePrice && core.state.livePrice) {
+        core.state.livePrice.setCandles(core.state.candles);
+        core.state.livePrice.setLast(core.state.candles.at(-1));
+      }
     } else {
       last.open = last.high = last.low = last.close = c;
     }
@@ -68,6 +74,12 @@ export function updateLastCandle(candle) {
       if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
       lastCandleRef = arr[arr.length - 1];
       lastTs = ts;
+
+      // 🔧 обновляем live при новой свече
+      if (core.config.modules.livePrice && core.state.livePrice) {
+        core.state.livePrice.setCandles(core.state.candles);
+        core.state.livePrice.setLast(core.state.candles.at(-1));
+      }
     } else {
       last.open   = obj.open   ?? last.open;
       last.close  = obj.close  ?? last.close;
@@ -100,6 +112,12 @@ export function updateLastCandle(candle) {
     if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
+
+    // 🔧 обновляем live при первой свече
+    if (core.config.modules.livePrice && core.state.livePrice) {
+      core.state.livePrice.setCandles(core.state.candles);
+      core.state.livePrice.setLast(core.state.candles.at(-1));
+    }
   } else if (lastTs === ts) {
     lastCandleRef.open   = toNum(candle.open)   ?? lastCandleRef.open;
     lastCandleRef.close  = toNum(candle.close ?? candle.price) ?? lastCandleRef.close;
@@ -122,6 +140,12 @@ export function updateLastCandle(candle) {
     if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
     lastCandleRef = arr[arr.length - 1];
     lastTs = ts;
+
+    // 🔧 обновляем live при новой свече
+    if (core.config.modules.livePrice && core.state.livePrice) {
+      core.state.livePrice.setCandles(core.state.candles);
+      core.state.livePrice.setLast(core.state.candles.at(-1));
+    }
   } else {
     arr[arr.length - 1] = {
       open: toNum(candle.open),

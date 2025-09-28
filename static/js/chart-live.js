@@ -173,7 +173,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
 
     if (performance && performance.memory) {
       console.log(
-        'Heap used:',
+        'Total Used:',
         (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2), 'MB'
       );
     }
