@@ -202,7 +202,11 @@ export async function createChartCore(container, userConfig = {}) {
       sprites.push(g);
       candleLayer.addChild(g);
     }
-
+    // shrink graphics pool if series got shorter
+    while (sprites.length > series.length) {
+      const g = sprites.pop();
+      try { g.destroy({ children: true, texture: true, baseTexture: true }); } catch {}
+    }
     // hide out-of-range and clear when style switches to avoid overlapped shapes
     for (let i = 0; i < sprites.length; i++) {
       sprites[i].visible = i >= startIdx && i < endIdx;
@@ -351,12 +355,12 @@ export async function createChartCore(container, userConfig = {}) {
     const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
+    if (modules.livePrice && state.livePrice) state.livePrice.setLayout(layout);
     subGroup.y = layout.plotH;
 
     if (modules.grid) Grid(app, layout, config);
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
-    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
     if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
 
     mask.clear().rect(0, 0, layout.plotW, layout.plotH).fill(0x000000);
@@ -526,24 +530,35 @@ export async function createChartCore(container, userConfig = {}) {
     } catch {}
   };
 
-  const updateLast = candle => {
-    updateLastCandle(candle);
-    if (Array.isArray(state.volumes))
-      state.volumes[state.volumes.length - 1] = candle.volume;
-    //Ограничение длины массивов
-    const MAX_CANDLES = 10000;
-    if (state.candles.length > MAX_CANDLES) {
-      state.candles.splice(0, state.candles.length - MAX_CANDLES);
-    }
-    if (state.volumes.length > MAX_CANDLES) {
-      state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
-    }
-    if (modules.candles) drawCandlesOnly();
-    if (modules.livePrice && state.livePrice && state.layout)
-      state.livePrice.render(state.layout);
-    if (modules.indicators && chartCore.indicators && state.layout)
-      chartCore.indicators.renderAll(state.layout);
-  };
+const updateLast = candle => {
+  updateLastCandle(candle);
+
+  if (Array.isArray(state.volumes))
+    state.volumes[state.volumes.length - 1] = candle.volume;
+
+  // Ограничение длины массивов
+  const MAX_CANDLES = 10000;
+  if (state.candles.length > MAX_CANDLES) {
+    state.candles.splice(0, state.candles.length - MAX_CANDLES);
+  }
+  if (state.volumes.length > MAX_CANDLES) {
+    state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
+  }
+
+  // перерисовали свечи
+  if (modules.candles) drawCandlesOnly();
+
+  // 🔧 сразу обновляем live по тем же свечам
+  if (modules.livePrice && state.livePrice) {
+    state.livePrice.setCandles(state.candles);
+    state.livePrice.setLast(state.candles.at(-1));
+  }
+
+  if (modules.indicators && chartCore.indicators && state.layout)
+    chartCore.indicators.renderAll(state.layout);
+};
+
+
 
   const setChartStyle = style => {
     if (!['candles', 'line', 'heikin', 'bars'].includes(style)) return;

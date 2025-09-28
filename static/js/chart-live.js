@@ -1,10 +1,12 @@
-//chart-live.js
+// chart-live.js
 import { createTextStyle } from './chart-utils.js';
+
+const toSec = ts => ts == null ? null : (ts > 1e12 ? Math.floor(ts / 1000) : Math.floor(ts));
 
 export function LivePrice({ group, config, chartSettings, chartCore }) {
   const padX = 8, padY = 4;
 
-  // Удаляем старые слои, если есть
+  // слои
   chartCore?.state?.livePriceOverlay?.destroy?.({ children: true });
   chartCore?.state?.livePriceLayer?.destroy?.({ children: true });
 
@@ -29,8 +31,17 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
   const timerText = new PIXI.Text('', baseStyle);
   overlay.addChild(boxBg, priceText, timerText);
 
-  let lastCloseTime = null, currentPrice = null, serverOffset = 0, offsetSet = false;
+  // состояние
+  let layout = null;
+  let candles = null;
+  let last = null;
+  let currentPrice = null;
 
+  let lastCloseTime = null;
+  let serverOffset = 0;
+  let offsetSet = false;
+
+  // утилиты
   const drawDotted = (g, x1, y, x2, dotR = 0.5, gap = 5) => {
     g.beginFill(g._lineColor || 0xffffff);
     for (let x = x1; x < x2; x += dotR * 2 + gap) g.drawCircle(x, y, dotR);
@@ -38,30 +49,37 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
   };
 
   const formatTime = sec => {
+    if (!Number.isFinite(sec)) return '00:00';
     const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), s = sec % 60;
     return h > 0
       ? `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
       : `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
   };
 
-  const getCandleColor = (last, price) => {
+  const getCandleColor = c => {
     const upColor = +(config.priceUpColor ?? config.livePrice?.priceUpColor ?? 0x0C6600);
     const downColor = +(config.priceDownColor ?? config.livePrice?.priceDownColor ?? 0xBF1717);
-    return (last.close ?? price) >= (last.open ?? price) ? upColor : downColor;
+    if (!c) return upColor;
+    return (c.close >= c.open) ? upColor : downColor;
   };
 
-  const calcY = (candles, price, layout) => {
-    const allPrices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
-    const minP = Math.min(...allPrices), maxP = Math.max(...allPrices), range = maxP - minP || 1;
+  const calcYLocal = (price) => {
+    if (!layout || !candles?.length || !Number.isFinite(price)) return 0;
+    if (typeof layout.priceToY === 'function') return layout.priceToY(price);
+
+    // локально считаем по текущему набору свечей
+    const prices = candles.flatMap(c => [c.open, c.high, c.low, c.close]);
+    const minP = Math.min(...prices);
+    const maxP = Math.max(...prices);
+    const range = maxP - minP || 1;
     const rawY = layout.plotH * (1 - (price - minP) / range);
     return rawY * layout.scaleY + layout.offsetY;
   };
 
-  const drawBox = (y, price, color, layout) => {
+  const drawBox = (y, price, color) => {
     priceText.text = Number.isFinite(price) ? price.toFixed(2) : '';
-    const textW = Math.max(priceText.width, timerText.width);
-    const boxW = Math.max(70);
-    const boxH = Math.max(41);
+    const boxW = 70;
+    const boxH = 41;
 
     boxBg.clear().beginFill(color).drawRect(0, 0, boxW, boxH).endFill();
 
@@ -80,86 +98,152 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     timerText.x = Math.round(boxX + (boxW - timerText.width) / 2);
     timerText.y = Math.round(priceText.y + priceText.height + 2);
 
-    const inViewport = y >= layout.plotY && y <= layout.plotY + layout.plotH;
-    overlay.alpha = inViewport ? 1 : 0;
+    if (layout) {
+      const inViewport = y >= layout.plotY && y <= layout.plotY + layout.plotH;
+      overlay.alpha = inViewport ? 1 : 0;
+    }
   };
 
-  function render(layout) {
-    const { candles, width, timeframe } = layout;
-    if (!candles?.length) { line.clear(); boxBg.clear(); return; }
+  // единая отрисовка
+  const renderLive = () => {
+    if (!layout || !candles?.length || !last) return;
 
-    const last = candles.at(-1);
-    const price = last.price ?? last.close;
-    const baseTime = last.openTime ?? last.time ?? last.t ?? null;
-    const tfSec = Number.isFinite(timeframe) ? timeframe : 60;
-    const computedClose = Number.isFinite(baseTime) ? (baseTime + tfSec) : null;
-    lastCloseTime = Number.isFinite(last.closeTime) ? last.closeTime : computedClose;
-    currentPrice = price;
-
-    const color = getCandleColor(last, price);
-    const y = calcY(candles, price, layout);
-
-    line.clear();
-    line._lineColor = color;
-    drawDotted(line, 0, y, width);
-
-    if (Number.isFinite(lastCloseTime)) {
-      const now = Math.floor(Date.now() / 1000) + (offsetSet ? serverOffset : 0);
-      timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
-    } else timerText.text = '00:00';
-
-    drawBox(y, price, color, layout);
-  }
-
-  function updatePrice(price, closeTime, serverTime) {
-    currentPrice = price;
-    if (Number.isFinite(closeTime)) lastCloseTime = closeTime;
-    if (typeof serverTime === 'number' && !offsetSet) {
-      serverOffset = serverTime - Math.floor(Date.now() / 1000);
-      offsetSet = true;
-    }
-
-    const candles = chartCore?.state?.candles;
-    const layout  = chartCore?.layout;
-    if (!candles?.length || !layout) return;
-
-    const last = candles.at(-1);
-    if (!last) return;
-
-    last.close = currentPrice;
-    if (currentPrice > last.high) last.high = currentPrice;
-    if (currentPrice < last.low)  last.low  = currentPrice;
-
-    chartCore.updateLast?.(last);
-    chartCore.state.ohlcv?.update?.(last, { force: true });
-    chartCore.state._liveOverride = { price: currentPrice };
-    chartCore.invalidateLight?.();
-
-    const color = getCandleColor(last, currentPrice);
-    const y = calcY(candles, currentPrice, layout);
+    const price = Number.isFinite(currentPrice) ? currentPrice : (last.price ?? last.close);
+    const y = calcYLocal(price);
+    const color = getCandleColor(last);
 
     line.clear();
     line._lineColor = color;
     drawDotted(line, 0, y, layout.width);
 
     if (Number.isFinite(lastCloseTime)) {
-      const now = Math.floor(Date.now() / 1000) + serverOffset;
+      const now = Math.floor(Date.now() / 1000) + (offsetSet ? serverOffset : 0);
       timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
-    } else timerText.text = '00:00';
+    } else {
+      timerText.text = '00:00';
+    }
 
-    drawBox(y, currentPrice, color, layout);
-  }
+    drawBox(y, price, color);
+  };
 
-  function tick() {
+  // публичные методы для ядра
+  const setLayout = L => {
+    layout = L;
+    renderLive();
+  };
+
+  const setCandles = arr => {
+    candles = arr;
+    last = candles?.length ? candles[candles.length - 1] : null;
+
+    // предустановим начальный closeTime, если его нет
+    if (last && !Number.isFinite(lastCloseTime)) {
+      const baseTime = toSec(last.openTime ?? last.time ?? last.t);
+      const tfSec = Number.isFinite(layout?.timeframe) ? layout.timeframe : (chartCore?.state?.timeframe || 60);
+      const computedClose = baseTime != null ? (baseTime + tfSec) : null;
+      lastCloseTime = Number.isFinite(toSec(last.closeTime)) ? toSec(last.closeTime) : computedClose;
+    }
+    renderLive();
+  };
+
+  const setLast = c => {
+    last = c || last;
+    renderLive();
+  };
+
+  const setPrice = (price, closeTime, serverTime) => {
+    currentPrice = price;
+
+    if (Number.isFinite(closeTime)) lastCloseTime = toSec(closeTime);
+    if (typeof serverTime === 'number' && !offsetSet) {
+      serverOffset = toSec(serverTime) - Math.floor(Date.now() / 1000);
+      offsetSet = true;
+    }
+
+    // цвет и high/low уже обновляются ядром в updateLastCandle;
+    // нам важно только перерисоваться
+    renderLive();
+  };
+
+  const tick = () => {
     if (!Number.isFinite(lastCloseTime)) return;
     const now = Math.floor(Date.now() / 1000) + serverOffset;
     timerText.text = formatTime(Math.max(lastCloseTime - now, 0));
+    // таймер меняется — обновим позицию и цвет без пересчёта layout
+    renderLive();
+    if (performance && performance.memory) {
+      console.log(
+        'Heap used:',
+        (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2), 'MB'
+      );
+    }
+    MemoryTracker.report();
+
+    }
+  };
+
+  return {
+    render: setLayout,              // совместимость: render(layout)
+    updatePrice: setPrice,          // совместимость: updatePrice(price, closeTime, serverTime)
+    tick,
+    setLayout,
+    setCandles,
+    setLast,
+    symbol: chartSettings?.symbol ?? '???'
+  };
+}
+
+// аккуратный сокет с защитой от дублей
+export function initLive(chartCore, chartSettings) {
+  const config = chartCore.config;
+  if (!chartSettings?.symbol) return;
+
+  // закрыть старый сокет
+  if (chartCore._livePriceSocket) {
+    try {
+      chartCore._livePriceSocket.onmessage = null;
+      chartCore._livePriceSocket.onclose = null;
+      chartCore._livePriceSocket.close();
+    } catch {}
+    chartCore._livePriceSocket = null;
   }
 
-  return { render, updatePrice, tick, symbol: chartSettings?.symbol ?? '???' };
+  const live = LivePrice({ group: chartCore.graphGroup, config, chartSettings, chartCore });
+  chartCore.state.livePrice = live;
+
+  // передать живому модулю актуальные данные
+  live.setCandles(chartCore.state.candles);
+  if (chartCore.state.layout) live.setLayout(chartCore.state.layout);
+
+  // инициализационный тик цены
+  const arr = chartCore.state.candles;
+  if (arr.length) {
+    const last = arr.at(-1);
+    const initialPrice = last.price ?? last.close;
+    const baseTime = toSec(last.openTime ?? last.time ?? last.t);
+    const tfSec = Number.isFinite(chartCore.state.timeframe) ? chartCore.state.timeframe : 60;
+    const initialClose = Number.isFinite(toSec(last.closeTime))
+      ? toSec(last.closeTime)
+      : (baseTime != null ? baseTime + tfSec : null);
+
+    live.updatePrice(initialPrice, initialClose, Math.floor(Date.now() / 1000));
+    live.tick();
+  }
+
+  connectLiveSocket(chartCore, chartSettings, live);
+  chartCore.app.ticker.add(live.tick);
+  return live;
 }
 
 function connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live) {
+  if (chartCore._livePriceSocket) {
+    try {
+      chartCore._livePriceSocket.onmessage = null;
+      chartCore._livePriceSocket.onclose = null;
+      chartCore._livePriceSocket.close();
+    } catch {}
+  }
+
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(
     `${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`
@@ -179,31 +263,9 @@ function connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe 
 
   ws.onclose = () => {
     if (chartCore._alive && ws.readyState !== WebSocket.OPEN) {
-      setTimeout(() => connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live), 1000);
+      setTimeout(() => {
+        if (chartCore._alive) connectLiveSocket(chartCore, { exchange, marketType, symbol, timeframe }, live);
+      }, 1000);
     }
   };
-}
-
-export function initLive(chartCore, chartSettings) {
-  const config = chartCore.config;
-  if (!chartSettings?.symbol) return;
-
-  const live = LivePrice({ group: chartCore.graphGroup, config, chartSettings, chartCore });
-  chartCore.state.livePrice = live;
-
-  const arr = chartCore.state.candles;
-  if (arr.length) {
-    const last = arr.at(-1);
-    const initialPrice = last.price ?? last.close;
-    const initialClose = Number.isFinite(last.closeTime)
-      ? last.closeTime
-      : ((last.openTime ?? last.time ?? last.t ?? Math.floor(Date.now() / 1000)) +
-         (chartCore.state.timeframe || 60));
-    live.updatePrice(initialPrice, initialClose, Math.floor(Date.now() / 1000));
-    live.tick();
-  }
-
-  connectLiveSocket(chartCore, chartSettings, live);
-  chartCore.app.ticker.add(live.tick);
-  return live;
 }
