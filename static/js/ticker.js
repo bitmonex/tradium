@@ -127,6 +127,23 @@ document.addEventListener("click", (event) => {
     });
 });
 
+document.querySelectorAll(".exchanges li").forEach(item => {
+    item.addEventListener("click", () => {
+        const exchange = item.getAttribute("data-exchange");
+        localStorage.setItem("exchange", exchange);
+
+        // подсветка
+        document.querySelectorAll(".exchanges li").forEach(li => li.classList.remove("on"));
+        item.classList.add("on");
+
+        // пересоздать график
+        if (window.chartCore) {
+            window.chartCore.destroy();
+        }
+        startChartRender(timeframe, exchange);
+    });
+});
+
 // клики по пунктам меню стилей
 document.querySelectorAll(".view .drop a").forEach(item => {
     item.addEventListener("click", () => {

@@ -38,9 +38,7 @@ export async function initPixiChart(containerId, opts) {
     chartCore.state.offsetX = viewW - lastX - (+chartCore.config.candleWidth || 5);
   };
 
-  chartCore.state.offsetX = 0;
   chartCore.state.scaleX = fitScaleXToWidth();
-  chartCore.draw({ candles, volumes });
   clampOffsetXToRightEdge();
   chartCore.draw({ candles, volumes });
 
