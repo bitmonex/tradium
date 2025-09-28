@@ -1,6 +1,7 @@
 //ticker.js
 import { startChartRender } from "./chart.js";
 import { resetCandleCursor } from "./chart-candles.js";
+import { Indicators } from "./indicators/index.js";
 
 let timeframe = null;
 
@@ -45,7 +46,19 @@ function changeChartStyle(style) {
 
 document.addEventListener("DOMContentLoaded", () => {
     const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
-    window.chartSettings = { grid: storedGrid || { enabled: true, color: "#ffffff" } };
+
+    // ⚡️ список индикаторов берём из индекса и фильтруем, если нужно
+    const blacklist = []; // сюда можно добавить те, что скрыть
+    const indicatorKeys = Object.keys(Indicators).filter(
+        name => !blacklist.includes(name)
+    );
+
+    window.chartSettings = { 
+        grid: storedGrid || { enabled: true, color: "#ffffff" },
+        indicators: indicatorKeys
+    };
+
+    // --- инициализация таймфрейма ---
     const stored = localStorage.getItem("timeframe");
     const fallback = document.getElementById("tf")?.getAttribute("data-default");
     const initialTF = stored || fallback;
@@ -57,12 +70,39 @@ document.addEventListener("DOMContentLoaded", () => {
         .find(i => i.getAttribute("rel") === initialTF);
     if (active) active.classList.add("on");
     changeTimeframe(initialTF);
+
+    // --- стиль графика ---
     const savedStyle = localStorage.getItem("chartStyle") || "candles";
     highlightStyle(savedStyle);
     if (savedStyle !== "candles") {
         changeChartStyle(savedStyle);
     }
+
+    // --- динамическое меню индикаторов ---
+    const indicatorList = document.querySelector(".indicator-list");
+    if (indicatorList) {
+        indicatorList.innerHTML = "";
+
+        const enabledIndicators = window.chartSettings.indicators;
+
+        enabledIndicators.forEach(name => {
+            const li = document.createElement("li");
+            li.textContent = name.toUpperCase();
+            li.setAttribute("data-indicator", name);
+
+            li.addEventListener("click", () => {
+                if (window.chartCore?.indicators) {
+                    window.chartCore.indicators.toggle(name);
+                }
+                li.classList.toggle("on");
+                localStorage.setItem("activeIndicator", name);
+            });
+
+            indicatorList.appendChild(li);
+        });
+    }
 });
+
 
 document.querySelectorAll(".timeframes i").forEach(item => {
     item.addEventListener("click", () => {
