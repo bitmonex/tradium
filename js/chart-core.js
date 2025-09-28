@@ -153,12 +153,6 @@ export async function createChartCore(container, userConfig = {}) {
       state.offsetY = app.renderer.height / 2 - ratio * plotH * state.scaleY;
     }
   };
-  // единый перевод цены в координату Y
-  const priceToY = (price, layout, min, max) => {
-    if (!layout) return 0;
-    const range = max - min || 1;
-    return (layout.plotH * (1 - (price - min) / range)) * state.scaleY + state.offsetY;
-  };
 
   // Рисовалка свеч
   const drawCandlesOnly = () => {
@@ -173,7 +167,6 @@ export async function createChartCore(container, userConfig = {}) {
         if (p < last.low) last.low = p;
       }
     }
-
     const settings = state.candleRenderSettings;
     const { width, height } = app.renderer;
     const cw = (config.candleWidth + config.spacing) * state.scaleX;
@@ -184,11 +177,11 @@ export async function createChartCore(container, userConfig = {}) {
       style === 'heikin' ? toHeikin(state.candles) :
       state.candles;
 
-    // диапазон цен
     const highs = series.map(c => c.high ?? c.close);
     const lows  = series.map(c => c.low ?? c.close);
     const min = Math.min(...lows);
     const max = Math.max(...highs);
+    const range = max - min || 1;
 
     // rerender key considers style; force rerender on style change
     const key = [style, state.scaleX, state.scaleY, state.offsetX, state.offsetY, series.length, width, height].join('_');
@@ -220,8 +213,10 @@ export async function createChartCore(container, userConfig = {}) {
         try { sprites[i].clear(); } catch {}
       }
     }
-
-    // line chart
+    
+    const plotH = state.layout?.plotH ?? (height - config.bottomOffset);
+    const mapY = val => (plotH * (1 - (val - min) / range)) * state.scaleY + state.offsetY;
+    //line
     if (style === 'line') {
       try {
         candleLayer.removeChildren();
@@ -235,7 +230,7 @@ export async function createChartCore(container, userConfig = {}) {
       for (let i = startIdx; i < endIdx; i++) {
         const v = series[i];
         const x = i * cw + state.offsetX;
-        const y = priceToY(v.close, state.layout, min, max);
+        const y = mapY(v.close);
         if (i === startIdx) gLine.moveTo(x, y);
         else gLine.lineTo(x, y);
       }
@@ -247,8 +242,7 @@ export async function createChartCore(container, userConfig = {}) {
       state._needRedrawCandles = false;
       return;
     }
-
-    // bars
+    //bars
     if (style === 'bars') {
       try {
         candleLayer.removeChildren();
@@ -265,32 +259,30 @@ export async function createChartCore(container, userConfig = {}) {
         2,
         Math.min(12, config.candleWidth * state.scaleX * settings.barTickRatio)
       );
-
       // бычьи бары
       for (let i = startIdx; i < endIdx; i++) {
         const v = series[i];
         if (v.close < v.open) continue;
         const x = i * cw + state.offsetX;
-        const yOpen  = priceToY(v.open, state.layout, min, max);
-        const yClose = priceToY(v.close, state.layout, min, max);
-        const yHigh  = priceToY(v.high, state.layout, min, max);
-        const yLow   = priceToY(v.low, state.layout, min, max);
+        const yOpen  = mapY(v.open);
+        const yClose = mapY(v.close);
+        const yHigh  = mapY(v.high);
+        const yLow   = mapY(v.low);
 
         gBull.moveTo(x, yHigh).lineTo(x, yLow);
         gBull.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
         gBull.moveTo(x, yClose).lineTo(x + tickLen, yClose);
       }
       gBull.stroke({ width: settings.barLineWidth, color: +config.candleBull, alpha: 1 });
-
       // медвежьи бары
       for (let i = startIdx; i < endIdx; i++) {
         const v = series[i];
         if (v.close >= v.open) continue;
         const x = i * cw + state.offsetX;
-        const yOpen  = priceToY(v.open, state.layout, min, max);
-        const yClose = priceToY(v.close, state.layout, min, max);
-        const yHigh  = priceToY(v.high, state.layout, min, max);
-        const yLow   = priceToY(v.low, state.layout, min, max);
+        const yOpen  = mapY(v.open);
+        const yClose = mapY(v.close);
+        const yHigh  = mapY(v.high);
+        const yLow   = mapY(v.low);
 
         gBear.moveTo(x, yHigh).lineTo(x, yLow);
         gBear.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
@@ -301,17 +293,16 @@ export async function createChartCore(container, userConfig = {}) {
       return;
     }
 
-    // candles / heikin
+    // render candles/heikin using pooled Graphics per index
     for (let i = startIdx; i < endIdx; i++) {
       const v = series[i];
       const g = sprites[i];
       const x = i * cw + state.offsetX;
       const color = v.close >= v.open ? +config.candleBull : +config.candleBear;
-      const yOpen  = priceToY(v.open, state.layout, min, max);
-      const yClose = priceToY(v.close, state.layout, min, max);
-      const yHigh  = priceToY(v.high, state.layout, min, max);
-      const yLow   = priceToY(v.low, state.layout, min, max);
-
+      const yOpen  = mapY(v.open);
+      const yClose = mapY(v.close);
+      const yHigh  = mapY(v.high);
+      const yLow   = mapY(v.low);
       g.clear().visible = true;
       // wick
       g.moveTo(x + (config.candleWidth * state.scaleX) / 2, yHigh)
@@ -358,59 +349,44 @@ export async function createChartCore(container, userConfig = {}) {
 
   const renderAll = () => {
     if (!state.candles.length) return;
-    const bo = (config.bottomOffset || 0) +
-               (chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
+    if (modules.livePrice && state.livePrice) state.livePrice.setLayout(layout);
     subGroup.y = layout.plotH;
     if (modules.grid) Grid(app, layout, config);
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
-    if (modules.indicators && chartCore.indicators) {
-      chartCore.indicators.renderAll(layout);
-    }
-    if (modules.livePrice && state.livePrice) {
-      state.livePrice.setLayout(layout);
-      state.livePrice.render(layout);
-    }
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
     mask.clear().rect(0, 0, layout.plotW, layout.plotH).fill(0x000000);
   };
 
   const renderLight = () => {
     if (!state.candles.length) return;
-    const bo = (config.bottomOffset || 0) +
-               (chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const bo = (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
     if (modules.candles) drawCandlesOnly();
-    if (modules.indicators && chartCore.indicators) {
-      chartCore.indicators.renderAll(layout);
-    }
-    if (modules.livePrice && state.livePrice) {
-      state.livePrice.setLayout(layout);
-      state.livePrice.render(layout);
-    }
+    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
   };
 
   const redrawLayoutOnly = () => {
     if (!state.candles.length) return;
-    const bo = (config.bottomOffset || 0) +
-               (chartCore.indicators?.getBottomStackHeight?.() || 0);
+    const bo = Math.max(config.bottomOffset, chartCore.indicators?.getBottomStackHeight?.() || 0);
     const layout = createFullLayout(bo);
     state.layout = layout;
     if (modules.candles) drawCandlesOnly();
-    if (modules.indicators && chartCore.indicators) {
-      chartCore.indicators.renderAll(layout);
-    }
-    if (modules.livePrice && state.livePrice) {
-      state.livePrice.setLayout(layout);
-      state.livePrice.render(layout);
-    }
+    if (modules.livePrice && state.livePrice) state.livePrice.render(layout);
+    if (modules.indicators && chartCore.indicators) chartCore.indicators.renderAll(layout);
   };
 
   const draw = async ({ candles, volumes }) => {
     const init = state.candles.length === 0;
     applyAutoCenter(candles, volumes, init);
+    state.layout = createFullLayout(
+      (config.bottomOffset || 0) + (chartCore.indicators?.getBottomStackHeight?.() || 0)
+    );
     const MAX_CANDLES = 5000;
     if (state.candles.length > MAX_CANDLES) {
       state.candles.splice(0, state.candles.length - MAX_CANDLES);
@@ -418,6 +394,7 @@ export async function createChartCore(container, userConfig = {}) {
     if (state.volumes.length > MAX_CANDLES) {
       state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
     }
+    if (modules.candles) drawCandlesOnly();
     const fontSpec = `${config.chartFontSize}px ${config.chartFont}`;
     await document.fonts.load(fontSpec);
     if (modules.ohlcv) {
@@ -523,33 +500,25 @@ export async function createChartCore(container, userConfig = {}) {
   };
 
   const updateLast = candle => {
-    // обновляем последнюю свечу в state
     updateLastCandle(candle);
-    // обновляем последний объём
-    if (Array.isArray(state.volumes)) {
+    if (Array.isArray(state.volumes))
       state.volumes[state.volumes.length - 1] = candle.volume;
-    }
-    // ограничение длины массивов (страховка)
-    const MAX_CANDLES = 10000;
+    const MAX_CANDLES = 5000;
     if (state.candles.length > MAX_CANDLES) {
       state.candles.splice(0, state.candles.length - MAX_CANDLES);
     }
     if (state.volumes.length > MAX_CANDLES) {
       state.volumes.splice(0, state.volumes.length - MAX_CANDLES);
     }
-    // перерисовываем только свечи
-    if (modules.candles) {
-      drawCandlesOnly();
-    }
-    // обновляем индикаторы
-    if (modules.indicators && chartCore.indicators && state.layout) {
-      chartCore.indicators.renderAll(state.layout);
-    }
-    // обновляем live
+    if (modules.candles) drawCandlesOnly();
     if (modules.livePrice && state.livePrice) {
       state.livePrice.setLast(candle);
-      state.livePrice.setLayout(state.layout);
-      state.livePrice.render(state.layout);
+    }
+    if (modules.indicators && chartCore.indicators && state.layout) {
+      chartCore.indicators.renderAll(state.layout);
+      if (modules.livePrice && state.livePrice) {
+        state.livePrice.setLayout(state.layout);
+      }
     }
   };
 
