@@ -373,9 +373,9 @@ export async function createChartCore(container, userConfig = {}) {
     if (modules.grid) Grid(app, layout, config);
     if (modules.candles) drawCandlesOnly();
     if (modules.ohlcv) state.ohlcv.render(state.candles.at(-1));
-    if (modules.indicators && chartCore.indicators) {
-      chartCore.indicators.renderAll(layout);
-    }
+  if (modules.indicators && chartCore.indicators) {
+    chartCore.indicators.renderAll(layout);
+  }
     if (modules.livePrice && state.livePrice) {
       state.livePrice.setLayout(layout);
       state.livePrice.render(layout);
@@ -390,9 +390,9 @@ export async function createChartCore(container, userConfig = {}) {
     const layout = createFullLayout(bo);
     state.layout = layout;
     if (modules.candles) drawCandlesOnly();
-    if (modules.indicators && chartCore.indicators) {
-      chartCore.indicators.renderAll(layout);
-    }
+  if (modules.indicators && chartCore.indicators) {
+    chartCore.indicators.renderAll(layout);
+  }
     if (modules.livePrice && state.livePrice) {
       state.livePrice.setLayout(layout);
       state.livePrice.render(layout);
@@ -406,9 +406,9 @@ export async function createChartCore(container, userConfig = {}) {
     const layout = createFullLayout(bo);
     state.layout = layout;
     if (modules.candles) drawCandlesOnly();
-    if (modules.indicators && chartCore.indicators) {
-      chartCore.indicators.renderAll(layout);
-    }
+//  if (modules.indicators && chartCore.indicators) {
+//    chartCore.indicators.renderAll(layout);
+//  }
     if (modules.livePrice && state.livePrice) {
       state.livePrice.setLayout(layout);
       state.livePrice.render(layout);
@@ -443,9 +443,9 @@ export async function createChartCore(container, userConfig = {}) {
       if (modules.candles) drawCandlesOnly();
       if (modules.livePrice && state.livePrice)
         state.livePrice.render(state.layout);
-      if (modules.indicators && chartCore.indicators && state.layout)
-        chartCore.indicators.renderAll(state.layout);
-      chartCore._lastCandleData = null;
+//    if (modules.indicators && chartCore.indicators && state.layout)
+//      chartCore.indicators.renderAll(state.layout);
+//    chartCore._lastCandleData = null;
     }
     if (init) state.isFirstAutoCenter = false;
   };
@@ -549,9 +549,9 @@ export async function createChartCore(container, userConfig = {}) {
       drawCandlesOnly();
     }
     // обновляем индикаторы
-    if (modules.indicators && chartCore.indicators && state.layout) {
-      chartCore.indicators.renderAll(state.layout);
-    }
+//  if (modules.indicators && chartCore.indicators && state.layout) {
+//    chartCore.indicators.renderAll(state.layout);
+//  }
     // обновляем live
     if (modules.livePrice && state.livePrice) {
       state.livePrice.setLast(candle);
@@ -594,7 +594,6 @@ export async function createChartCore(container, userConfig = {}) {
 
   if (modules.indicators) {
     chartCore.indicators = createIndicatorsManager(chartCore);
-    chartCore.indicators.initFromConfig(config.indicators || []);
   }
 
   if (modules.livePrice) {

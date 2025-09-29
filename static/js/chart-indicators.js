@@ -95,8 +95,6 @@ export function createIndicatorsManager(chartCore) {
     active.delete(id);
 
     removeDOM(id);
-
-    // уведомляем внешний код (например, ticker.js), чтобы снять подсветку
     window.dispatchEvent(new CustomEvent("indicator-removed", { detail: { id } }));
   }
 
@@ -109,10 +107,12 @@ export function createIndicatorsManager(chartCore) {
     }
   }
 
-  function initFromConfig(list) {
-    if (!Array.isArray(list) || !list.length) return;
-    list.forEach(id => add(id));
-  }
+function initFromConfig(list) {
+  console.log("[IndicatorsManager] initFromConfig called", list);
+  if (!Array.isArray(list) || !list.length) return;
+  list.forEach(id => add(id));
+}
+
 
   function destroy() {
     for (const id of active.keys()) remove(id);
