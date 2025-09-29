@@ -1,0 +1,15 @@
+//chart.css
+#pixi-outer{position:relative}
+.m-indicators.on{position:absolute; top:67px; left:15px; display:block; width:200px}
+.m-indicators{display:none}
+.m-indicators i{cursor:pointer}
+.m-indicators.min span{display:none}
+.m-indicators span{clear:both; display:block; height:20px; margin-bottom:7px; text-shadow: 2px 2px 2px rgba(0,0,0,5);}
+.m-indicators span strong{float:left; font-size:.9em; font-weight:normal}
+.m-indicators span:hover strong{color:#fff}
+.m-indicators span i{float:left; color margin:0; padding:0; width:16px; margin-left:7px}
+.m-indicators span i:hover{color:#fff}
+.m-indicators span b{float:left; color:#999; font-size:.9em}
+.m-indicators span b:hover{color:#fff}
+.m-indicators .switcher{float:left; color:#999; font-size:1.1em; margin-left:-2px}
+.m-indicators .switcher:hover{color:#fff}

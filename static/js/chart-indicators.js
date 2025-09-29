@@ -1,8 +1,58 @@
-// chart-indicators.js
+//chart-indicators.js
 import { Indicators } from './indicators/index.js';
 
 export function createIndicatorsManager(chartCore) {
   const active = new Map();
+  const menu = document.querySelector(".m-indicators");
+  const switcher = menu?.querySelector(".switcher");
+
+  function renderDOM(id) {
+    if (!menu) return;
+    const span = document.createElement("span");
+    span.setAttribute("data-indicator", id);
+
+    const title = document.createElement("strong");
+    title.textContent = id.toUpperCase();
+    span.appendChild(title);
+
+    const view = document.createElement("i");
+    view.innerHTML = `<b class="icon-view"></b>`;
+    view.addEventListener("click", () => {
+      const obj = active.get(id);
+      if (!obj) return;
+      const visible = obj.layer.visible;
+      obj.layer.visible = !visible;
+      const icon = view.querySelector("b");
+      icon.className = visible ? "icon-view-off" : "icon-view";
+    });
+    span.appendChild(view);
+
+    const settings = document.createElement("i");
+    settings.innerHTML = `<b class="icon-settings"></b>`;
+    settings.addEventListener("click", () => {
+      const event = new CustomEvent("indicator-settings", { detail: { id } });
+      window.dispatchEvent(event);
+    });
+    span.appendChild(settings);
+
+    const del = document.createElement("i");
+    del.innerHTML = `<b class="icon-delete"></b>`;
+    del.addEventListener("click", () => {
+      remove(id);
+    });
+    span.appendChild(del);
+
+    menu.appendChild(span);
+    menu.classList.add("on");
+  }
+
+  function removeDOM(id) {
+    const el = menu?.querySelector(`[data-indicator="${id}"]`);
+    if (el) el.remove();
+    if (menu && menu.querySelectorAll("span").length === 0) {
+      menu.classList.remove("on");
+    }
+  }
 
   function add(id) {
     if (active.has(id)) return;
@@ -16,12 +66,10 @@ export function createIndicatorsManager(chartCore) {
     const layer = new PIXI.Container();
     layer.zIndex = def.meta.zIndex ?? 50;
 
-    // Куда добавлять слой
     const parent = def.meta.position === 'bottom'
       ? chartCore.state.subGroup
       : chartCore.state.graphGroup;
 
-    // Если индикатор нижний — смещаем его слой на накопленную высоту уже добавленных нижних индикаторов
     if (def.meta.position === 'bottom') {
       const offsetY = Array.from(active.values())
         .filter(v => v.meta.position === 'bottom')
@@ -30,9 +78,10 @@ export function createIndicatorsManager(chartCore) {
     }
 
     parent.addChild(layer);
-
     const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);
     active.set(id, { meta: def.meta, instance, layer });
+
+    renderDOM(id);
   }
 
   function remove(id) {
@@ -44,10 +93,14 @@ export function createIndicatorsManager(chartCore) {
     parent.removeChild(obj.layer);
     obj.layer.destroy({ children: true });
     active.delete(id);
+
+    removeDOM(id);
+
+    // уведомляем внешний код (например, ticker.js), чтобы снять подсветку
+    window.dispatchEvent(new CustomEvent("indicator-removed", { detail: { id } }));
   }
 
   function renderAll(layout) {
-    // Смещаем нижнюю группу под текущую высоту графика
     if (chartCore?.state?.subGroup && layout?.plotH != null) {
       chartCore.state.subGroup.y = layout.plotH;
     }
@@ -75,5 +128,17 @@ export function createIndicatorsManager(chartCore) {
     return total;
   }
 
-  return { add, remove, renderAll, initFromConfig, destroy, getBottomStackHeight };
+  function isActive(id) {
+    return active.has(id);
+  }
+
+  // визуальное сворачивание меню
+  switcher?.addEventListener("click", () => {
+    menu.classList.toggle("min");
+    const icon = switcher.querySelector("b");
+    icon.classList.toggle("icon-on");
+    icon.classList.toggle("icon-off");
+  });
+
+  return { add, remove, renderAll, initFromConfig, destroy, getBottomStackHeight, isActive };
 }

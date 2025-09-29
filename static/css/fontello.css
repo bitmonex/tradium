@@ -11,7 +11,7 @@
   font-display: fallback;
 }
 [class^="icon-"]:before, [class*=" icon-"]:before {font-family:"fontello";font-style:normal;font-weight:normal;speak:none;display:inline-block;text-decoration:inherit;width:1em;margin-right:6px;text-align:center;font-variant:normal;text-transform:none;line-height:1em;margin-left:.2em;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}
-.icon-trash:before { content: '\e800'; } /* '' */
+.icon-delete:before { content: '\e800'; } /* '' */
 .icon-mm:before { content: '\e801'; } /* '' */
 .icon-nn:before { content: '\e802'; } /* '' */
 .icon-star:before { content: '\e803'; } /* '' */
@@ -29,6 +29,9 @@
 .icon-ping:before { content: '\e80f'; } /* '' */
 .icon-full:before { content: '\e810'; } /* '' */
 .icon-full-2:before { content: '\e811'; } /* '' */
+.icon-settings:before { content: '\e812'; } /* '' */
+.icon-view:before { content: '\e813'; } /* '' */
+.icon-view-off:before { content: '\e814'; } /* '' */
 .icon-copy:before { content: '\f0c5'; } /* '' */
 .icon-left:before { content: '\f137'; } /* '' */
 .icon-right:before { content: '\f138'; } /* '' */

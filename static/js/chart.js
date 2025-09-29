@@ -3,6 +3,7 @@ import { createChartCore } from "./chart-core.js";
 import { loadChartData } from "./chart-data.js";
 import { initLive } from "./chart-live.js";
 import { initRealtimeCandles } from "./chart-candles-init.js";
+import { createIndicatorsManager } from "./chart-indicators.js";
 
 let chartCore = null;
 
@@ -16,9 +17,14 @@ export async function initPixiChart(containerId, opts) {
   if (!candles.length) { console.warn("❌ Нет данных для отрисовки"); return; }
 
   chartCore = await createChartCore(container, {
-    exchange: opts.exchange, marketType: opts.marketType, symbol: opts.symbol, livePrice: opts.livePrice
+    exchange: opts.exchange,
+    marketType: opts.marketType,
+    symbol: opts.symbol,
+    livePrice: opts.livePrice
   });
   window.chartCore = chartCore;
+
+  chartCore.indicators = createIndicatorsManager(chartCore);
 
   const cwBase = (+chartCore.config.candleWidth || 5) + (+chartCore.config.spacing || 2);
   const minScaleX = +chartCore.config.minScaleX || 0.2;

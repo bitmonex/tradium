@@ -37,8 +37,8 @@ export const ChartConfig = {
     //'test',
     //'test2',
     //'test3',
-    //'volume',
+    'volume',
     'ma',
-    //'rsi'
+    'rsi'
   ]
 };

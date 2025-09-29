@@ -1,6 +1,7 @@
 {% include 'header.html' %}
 
 <link rel="stylesheet" href="{{ url_for('static', path='css/ticker.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', path='css/chart.css') }}">
 <div class="sidebar trades">
     <h2>Trades</h2>
 </div>
@@ -33,7 +34,7 @@
             <div class="drop">
                 <strong>Indicators</strong>
                 <div class="search">
-                    <input type="text" id="indicator-search" placeholder="Enter indicator" />
+                    <input type="text" id="indicator-search" placeholder="Search" />
                 </div>
                 <ul class="indicator-list ws">
                     <li>RSI</li>
@@ -52,7 +53,7 @@
                 <a rel="line">Line</a>
             </div>
         </div>
-        <i class="clear" id="clearStorage"><b class="icon-trash"></b></i>
+        <i class="clear" id="clearStorage"><b class="icon-delete"></b></i>
     </div>
     <script src="/static/js/pixi.min.js"></script>
     {% include 'chart.html' %}

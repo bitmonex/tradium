@@ -2,6 +2,7 @@
 import { startChartRender } from "./chart.js";
 import { resetCandleCursor } from "./chart-candles.js";
 import { Indicators } from "./indicators/index.js";
+import { ChartConfig } from "./chart-config.js";
 
 let timeframe = null;
 
@@ -35,29 +36,14 @@ function highlightStyle(style) {
 //переключение моделей свеч
 function changeChartStyle(style) {
     if (!window.chartCore) return;
-
     resetCandleCursor();
     window.chartCore.setChartStyle(style);
     localStorage.setItem("chartStyle", style);
-
-    highlightStyle(style); // ← всегда вызывается
+    highlightStyle(style); 
     window.chartCore.drawCandlesOnly?.();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-    const storedGrid = JSON.parse(localStorage.getItem("gridSettings"));
-
-    // ⚡️ список индикаторов берём из индекса и фильтруем, если нужно
-    const blacklist = []; // сюда можно добавить те, что скрыть
-    const indicatorKeys = Object.keys(Indicators).filter(
-        name => !blacklist.includes(name)
-    );
-
-    window.chartSettings = { 
-        grid: storedGrid || { enabled: true, color: "#ffffff" },
-        indicators: indicatorKeys
-    };
-
     // --- инициализация таймфрейма ---
     const stored = localStorage.getItem("timeframe");
     const fallback = document.getElementById("tf")?.getAttribute("data-default");
@@ -66,9 +52,9 @@ document.addEventListener("DOMContentLoaded", () => {
         console.warn("⛔ Не удалось определить таймфрейм — график не будет загружен");
         return;
     }
-    const active = Array.from(document.querySelectorAll("#tf i"))
+    const activeTFEl = Array.from(document.querySelectorAll("#tf i"))
         .find(i => i.getAttribute("rel") === initialTF);
-    if (active) active.classList.add("on");
+    if (activeTFEl) activeTFEl.classList.add("on");
     changeTimeframe(initialTF);
 
     // --- стиль графика ---
@@ -83,24 +69,37 @@ document.addEventListener("DOMContentLoaded", () => {
     if (indicatorList) {
         indicatorList.innerHTML = "";
 
-        const enabledIndicators = window.chartSettings.indicators;
+        const configured = Array.isArray(ChartConfig?.indicators)
+            ? ChartConfig.indicators
+            : [];
 
-        enabledIndicators.forEach(name => {
+        const allowed = configured.filter(name => Indicators[name]);
+
+        console.log("📊 Разрешённые индикаторы:", allowed);
+
+        allowed.forEach(name => {
             const li = document.createElement("li");
             li.textContent = name.toUpperCase();
             li.setAttribute("data-indicator", name);
 
             li.addEventListener("click", () => {
-                if (window.chartCore?.indicators) {
-                    window.chartCore.indicators.toggle(name);
+                if (!window.chartCore?.indicators) return;
+
+                if (window.chartCore.indicators.isActive(name)) {
+                    // если уже активен → удалить
+                    window.chartCore.indicators.remove(name);
+                    li.classList.remove("on");
+                } else {
+                    // если не активен → добавить
+                    window.chartCore.indicators.add(name);
+                    li.classList.add("on");
                 }
-                li.classList.toggle("on");
-                localStorage.setItem("activeIndicator", name);
             });
 
             indicatorList.appendChild(li);
         });
     }
+
 });
 
 
