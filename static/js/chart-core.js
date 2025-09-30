@@ -537,7 +537,7 @@ export async function createChartCore(container, userConfig = {}) {
       state.volumes[state.volumes.length - 1] = candle.volume;
     }
     // ограничение длины массивов (страховка)
-    const MAX_CANDLES = 10000;
+    const MAX_CANDLES = 5000
     if (state.candles.length > MAX_CANDLES) {
       state.candles.splice(0, state.candles.length - MAX_CANDLES);
     }

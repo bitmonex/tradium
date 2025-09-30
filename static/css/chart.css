@@ -1,5 +1,5 @@
 //chart.css
-#pixi-outer{position:relative}
+#pixi-outer{position:relative;}
 .m-indicators.on{position:absolute; top:67px; left:15px; display:block; width:200px}
 .m-indicators{display:none}
 .m-indicators i{cursor:pointer}

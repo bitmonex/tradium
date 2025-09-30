@@ -1,11 +1,10 @@
 // chart-candles-init.js
 import { updateLastCandle, candleRenderSettings } from "./chart-candles.js";
+import { num } from './chart-utils.js';
 
 export function initRealtimeCandles(chartCore, chartSettings) {
   chartCore._alive = true;
   chartCore.state.candleRenderSettings = candleRenderSettings;
-  // candles heikin bars line
-  //chartCore.setChartStyle("candles");
   const savedStyle = localStorage.getItem("chartStyle") || chartCore.state.chartStyle || "candles";
   chartCore.setChartStyle(savedStyle);
   try { chartCore._candleSocket?.close(); } catch {}
@@ -58,9 +57,4 @@ function connectCandlesSocket(chartCore, { exchange, marketType, symbol, timefra
       );
     }
   };
-}
-
-function num(v) {
-  const n = typeof v === "string" ? parseFloat(v) : v;
-  return typeof n === "number" && isFinite(n) ? n : undefined;
 }

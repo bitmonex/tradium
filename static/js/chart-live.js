@@ -1,5 +1,5 @@
 // chart-live.js
-import { createTextStyle, MemoryTracker } from './chart-utils.js';
+import { textDefault } from './chart-utils.js';
 
 const toSec = ts => ts == null ? null : (ts > 1e12 ? Math.floor(ts / 1000) : Math.floor(ts));
 
@@ -25,7 +25,7 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
   group.parent.addChild(overlay);
   chartCore.state.livePriceOverlay = overlay;
 
-  const baseStyle = createTextStyle(config, { fill: +(config.textColor ?? 0xffffff) });
+  const baseStyle = textDefault(config, { fill: +(config.textColor ?? 0xffffff) });
   const boxBg = new PIXI.Graphics();
   const priceText = new PIXI.Text('', baseStyle);
   const timerText = new PIXI.Text('', baseStyle);
@@ -48,39 +48,38 @@ export function LivePrice({ group, config, chartSettings, chartCore }) {
     g.endFill();
   };
 
-const formatTime = (sec) => {
-  if (!Number.isFinite(sec)) return '0:00';
+  const formatTime = (sec) => {
+    if (!Number.isFinite(sec)) return '0:00';
 
-  const d = Math.floor(sec / 86400);
-  const h = Math.floor((sec % 86400) / 3600);
-  const m = Math.floor((sec % 3600) / 60);
-  const s = sec % 60;
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const s = sec % 60;
 
-  const tfSec = Number.isFinite(layout?.timeframe)
-    ? layout.timeframe
-    : (chartCore?.state?.timeframe || 60);
+    const tfSec = Number.isFinite(layout?.timeframe)
+      ? layout.timeframe
+      : (chartCore?.state?.timeframe || 60);
 
-  if (tfSec <= 3600) {
-    // до часа → M:SS
-    return `${m}:${String(s).padStart(2,'0')}`;
-  } else if (tfSec <= 86400) {
-    // от 2h до 1d → H:MM:SS
-    // если h = 0, то показываем только M:SS
-    if (h > 0) {
-      return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    } else {
+    if (tfSec <= 3600) {
+      // до часа → M:SS
       return `${m}:${String(s).padStart(2,'0')}`;
-    }
-  } else {
-    // больше суток → Dd Hh
-    if (d > 0) {
-      return `${d}d ${h}h`;
+    } else if (tfSec <= 86400) {
+      // от 2h до 1d → H:MM:SS
+      // если h = 0, то показываем только M:SS
+      if (h > 0) {
+        return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      } else {
+        return `${m}:${String(s).padStart(2,'0')}`;
+      }
     } else {
-      return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      // больше суток → Dd Hh
+      if (d > 0) {
+        return `${d}d ${h}h`;
+      } else {
+        return `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+      }
     }
-  }
-};
-
+  };
 
   const getCandleColor = c => {
     const upColor = +(config.priceUpColor ?? config.livePrice?.priceUpColor ?? 0x0C6600);

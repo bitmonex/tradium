@@ -16,8 +16,8 @@ export const formatTime = (timestamp, tfMs) => {
 export const formatPrice = p =>
   p >= 1000 ? p.toFixed(0) : p >= 1 ? p.toFixed(2) : p.toFixed(4);
 
-//Дефолтный текст
-export const createTextStyle = (config, overrides = {}) =>
+//дефолтный текст
+export const textDefault = (config, overrides = {}) =>
   new PIXI.TextStyle({
     fontFamily: config.chartFont,
     fontSize: config.chartFontSize,
@@ -27,46 +27,16 @@ export const createTextStyle = (config, overrides = {}) =>
     ...overrides
   });
 
-//Трекер памяти по модулям
-export const MemoryTracker = {
-  modules: {},
-  add(module, bytes) {
-    this.modules[module] = (this.modules[module] || 0) + bytes;
-  },
-  sub(module, bytes) {
-    this.modules[module] = Math.max(0, (this.modules[module] || 0) - bytes);
-  },
-  report() {
-    const total = Object.values(this.modules).reduce((a, b) => a + b, 0);
-    console.log('Total Used:', (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2), 'MB');
-  }
-};
-
-//Трекер памяти
-export const MemoryProfiler = {
-  intervalId: null,
-  start(period = 5000) {
-    if (this.intervalId) clearInterval(this.intervalId);
-    this.intervalId = setInterval(() => {
-      if (performance && performance.memory) {
-        console.log(
-          'Total Used:',
-          (performance.memory.usedJSHeapSize / 1024 / 1024).toFixed(2),
-          'MB'
-        );
-      }
-    }, period);
-  },
-  stop() {
-    if (this.intervalId) clearInterval(this.intervalId);
-    this.intervalId = null;
-  }
-};
-
-//Helper
+//хелпер синхронизация live
 export function syncLive(core) {
   if (core?.config?.modules?.livePrice && core.state?.livePrice) {
     core.state.livePrice.setCandles(core.state.candles);
     core.state.livePrice.setLast(core.state.candles.at(-1));
   }
 }
+//хелпер свечной, приводит входное значение к числу и проверяет его валидность
+export function num(v) {
+  const n = typeof v === "string" ? parseFloat(v) : v;
+  return typeof n === "number" && isFinite(n) ? n : undefined;
+}
+

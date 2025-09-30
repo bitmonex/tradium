@@ -23,6 +23,7 @@ function changeTimeframe(newTF) {
     } else {
         highlightStyle("candles");
     }
+    restoreIndicators();
 }
 
 function resizeChart() {if (window.chartCore?.resize) { window.chartCore.resize();}}
@@ -33,7 +34,6 @@ function highlightStyle(style) {
     if (active) active.classList.add("on");
 }
 
-//переключение моделей свеч
 function changeChartStyle(style) {
     if (!window.chartCore) return;
     resetCandleCursor();
@@ -41,6 +41,27 @@ function changeChartStyle(style) {
     localStorage.setItem("chartStyle", style);
     highlightStyle(style); 
     window.chartCore.drawCandlesOnly?.();
+}
+
+// --- сохранение активных индикаторов ---
+function saveActiveIndicators() {
+    if (!window.chartCore?.indicators) return;
+    const active = window.chartCore.indicators.listActive?.() || [];
+    localStorage.setItem("activeIndicators", JSON.stringify(active));
+}
+
+// --- восстановление активных индикаторов ---
+function restoreIndicators() {
+    const storedIndicators = JSON.parse(localStorage.getItem("activeIndicators") || "[]");
+    if (!Array.isArray(storedIndicators) || !storedIndicators.length) return;
+
+    storedIndicators.forEach(id => {
+        if (Indicators[id] && !window.chartCore.indicators.isActive(id)) {
+            window.chartCore.indicators.add(id);
+            const li = document.querySelector(`.indicator-list li[data-indicator="${id}"]`);
+            li?.classList.add("on");
+        }
+    });
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -86,22 +107,22 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!window.chartCore?.indicators) return;
 
                 if (window.chartCore.indicators.isActive(name)) {
-                    // если уже активен → удалить
                     window.chartCore.indicators.remove(name);
                     li.classList.remove("on");
                 } else {
-                    // если не активен → добавить
                     window.chartCore.indicators.add(name);
                     li.classList.add("on");
                 }
+                saveActiveIndicators();
             });
 
             indicatorList.appendChild(li);
         });
     }
 
+    // восстановление индикаторов при загрузке страницы
+    restoreIndicators();
 });
-
 
 document.querySelectorAll(".timeframes i").forEach(item => {
     item.addEventListener("click", () => {
@@ -205,56 +226,44 @@ document.getElementById("clearStorage")?.addEventListener("click", () => {
     localStorage.removeItem("timeframe");
     localStorage.removeItem("chartStyle");
     localStorage.removeItem("activeIndicator");
+    localStorage.removeItem("activeIndicators"); // ← сброс выбранных индикаторов
+
+    // снять подсветку с таймфреймов
     document.querySelectorAll(".timeframes i").forEach(i => i.classList.remove("on"));
+
     const tfDefault = document.getElementById("tf")?.getAttribute("data-default");
     if (!tfDefault) {
         console.warn("⛔ Не удалось получить таймфрейм из шаблона");
         return;
     }
+
     const activeTF = Array.from(document.querySelectorAll("#tf i"))
         .find(i => i.getAttribute("rel") === tfDefault);
     if (activeTF) activeTF.classList.add("on");
+
     if (window.chartCore) {
         window.chartCore.destroy();
     }
+
     // Перезапуск графика
     startChartRender(tfDefault);
+
     // Сбросить стиль на candles
     localStorage.setItem("chartStyle", "candles");
     changeChartStyle("candles");
+
     // Принудительно обновить меню: снять все и подсветить candles
     document.querySelectorAll(".view .drop a").forEach(a => a.classList.remove("on"));
     const defaultItem = document.querySelector(`.view .drop a[rel="candles"]`);
     if (defaultItem) defaultItem.classList.add("on");
+
+    // Очистить список активных индикаторов в DOM
+    document.querySelectorAll(".indicator-list li").forEach(li => li.classList.remove("on"));
+    const mIndicators = document.querySelector(".m-indicators");
+    if (mIndicators) {
+        mIndicators.innerHTML = "";
+        mIndicators.classList.remove("on");
+    }
+
     console.log("🧯 Storage очищен, график сброшен на", tfDefault);
 });
-
-// Полный экран
-const fullBtn = document.getElementById("full-open");
-const fullIcon = fullBtn?.querySelector("b");
-
-function toggleFullscreen() {
-    const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.msFullscreenElement;
-    if (isFullscreen) {
-        // Выход из полноэкранного
-        if (document.exitFullscreen) document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-        else if (document.msExitFullscreen) document.msExitFullscreen();
-
-        // Смена иконки
-        fullIcon?.classList.remove("icon-full-2");
-        fullIcon?.classList.add("icon-full");
-    } else {
-        // Вход в полноэкранный
-        const el = document.documentElement;
-        if (el.requestFullscreen) el.requestFullscreen();
-        else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-        else if (el.msRequestFullscreen) el.msRequestFullscreen();
-
-        // Смена иконки
-        fullIcon?.classList.remove("icon-full");
-        fullIcon?.classList.add("icon-full-2");
-    }
-}
-
-fullBtn?.addEventListener("click", toggleFullscreen);
