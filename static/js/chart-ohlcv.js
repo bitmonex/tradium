@@ -1,109 +1,8 @@
-//chart-ohlcv.js
-export function OHLCV({ config, chartSettings = {}, group }) {
-  const {
-    ohlcvOn,
-    ohlcvLabel,
-    ohlcvData,
-    tickerColor,
-    chartFont,
-    chartFontSize,
-    chartFontWeight
-  } = config;
-  if (!group || !ohlcvOn) {
-    const stub = new PIXI.Container();
-    return { layer: stub, init: () => {}, render: () => {}, update: () => {} };
-  }
-  const layer = new PIXI.Container();
-  layer.zIndex = 30;
-  group.addChild(layer);
-  const resolution = window.devicePixelRatio;
-  const baseStyle = {
-    fontFamily: chartFont,
-    fontSize: chartFontSize,
-    fontWeight: chartFontWeight,
-    resolution
-  };
-  const tickerStyle = new PIXI.TextStyle({ ...baseStyle, fill: tickerColor });
-  const labelStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvLabel });
-  const valueStyle  = new PIXI.TextStyle({ ...baseStyle, fill: ohlcvData });
-  let candles = [];
-  let lastRenderIdx = -1;
-  let lastHoverIdx = -1;
-  let tickerText;
-  const labelTexts = [];
-  const valueTexts = [];
-  function init(newCandles, newVolumes) {
-    candles = newCandles;
-    lastRenderIdx = -1;
-    lastHoverIdx = -1;
-    tickerText = null;
-    layer.removeChildren();
-    labelTexts.length = 0;
-    valueTexts.length = 0;
-  }
+// chart-ohlcv.js
+import { formatMoney } from './chart-utils.js';
 
-  function render(candle) {
-    if (!candle) return;
-    const idx = candles.findIndex(c => c.time === candle.time);
-    if (idx === lastRenderIdx) return;
-    lastRenderIdx = idx;
-    if (!tickerText) {
-      tickerText = new PIXI.Text('', tickerStyle);
-      tickerText.x = 15;
-      tickerText.y = 12;
-      tickerText.interactive = true;
-      tickerText.buttonMode = true;
-      tickerText.hitArea = new PIXI.Rectangle(0, 0, 400, chartFontSize * 2);
-      tickerText.on('pointertap', () => {
-        alert(tickerText.text);
-      });
-      layer.addChild(tickerText);
-      const items = getOHLCVItems(candle, candles);
-      for (const it of items) {
-        const lbl = new PIXI.Text(it.label, labelStyle);
-        const val = new PIXI.Text('', valueStyle);
-        layer.addChild(lbl, val);
-        labelTexts.push(lbl);
-        valueTexts.push(val);
-      }
-    }
-    _updateAll(candle);
-  }
-
-  function update(candle, opts) {
-    if (!tickerText || !candle) return;
-    const force = opts?.force === true;
-    const idx = candles.findIndex(c => c.time === candle.time);
-    const isLast = idx === candles.length - 1;
-    if (!force && !isLast && (idx < 0 || idx === lastHoverIdx)) return;
-    lastHoverIdx = idx;
-    _updateAll(candle);
-  }
-
-  function _updateAll(candle) {
-    const exch  = chartSettings.exchange   || '';
-    const mType = chartSettings.marketType || '';
-    const symb  = chartSettings.symbol     || '';
-    tickerText.text = `${exch.toUpperCase()} - ${mType.toUpperCase()} - ${symb}`;
-    let x = tickerText.x + tickerText.width + 20;
-    const items = getOHLCVItems(candle, candles);
-    for (let i = 0; i < items.length; i++) {
-      const lbl = labelTexts[i];
-      const val = valueTexts[i];
-      const { label, value } = items[i];
-      lbl.text = label;
-      val.text = value;
-      lbl.x = x;
-      lbl.y = 12;
-      val.x = lbl.x + lbl.width + 2;
-      val.y = 12;
-      x += lbl.width + val.width + 15;
-    }
-  }
-  return { layer, init, render, update };
-}
-
-function getOHLCVItems(candle, candles) {
+export function getOHLCVItems(candle, candles) {
+  if (!candle) return [];
   const volBtc   = candle.volume || 0;
   const volUsd   = volBtc * candle.close;
   const volLabel = formatMoney(volUsd);
@@ -127,11 +26,59 @@ function getOHLCVItems(candle, candles) {
   ];
 }
 
-function formatMoney(v) {
-  if (!isFinite(v)) return '—';
-  const abs = Math.abs(v);
-  if (abs >= 1e9) return (abs / 1e9).toFixed(2) + 'b';
-  if (abs >= 1e6) return (abs / 1e6).toFixed(2) + 'm';
-  if (abs >= 1e3) return (abs / 1e3).toFixed(2) + 'k';
-  return abs.toFixed(2);
+export class OHLCV {
+  constructor(chartCore, options = {}) {
+    this.chartCore = chartCore;
+    this.dom = document.querySelector(".m-ohlcv");
+    if (!this.dom) {
+      console.warn("⚠️ Модуль .m-ohlcv не найден в шаблоне");
+      return;
+    }
+    this.exchange   = options.exchange;
+    this.marketType = options.marketType;
+    this.symbol     = options.symbol;
+    this.interval = options.interval ?? 500; // частота автообновления
+    this._alive = true;
+    this.update = this.update.bind(this);
+    this.timer = setInterval(this.update, this.interval);
+  }
+
+  // автообновление последней свечи
+  update() {
+    if (!this._alive) return;
+    const candles = this.chartCore?.state?.candles;
+    if (!candles?.length) return;
+    const last = candles[candles.length - 1];
+    this.renderItems(last, candles);
+  }
+
+  // обновление при наведении на конкретную свечу
+  updateHover(candle) {
+    if (!candle) return;
+    const candles = this.chartCore?.state?.candles;
+    this.renderItems(candle, candles);
+  }
+
+  // общий метод отрисовки
+  renderItems(candle, candles) {
+    const items = getOHLCVItems(candle, candles);
+    const header = `<strong class="id">${this.exchange} - ${this.marketType} - ${this.symbol}</strong>`;
+    const body = items
+      .map(it => `<i class="ohlcv ${it.label.toLowerCase()}"><b>${it.label}:</b>${it.value}</i>`)
+      .join(" ");
+    this.dom.innerHTML = header + " " + body;
+
+    const tickerEl = this.dom.querySelector(".id");
+    if (tickerEl) {
+      tickerEl.onclick = () => {
+        alert(`${this.exchange} - ${this.marketType} - ${this.symbol}`);
+      };
+    }
+  }
+
+  destroy() {
+    this._alive = false;
+    clearInterval(this.timer);
+    if (this.dom) this.dom.innerHTML = "";
+  }
 }

@@ -1,5 +1,5 @@
 /*Ticker*/
-.ticker{display:block; min-width:980px; margin:50px 0 30px 0}
+.ticker{flex:1; position:relative; min-width:980px; min-height:550px; margin:50px 0 30px 0}
 .ticker.wire{margin-right:300px}
     
 /*Filter*/

@@ -1,128 +1,326 @@
-//chart-indicators.js
+// chart-indicators.js
 import { Indicators } from './indicators/index.js';
+import { createOverlayManager } from './indicators/overlay.js';
 
 export function createIndicatorsManager(chartCore) {
-  const active = new Map();
-  const menu = document.querySelector(".m-indicators");
-  const switcher = menu?.querySelector(".switcher");
+  if (!chartCore.config.modules?.indicators) {
+    console.warn('[IndicatorsManager] модуль индикаторов выключен');
+    return {
+      add: () => {},
+      remove: () => {},
+      renderAll: () => {},
+      initFromConfig: () => {},
+      destroy: () => {},
+      reset: () => {},
+      getBottomStackHeight: () => 0,
+      isActive: () => false,
+      activeKeys: () => [],
+      enterFullscreen: () => {},
+      exitFullscreen: () => {},
+      toggleFullscreen: () => {}
+    };
+  }
 
+  const active = new Map();
+  if (!chartCore.overlayMgr) {
+    chartCore.overlayMgr = createOverlayManager(chartCore);
+  }
+  const overlayMgr = chartCore.overlayMgr;
+  const menu = document.querySelector('.m-indicators');
+  const switcher = menu?.querySelector('.switcher');
+  if (switcher) {
+    chartCore._indicatorsMenuBound = true;
+    const switcherKey = `indicators_menu_${chartCore.chartId}`;
+    const icon = switcher.querySelector('b');
+
+    // восстановление состояния
+    const saved = localStorage.getItem(switcherKey);
+    if (saved === 'off') {
+      menu.classList.add('min');
+      if (icon) icon.className = 'icon-off';
+    } else {
+      if (icon) icon.className = 'icon-on';
+    }
+
+    switcher.addEventListener('click', () => {
+      const collapsed = menu.classList.toggle('min');
+      if (icon) icon.className = collapsed ? 'icon-off' : 'icon-on';
+      localStorage.setItem(switcherKey, collapsed ? 'off' : 'on');
+    });
+  }
+
+  const storageKey = `indicators_${chartCore.chartId}`;
+  const fullscreenKey = `indicators_fullscreen_${chartCore.chartId}`;
+  let fullscreenMode = false;
+
+  // --- сохранение/загрузка ---
+  function saveToStorage() {
+    const data = {};
+    for (const [id, obj] of active.entries()) {
+      data[id] = { hiddenByEye: !!obj.hiddenByEye };
+    }
+    localStorage.setItem(storageKey, JSON.stringify(data));
+  }
+  function loadFromStorage() {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || '{}');
+    } catch {
+      return {};
+    }
+  }
+  function saveFullscreen() {
+    localStorage.setItem(fullscreenKey, JSON.stringify(fullscreenMode));
+  }
+
+  function loadFullscreen() {
+    try {
+      return JSON.parse(localStorage.getItem(fullscreenKey) || 'false');
+    } catch {
+      return false;
+    }
+  }
+  
+  function bindMenuSwitcher() {
+    const menu = document.querySelector('.m-indicators');
+    const switcher = menu?.querySelector('.switcher');
+    if (!switcher) return;
+
+    const switcherKey = `indicators_menu_${chartCore.chartId}`;
+
+    // клонируем узел, чтобы снять старые обработчики
+    const newSwitcher = switcher.cloneNode(true);
+    switcher.replaceWith(newSwitcher);
+
+    const icon = newSwitcher.querySelector('b');
+
+    // восстановление состояния
+    const saved = localStorage.getItem(switcherKey);
+    if (saved === 'off') {
+      menu.classList.add('min');
+      if (icon) icon.className = 'icon-off';
+    } else {
+      if (icon) icon.className = 'icon-on';
+    }
+
+    newSwitcher.addEventListener('click', () => {
+      const collapsed = menu.classList.toggle('min');
+      if (icon) icon.className = collapsed ? 'icon-off' : 'icon-on';
+      localStorage.setItem(switcherKey, collapsed ? 'off' : 'on');
+    });
+  }
+  
+  // --- DOM ---
   function renderDOM(id) {
     if (!menu) return;
-    const span = document.createElement("span");
-    span.setAttribute("data-indicator", id);
+    if (menu.querySelector(`[data-indicator="${id}"]`)) return;
 
-    const title = document.createElement("strong");
+    const span = document.createElement('span');
+    span.setAttribute('data-indicator', id);
+
+    const title = document.createElement('strong');
     title.textContent = id.toUpperCase();
     span.appendChild(title);
 
-    const view = document.createElement("i");
-    view.innerHTML = `<b class="icon-view"></b>`;
-    view.addEventListener("click", () => {
-      const obj = active.get(id);
+    const view = document.createElement('i');
+    const obj = active.get(id);
+    const icon = document.createElement('b');
+    icon.className = obj?.hiddenByEye ? 'icon-view-off' : 'icon-view';
+    view.appendChild(icon);
+
+    view.addEventListener('click', () => {
       if (!obj) return;
-      const visible = obj.layer.visible;
-      obj.layer.visible = !visible;
-      const icon = view.querySelector("b");
-      icon.className = visible ? "icon-view-off" : "icon-view";
+      obj.hiddenByEye = !obj.hiddenByEye;
+      obj.layer.visible = !obj.hiddenByEye;
+      icon.className = obj.hiddenByEye ? 'icon-view-off' : 'icon-view';
+      saveToStorage();
+      overlayMgr.setVisible(id, !obj.hiddenByEye);
+      chartCore.scheduleRender({ full: true });
     });
+
     span.appendChild(view);
 
-    const settings = document.createElement("i");
+    const settings = document.createElement('i');
     settings.innerHTML = `<b class="icon-settings"></b>`;
-    settings.addEventListener("click", () => {
-      const event = new CustomEvent("indicator-settings", { detail: { id } });
+    settings.addEventListener('click', () => {
+      const event = new CustomEvent('indicator-settings', { detail: { id } });
       window.dispatchEvent(event);
     });
     span.appendChild(settings);
 
-    const del = document.createElement("i");
+    const del = document.createElement('i');
     del.innerHTML = `<b class="icon-delete"></b>`;
-    del.addEventListener("click", () => {
-      remove(id);
-    });
+    del.addEventListener('click', () => remove(id));
     span.appendChild(del);
 
     menu.appendChild(span);
-    menu.classList.add("on");
+    menu.classList.add('on');
   }
 
   function removeDOM(id) {
     const el = menu?.querySelector(`[data-indicator="${id}"]`);
     if (el) el.remove();
-    if (menu && menu.querySelectorAll("span").length === 0) {
-      menu.classList.remove("on");
+    if (menu && menu.querySelectorAll('span').length === 0) {
+      menu.classList.remove('on');
     }
   }
 
-  function add(id) {
+  // --- управление ---
+  function add(id, opts = {}) {
     if (active.has(id)) return;
-
     const def = Indicators[id];
     if (!def?.meta || typeof def.createIndicator !== 'function') {
       console.warn(`[IndicatorsManager] Индикатор ${id} некорректный`);
       return;
     }
-
     const layer = new PIXI.Container();
     layer.zIndex = def.meta.zIndex ?? 50;
 
-    const parent = def.meta.position === 'bottom'
-      ? chartCore.state.subGroup
-      : chartCore.state.graphGroup;
-
+    let parent;
     if (def.meta.position === 'bottom') {
-      const offsetY = Array.from(active.values())
-        .filter(v => v.meta.position === 'bottom')
-        .reduce((sum, v) => sum + (v.meta.height || 0), 0);
-      layer.y = offsetY;
+      parent = chartCore.state.subGroup ?? chartCore.graphGroup;
+    } else {
+      parent = chartCore.state.candleLayer ?? chartCore.graphGroup;
+    }
+    if (!parent) {
+      console.warn('[IndicatorsManager] нет контейнера для', id);
+      return;
+    }
+    parent.addChild(layer);
+
+    const hiddenByEye = !!opts.hiddenByEye;
+    layer.visible = !hiddenByEye;
+
+    if (fullscreenMode && def.meta.position === 'bottom') {
+      layer.visible = false;
     }
 
-    parent.addChild(layer);
-    const instance = def.createIndicator({ layer, chartCore }, chartCore.layout);
-    active.set(id, { meta: def.meta, instance, layer });
+    active.set(id, {
+      meta: def.meta,
+      instance: null,
+      layer,
+      def,
+      hiddenByEye,
+      title: def.meta.name ?? id,
+      params: def.meta.paramsText ?? ''
+    });
 
     renderDOM(id);
+    saveToStorage();
+    chartCore.scheduleRender({ full: true });
   }
 
   function remove(id) {
     const obj = active.get(id);
     if (!obj) return;
     const parent = obj.meta.position === 'bottom'
-      ? chartCore.state.subGroup
+      ? chartCore.state.subGroup ?? chartCore.graphGroup
       : chartCore.state.graphGroup;
     parent.removeChild(obj.layer);
     obj.layer.destroy({ children: true });
     active.delete(id);
-
+    overlayMgr.removeOverlay(id);
     removeDOM(id);
-    window.dispatchEvent(new CustomEvent("indicator-removed", { detail: { id } }));
+    saveToStorage();
+    window.dispatchEvent(new CustomEvent('indicator-removed', { detail: { id } }));
+    chartCore.scheduleRender({ full: true });
+  }
+
+  function normalizeLayout(layout) {
+    if (!layout) return layout;
+    layout.candles ||= chartCore.state.candles;
+    layout.config  ||= chartCore.config;
+    return layout;
   }
 
   function renderAll(layout) {
-    if (chartCore?.state?.subGroup && layout?.plotH != null) {
-      chartCore.state.subGroup.y = layout.plotH;
-    }
-    for (const { instance, meta, layer } of active.values()) {
-      instance.render?.(layout, meta, layer);
+    if (!layout) return;
+    const L = normalizeLayout(layout);
+    let offsetY = 0;
+
+    for (const [id, obj] of active.entries()) {
+      if (!obj.instance && L?.candles?.length) {
+        obj.instance = obj.def.createIndicator({ layer: obj.layer, chartCore }, L);
+      }
+      try {
+        if (obj.meta.position === 'bottom') {
+          if (fullscreenMode) continue;
+
+          // смещаем слой вниз на накопленный offset
+          obj.layer.y = offsetY;
+          obj.layer.x = 0;
+
+          // локальный layout для рисования внутри слоя
+          const localLayout = {
+            ...L,
+            plotX: 0,
+            plotY: 0,
+            plotW: layout.plotW,
+            plotH: obj.meta.height
+          };
+
+          // глобальный layout для overlay
+          const globalLayout = {
+            plotX: layout.plotX,
+            plotY: layout.plotY + layout.plotH + offsetY,
+            plotW: layout.plotW,
+            plotH: obj.meta.height
+          };
+
+          overlayMgr.ensureOverlay(id, obj.title, obj.params, null, { showPar: true });
+          overlayMgr.setVisible(id, !obj.hiddenByEye);
+          overlayMgr.updateOverlayBox(id, globalLayout);
+
+          if (!obj.hiddenByEye) {
+            obj.instance?.render?.(localLayout, globalLayout);
+          }
+
+          offsetY += obj.meta.height;
+        } else {
+          if (!obj.hiddenByEye) obj.instance?.render?.(L);
+        }
+      } catch (err) {
+        console.error(`[IndicatorsManager] ${id} render error:`, err);
+      }
     }
   }
 
-function initFromConfig(list) {
-  console.log("[IndicatorsManager] initFromConfig called", list);
-  if (!Array.isArray(list) || !list.length) return;
-  list.forEach(id => add(id));
-}
+  function initFromConfig() {
+    destroyIndicators();
+    menu?.querySelectorAll("span").forEach(el => el.remove());
+    menu?.classList.remove("on");
+    const saved = loadFromStorage();
+    for (const id of Object.keys(saved)) {
+      if (!active.has(id)) add(id, saved[id]);
+    }
+    fullscreenMode = loadFullscreen();
+    chartCore.fullscreenMode = fullscreenMode;
+    if (fullscreenMode) {
+      enterFullscreen();
+    }
+    bindMenuSwitcher();
+  }
 
+  function destroyIndicators() {
+    for (const id of Array.from(active.keys())) remove(id);
+    active.clear();
+    overlayMgr.clearAll();
+  }
 
-  function destroy() {
-    for (const id of active.keys()) remove(id);
+  function reset() {
+    destroyIndicators();
+    localStorage.removeItem(storageKey);
+    localStorage.removeItem(fullscreenKey);
+    menu?.querySelectorAll("span").forEach(el => el.remove());
+    menu?.classList.remove("on");
+    fullscreenMode = false;
   }
 
   function getBottomStackHeight() {
+    if (fullscreenMode) return 0;
     let total = 0;
     for (const { meta } of active.values()) {
       if (meta.position === 'bottom' && typeof meta.height === 'number') {
-        total += meta.height;
+        total += meta.height; // 🔹 учитываем даже если hiddenByEye = true
       }
     }
     return total;
@@ -132,13 +330,64 @@ function initFromConfig(list) {
     return active.has(id);
   }
 
-  // визуальное сворачивание меню
-  switcher?.addEventListener("click", () => {
-    menu.classList.toggle("min");
-    const icon = switcher.querySelector("b");
-    icon.classList.toggle("icon-on");
-    icon.classList.toggle("icon-off");
-  });
+  function activeKeys() {
+    return Array.from(active.keys());
+  }
 
-  return { add, remove, renderAll, initFromConfig, destroy, getBottomStackHeight, isActive };
+  function enterFullscreen() {
+    fullscreenMode = true;
+    chartCore.fullscreenMode = true;
+    for (const obj of active.values()) {
+      if (obj.meta.position === 'bottom') obj.layer.visible = false;
+    }
+    saveFullscreen();
+    chartCore.scheduleRender({ full: true });
+    overlayMgr.toggleAllVisible(false);
+  }
+
+  function exitFullscreen() {
+    fullscreenMode = false;
+    chartCore.fullscreenMode = false;
+    for (const obj of active.values()) {
+      if (obj.meta.position === 'bottom' && !obj.hiddenByEye) {
+        obj.layer.visible = true;
+      }
+    }
+    saveFullscreen();
+    chartCore.scheduleRender({ full: true });
+    for (const [id, obj] of active.entries()) {
+      overlayMgr.setVisible(id, !obj.hiddenByEye);
+    }
+  }
+
+  function toggleFullscreen() {
+    if (fullscreenMode) exitFullscreen();
+    else enterFullscreen();
+  }
+
+  function toggleAllVisibleOnDblClick(visible) {
+    for (const [id, obj] of active.entries()) {
+      if (obj.meta.position === 'bottom') {
+        obj.layer.visible = visible && !obj.hiddenByEye;
+        overlayMgr.setVisible(id, visible && !obj.hiddenByEye);
+      }
+    }
+    chartCore.scheduleRender({ full: true });
+  }
+  
+  return {
+    add,
+    remove,
+    renderAll,
+    initFromConfig,
+    destroy: destroyIndicators,
+    reset,
+    getBottomStackHeight,
+    isActive,
+    activeKeys,
+    enterFullscreen,
+    exitFullscreen,
+    toggleFullscreen,
+    toggleAllVisibleOnDblClick
+  };
 }

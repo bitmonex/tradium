@@ -1,42 +1,43 @@
-//chart-fps.js
-import { ChartConfig } from './chart-config.js'
+// chart-fps.js
+import { MEM } from './chart-utils.js';
 
 export class FPS {
-  constructor(view) {
-    this.view = view
-
-    const resolution = window.devicePixelRatio
-
-    const style = new PIXI.TextStyle({
-      fontFamily: ChartConfig.default.chartFont,
-      fontSize: ChartConfig.default.chartFontSize,
-      fontWeight: ChartConfig.default.chartFontWeight,
-      fill: Number(ChartConfig.fps.fpsColor),
-      resolution
-    })
-
-    this.fpsText = new PIXI.Text('FPS: 0', style)
-    this.fpsText.x = Math.round(15)
-    this.fpsText.y = Math.round(40)
-    this.view.addChild(this.fpsText)
-
-    this.lastTime = performance.now()
-    this.frameCount = 0
-    this.update = this.update.bind(this)
-    requestAnimationFrame(this.update)
-  }
-
-  update(currentTime) {
-    this.frameCount++
-    const elapsed = currentTime - this.lastTime
-
-    if (elapsed >= 1000) {
-      const fps = Math.round((this.frameCount * 1000) / elapsed)
-      this.fpsText.text = `FPS: ${fps}`
-      this.lastTime = currentTime
-      this.frameCount = 0
+  constructor(config, options = {}) {
+    this.showMemory = options.showMemory ?? true;
+    this.dom = document.querySelector(".m-fps");
+    if (!this.dom) {
+      console.warn("⚠️ Модуль .m-fps не найден в шаблоне");
+      return;
     }
-
-    requestAnimationFrame(this.update)
+    this.lastTime = performance.now();
+    this.frameCount = 0;
+    this.update = this.update.bind(this);
+    this._alive = true;
+    requestAnimationFrame(this.update);
+  }
+  update(currentTime) {
+    if (!this._alive) return;
+    this.frameCount++;
+    const elapsed = currentTime - this.lastTime;
+    if (elapsed >= 500) { //частота обновления
+      const fps = Math.round((this.frameCount * 1000) / elapsed);
+      let html = `FPS: ${fps}`;
+      if (this.showMemory) {
+        const mem = MEM();
+        if (mem) {
+          html += `<br>Mem: ${mem.usedJSHeap} MB`;
+        }
+      }
+      this.dom.innerHTML = html;
+      this.lastTime = currentTime;
+      this.frameCount = 0;
+    }
+    requestAnimationFrame(this.update);
+  }
+  destroy() {
+    this._alive = false;
+    if (this.dom) {
+      this.dom.innerHTML = "";
+    }
   }
 }

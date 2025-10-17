@@ -1,244 +1,322 @@
 // chart-candles.js
-import { syncLive, num } from './chart-utils.js';
+import { num } from './chart-utils.js';
 
-let lastCandleRef = null, lastTs = null;
-
-export function resetCandleCursor() {
-  lastCandleRef = null;
-  lastTs = null;
-}
-
+// --- настройки рендера свечей ---
 export const candleRenderSettings = {
-  barTickRatio: 0.9,
-  barTickLen: 6,
-  barLineWidth: 1.5,
-  lineWidth: 1.5,
-  lineColor: 0xffffff
+  candleWidth: 6,
+  candleGap: 2,
 };
 
-const MAX_CANDLES = 5000;
-
-// Обновление последней свечи
-export function updateLastCandle(candle) {
-  const core = window.chartCore;
-  if (!core) return;
-  const arr = core.state.candles;
-  const intervalMs = core.state.tfMs || 60000;
-  let ts = candle.timestamp ?? candle.time ?? Date.now();
-  if (!ts) return;
-  if (ts < 1e12) ts *= 1000;
-
-  // для линейного графика
-  if (core.state.chartStyle === "line") {
-    const c = num(candle.close ?? candle.price ?? candle.c ?? candle.lastPrice);
-    if (c === undefined) {
-      console.warn("⚠️ LINE: нет валидного close", candle);
-      return;
+// --- инициализация свечей ---
+export function initCandles(chartCore, chartSettings) {
+  chartCore._alive = true;
+  chartCore.state.candleRenderSettings = candleRenderSettings;
+  // восстановим стиль
+  const savedStyle = (localStorage.getItem("chartStyle") 
+                  || chartCore.state.chartStyle 
+                  || "candles").toLowerCase();
+  chartCore.state.chartStyle = savedStyle;
+  localStorage.setItem("chartStyle", savedStyle);
+  try { chartCore._candleSocket?.close(); } catch {}
+  // сначала история
+  loadOHLCV(chartCore, chartSettings).then(() => {
+    connectCandlesSocket(chartCore, chartSettings);
+  });
+  return {
+    render: () => drawCandlesOnly(chartCore),
+    destroy: () => {
+      try { chartCore._candleSocket?.close(); } catch {}
+      cleanupCandles(chartCore);
     }
-    const last = arr[arr.length - 1];
-    if (last && last.timestamp === candle.timestamp) {
-      last.open = last.high = last.low = last.close = c;
-    } else if (!last || candle.timestamp > last.timestamp) {
-      arr.push({ open: c, high: c, low: c, close: c, volume: 0, timestamp: candle.timestamp });
-      if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
-      syncLive(core);
-    } else {
-      last.open = last.high = last.low = last.close = c;
-    }
-    core.state._needRedrawCandles = true;
-    return;
-  }
-
-  // для баров
-  ts = Math.floor(ts / intervalMs) * intervalMs;
-  if (core.state.chartStyle === "bars") {
-    const obj = {
-      open: num(candle.open),
-      high: num(candle.high),
-      low:  num(candle.low),
-      close: num(candle.close ?? candle.price),
-      volume: num(candle.volume),
-      timestamp: ts
-    };
-    const last = arr[arr.length - 1];
-    if (!last || last.timestamp !== ts) {
-      arr.push(obj);
-      if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
-      lastCandleRef = arr[arr.length - 1];
-      lastTs = ts;
-      syncLive(core);
-    } else {
-      last.open   = obj.open   ?? last.open;
-      last.close  = obj.close  ?? last.close;
-      last.volume = obj.volume ?? last.volume;
-      if (isFinite(obj.high) && (last.high == null || obj.high > last.high)) last.high = obj.high;
-      if (isFinite(obj.low)  && (last.low  == null || obj.low  < last.low))  last.low  = obj.low;
-      lastCandleRef = last;
-      lastTs = ts;
-    }
-    core.state._needRedrawCandles = true;
-    return;
-  }
-
-  // для свечи и хейкен
-  ts = Math.floor(ts / intervalMs) * intervalMs;
-  if (!lastCandleRef || lastCandleRef !== arr[arr.length - 1]) {
-    lastCandleRef = arr[arr.length - 1];
-    lastTs = lastCandleRef?.timestamp;
-  }
-  if (!lastCandleRef) {
-    const obj = {
-      open: num(candle.open),
-      high: num(candle.high),
-      low:  num(candle.low),
-      close: num(candle.close ?? candle.price),
-      volume: num(candle.volume),
-      timestamp: ts
-    };
-    arr.push(obj);
-    if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
-    lastCandleRef = arr[arr.length - 1];
-    lastTs = ts;
-    syncLive(core);
-  } else if (lastTs === ts) {
-    lastCandleRef.open   = num(candle.open)   ?? lastCandleRef.open;
-    lastCandleRef.close  = num(candle.close ?? candle.price) ?? lastCandleRef.close;
-    lastCandleRef.volume = num(candle.volume) ?? lastCandleRef.volume;
-    const h = num(candle.high);
-    const l = num(candle.low);
-    if (isFinite(h) && (lastCandleRef.high == null || h > lastCandleRef.high)) lastCandleRef.high = h;
-    if (isFinite(l) && (lastCandleRef.low == null || l < lastCandleRef.low))  lastCandleRef.low  = l;
-  } else if (ts > lastTs) {
-    const obj = {
-      open: num(candle.open),
-      high: num(candle.high),
-      low:  num(candle.low),
-      close: num(candle.close ?? candle.price),
-      volume: num(candle.volume),
-      timestamp: ts
-    };
-    arr.push(obj);
-    if (arr.length > MAX_CANDLES) arr.splice(0, arr.length - MAX_CANDLES);
-    lastCandleRef = arr[arr.length - 1];
-    lastTs = ts;
-    syncLive(core);
-  } else {
-    arr[arr.length - 1] = {
-      open: num(candle.open),
-      high: num(candle.high),
-      low:  num(candle.low),
-      close: num(candle.close ?? candle.price),
-      volume: num(candle.volume),
-      timestamp: ts
-    };
-    lastCandleRef = arr[arr.length - 1];
-    lastTs = ts;
-  }
-  core.state._needRedrawCandles = true;
+  };
 }
 
-// свечная модель хейкен
-export function toHeikin(candles) {
-  const res = [];
-  if (!candles.length) return res;
-  let prevOpen = candles[0].open;
-  let prevClose = candles[0].close;
-  for (let i = 0; i < candles.length; i++) {
-    const c = candles[i];
-    const haClose = (c.open + c.high + c.low + c.close) / 4;
-    const haOpen = i === 0 ? (c.open + c.close) / 2 : (prevOpen + prevClose) / 2;
-    const haHigh = Math.max(c.high, haOpen, haClose);
-    const haLow = Math.min(c.low, haOpen, haClose);
-    res.push({ open: haOpen, high: haHigh, low: haLow, close: haClose, timestamp: c.timestamp });
-    prevOpen = haOpen;
-    prevClose = haClose;
+// --- загрузка истории ---
+async function loadOHLCV(chartCore, { exchange, marketType, symbol, timeframe }) {
+  try {
+    const url = `/${exchange}/${marketType}/${symbol}/history?tf=${timeframe}&limit=2000`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const intervalMs = chartCore.state.tfMs || 60000;
+    const candles = data.map(c => {
+      let ts = c.time ?? c.timestamp ?? c.openTime;
+      if (!ts) return null;
+      if (ts < 1e12) ts *= 1000;
+      ts = Math.floor(ts / intervalMs) * intervalMs;
+      return {
+        open:   +c.open,
+        high:   +c.high,
+        low:    +c.low,
+        close:  +c.close,
+        volume: +c.volume,
+        time: ts,
+        timestamp: ts
+      };
+    }).filter(Boolean);
+    chartCore.state.candles = candles;
+    chartCore.state.volumes = candles.map(c => c.volume);
+    chartCore.state._centered = false;
+    chartCore.scheduleRender({ full: true });
+  } catch (err) {
+    console.error("[candles] loadOHLCV error:", err);
   }
+}
+
+// --- подключение сокета ---
+function connectCandlesSocket(chartCore, { exchange, marketType, symbol, timeframe, onUpdate }) {
+  const proto = location.protocol === "https:" ? "wss" : "ws";
+  const url = `${proto}://${location.host}/ws/kline?exchange=${exchange}&market_type=${marketType}&symbol=${symbol}&tf=${timeframe}`;
+  const ws = new WebSocket(url);
+  chartCore._candleSocket = ws;
+  //ws.onopen = () => console.log("[candles] socket OPEN");
+  ws.onerror = e => console.warn("[candles] socket ERROR", e);
+  ws.onclose = e => {
+    console.warn("[candles] socket CLOSE", e.code, e.reason);
+    if (chartCore._alive && ws.readyState !== WebSocket.OPEN) {
+      setTimeout(
+        () => connectCandlesSocket(chartCore, { exchange, marketType, symbol, timeframe, onUpdate }),
+        800
+      );
+    }
+  };
+  ws.onmessage = e => {
+    if (!chartCore._alive) return;
+    try {
+      const data = JSON.parse(e.data);
+      if (!("open" in data) || !("close" in data)) return;
+
+      const style = chartCore.state.chartStyle || "candles";
+      const intervalMs = chartCore.state.tfMs || 60000;
+      let ts = data.timestamp ?? data.time ?? data.openTime;
+      if (!ts) return;
+      if (ts < 1e12) ts *= 1000;
+      let tsFinal = (style === "line")
+        ? Math.floor(ts / 1000) * 1000
+        : Math.floor(ts / intervalMs) * intervalMs;
+
+      const norm = {
+        open:   num(data.open   ?? data.price ?? data.c ?? data.close),
+        high:   num(data.high   ?? data.price ?? data.c ?? data.close),
+        low:    num(data.low    ?? data.price ?? data.c ?? data.close),
+        close:  num(data.close  ?? data.price ?? data.c ?? data.lastPrice),
+        volume: num(data.volume),
+        time: tsFinal,
+        timestamp: tsFinal
+      };
+
+      updateLastCandle(chartCore, norm);
+      chartCore.state.candlesModule?.render();
+      onUpdate?.();
+
+      // >>> вот здесь обновляем плашку
+      if (typeof data.price === "number" && typeof data.closeTime === "number") {
+        chartCore.state.livePrice?.updatePrice(data.price, data.closeTime, data.serverTime);
+      }
+
+    } catch (err) {
+      console.warn("[candles] parse error:", err);
+    }
+  };
+}
+
+// --- обновление последней свечи ---
+export function updateLastCandle(chartCore, candle) {
+  const arr = chartCore.state.candles;
+
+  // если свечей ещё нет — просто добавляем первую
+  if (!arr.length) {
+    arr.push(candle);
+    chartCore.state._needRedrawCandles = true;
+
+    // сразу обновляем livePrice по первой свече
+    if (chartCore.state.livePrice) {
+      const tfSec = Number(chartCore.state.timeframe) || 60;
+      const baseSec = toSec(candle.time ?? Date.now());
+      const closeSec = Math.floor(baseSec / tfSec) * tfSec + tfSec;
+      chartCore.state.livePrice.updatePrice(candle.close, closeSec, toSec(Date.now()));
+      chartCore.state.livePrice.tick();
+    }
+    return;
+  }
+
+  // обновляем последнюю свечу или добавляем новую
+  const last = arr[arr.length - 1];
+  if (candle.time === last.time) {
+    arr[arr.length - 1] = candle;
+  } else if (candle.time > last.time) {
+    arr.push(candle);
+  } else {
+    return;
+  }
+
+  chartCore.state._needRedrawCandles = true;
+
+  // коллбек для других модулей
+  if (chartCore.state.onCandleUpdate) {
+    chartCore.state.onCandleUpdate(candle);
+  }
+
+  // >>> обновляем livePrice синхронно с последней свечой
+  if (chartCore.state.livePrice) {
+    const tfSec = Number(chartCore.state.timeframe) || 60;
+    const baseSec = toSec(candle.time ?? Date.now());
+    const closeSec = Math.floor(baseSec / tfSec) * tfSec + tfSec;
+    chartCore.state.livePrice.updatePrice(candle.close, closeSec, toSec(Date.now()));
+  }
+}
+
+// хелпер для нормализации времени
+function toSec(ts) {
+  if (ts == null) return null;
+  return ts >= 1e12 ? Math.floor(ts / 1000) : Math.floor(ts);
+}
+
+
+
+// --- сброс курсора ---
+export function resetCandleCursor() {
+  //console.log("[candles] сброшен тип свечей");
+}
+
+// --- преобразование в Heikin Ashi ---
+export function toHeikin(candles) {
+  if (!candles?.length) return [];
+  const res = [];
+  candles.forEach((c, i) => {
+    if (i === 0) {
+      res.push({ ...c });
+    } else {
+      const prev = res[i - 1];
+      const haClose = (c.open + c.high + c.low + c.close) / 4;
+      const haOpen = (prev.open + prev.close) / 2;
+      const haHigh = Math.max(c.high, haOpen, haClose);
+      const haLow = Math.min(c.low, haOpen, haClose);
+      res.push({ open: haOpen, high: haHigh, low: haLow, close: haClose, time: c.time, volume: c.volume });
+    }
+  });
   return res;
 }
 
-// рендер candles/heikin
+// --- автоцентрирование ---
+export function autoCenterCandles(chartCore) {
+  const { candles, layout } = chartCore.state;
+  if (!candles?.length || !layout) return;
+  const lastIndex = candles.length - 1;
+  const last = candles[lastIndex];
+  chartCore.state.offsetX = layout.width / 2 - layout.indexToX(lastIndex);
+  const midPrice = (last.high + last.low) / 2;
+  const midY = layout.priceToY(midPrice);
+  chartCore.state.offsetY = layout.height / 2 - midY;
+}
+
+// --- рендер свечей ---
+export function drawCandlesOnly(chartCore) {
+  const { candles, chartStyle, layout, candleLayer } = chartCore.state;
+  if (!candles?.length || !layout) return;
+  if (chartStyle === "candles") {
+    renderCandles(candles, candleLayer, layout, chartCore.config);
+    setVisible(candleLayer, "_candlesG");
+  } else if (chartStyle === "heikin") {
+    const ha = toHeikin(candles);
+    renderCandles(ha, candleLayer, layout, chartCore.config);
+    setVisible(candleLayer, "_candlesG");
+  } else if (chartStyle === "line") {
+    renderLine(candles, candleLayer, layout, chartCore.config);
+    setVisible(candleLayer, "_lineG");
+  } else if (chartStyle === "bars") {
+    renderBars(candles, candleLayer, layout, chartCore.config);
+    setVisible(candleLayer, "_barsG");
+  }
+}
+
+function setVisible(layer, activeKey) {
+  ["_candlesG", "_lineG", "_barsG"].forEach(key => {
+    if (layer[key]) {
+      layer[key].visible = (key === activeKey);
+      layer[key].zIndex = (key === activeKey) ? 10 : 1;
+    }
+  });
+  layer.sortChildren();
+}
+
+// --- батч-рендер свечей ---
 export function renderCandles(series, layer, layout, config) {
-  layer.removeChildren();
-  const cw = (config.candleWidth + config.spacing) * layout.scaleX;
-
-  for (let i = 0; i < series.length; i++) {
-    const v = series[i];
-    const g = new PIXI.Graphics();
-    const x = i * cw + layout.offsetX;
-    const color = v.close >= v.open ? +config.candleBull : +config.candleBear;
-
-    const yOpen  = layout.priceToY(v.open);
-    const yClose = layout.priceToY(v.close);
-    const yHigh  = layout.priceToY(v.high);
-    const yLow   = layout.priceToY(v.low);
-
-    // тень
-    g.moveTo(x + (config.candleWidth * layout.scaleX) / 2, yHigh)
-     .lineTo(x + (config.candleWidth * layout.scaleX) / 2, yLow)
-     .stroke({ width: 1, color });
-
-    // тело
-    g.rect(
-      x,
-      Math.min(yOpen, yClose),
-      config.candleWidth * layout.scaleX,
-      Math.max(1, Math.abs(yClose - yOpen))
-    ).fill(color);
-
+  let g = layer._candlesG;
+  if (!g || g.destroyed) {
+    g = new PIXI.Graphics();
     layer.addChild(g);
+    layer._candlesG = g;
   }
-}
-
-// рендер line
-export function renderLine(series, layer, layout, config, settings) {
-  layer.removeChildren();
-  const g = new PIXI.Graphics();
-  layer.addChild(g);
-  const cw = (config.candleWidth + config.spacing) * layout.scaleX;
+  g.clear();
+  const candleW = layout.candleWidth * layout.scaleX;
+  const bull = config.candles.candleBull;
+  const bear = config.candles.candleBear;
   for (let i = 0; i < series.length; i++) {
     const v = series[i];
-    const x = i * cw + layout.offsetX;
-    const y = layout.priceToY(v.close);
-    if (i === 0) g.moveTo(x, y);
-    else g.lineTo(x, y);
-  }
-  g.stroke({ width: settings.lineWidth, color: settings.lineColor, alpha: 1 });
-}
-
-// рендер bars
-export function renderBars(series, layer, layout, config, settings) {
-  layer.removeChildren();
-  const gBull = new PIXI.Graphics();
-  const gBear = new PIXI.Graphics();
-  layer.addChild(gBull, gBear);
-
-  const cw = (config.candleWidth + config.spacing) * layout.scaleX;
-  const tickLen = Math.max(
-    2,
-    Math.min(12, config.candleWidth * layout.scaleX * settings.barTickRatio)
-  );
-
-  for (let i = 0; i < series.length; i++) {
-    const v = series[i];
-    const x = i * cw + layout.offsetX;
+    const x = layout.indexToX(i);
+    const color = v.close >= v.open ? bull : bear;
     const yOpen  = layout.priceToY(v.open);
     const yClose = layout.priceToY(v.close);
     const yHigh  = layout.priceToY(v.high);
     const yLow   = layout.priceToY(v.low);
+    // тень high-low
+    g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
+    // тело свечи
+    const top = Math.min(yOpen, yClose);
+    const bot = Math.max(yOpen, yClose);
+    const h = Math.max(1, bot - top);
+    g.rect(x - candleW / 2, top, candleW, h).fill(color);
+  }
+}
 
-    if (v.close >= v.open) {
-      // бычьи бары
-      gBull.moveTo(x, yHigh).lineTo(x, yLow);
-      gBull.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
-      gBull.moveTo(x, yClose).lineTo(x + tickLen, yClose);
+// --- батч-рендер линии ---
+export function renderLine(candles, layer, layout, config) {
+  let g = layer._lineG;
+  if (!g || g.destroyed) {
+    g = new PIXI.Graphics();
+    layer.addChild(g);
+    layer._lineG = g;
+  }
+  g.clear();
+  const color = config.candles?.lineColor ?? 0xffffff;
+  for (let i = 0; i < candles.length; i++) {
+    const x = layout.indexToX(i);
+    const y = layout.priceToY(candles[i].close);
+    if (i === 0) {
+      g.moveTo(x, y);
     } else {
-      // медвежьи бары
-      gBear.moveTo(x, yHigh).lineTo(x, yLow);
-      gBear.moveTo(x - tickLen, yOpen).lineTo(x, yOpen);
-      gBear.moveTo(x, yClose).lineTo(x + tickLen, yClose);
+      g.lineTo(x, y);
     }
   }
+  g.stroke({ width: 2, color });
+}
 
-  gBull.stroke({ width: settings.barLineWidth, color: +config.candleBull, alpha: 1 });
-  gBear.stroke({ width: settings.barLineWidth, color: +config.candleBear, alpha: 1 });
+// --- батч-рендер баров ---
+export function renderBars(series, layer, layout, config) {
+  let g = layer._barsG;
+  if (!g || g.destroyed) {
+    g = new PIXI.Graphics();
+    layer.addChild(g);
+    layer._barsG = g;
+  }
+  g.clear();
+  const candleW = layout.candleWidth * layout.scaleX;
+  const bull = config.candles.candleBull;
+  const bear = config.candles.candleBear;
+  for (let i = 0; i < series.length; i++) {
+    const v = series[i];
+    const x = layout.indexToX(i);
+    const color = v.close >= v.open ? bull : bear;
+    const yOpen  = layout.priceToY(v.open);
+    const yClose = layout.priceToY(v.close);
+    const yHigh  = layout.priceToY(v.high);
+    const yLow   = layout.priceToY(v.low);
+    // high-low
+    g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
+    // open слева
+    g.moveTo(x - candleW / 2, yOpen).lineTo(x, yOpen).stroke({ width: 1, color });
+    // close справа
+    g.moveTo(x, yClose).lineTo(x + candleW / 2, yClose).stroke({ width: 1, color });
+  }
 }

@@ -1,4 +1,4 @@
-// rsi.js
+// indicators/rsi.js
 export const rsi = {
   meta: {
     id: 'rsi',
@@ -14,20 +14,28 @@ export const rsi = {
       fillColor: 0x090909
     }
   },
+
   createIndicator({ layer }, layout, params = {}) {
     const period      = params.period      ?? rsi.meta.defaultParams.period;
     const color       = params.color       ?? rsi.meta.defaultParams.color;
     const levels      = params.levels      ?? rsi.meta.defaultParams.levels;
     const levelColors = params.levelColors ?? rsi.meta.defaultParams.levelColors;
     const fillColor   = params.fillColor   ?? rsi.meta.defaultParams.fillColor;
+
     const rsiLine   = new PIXI.Graphics();
     const levelLine = new PIXI.Graphics();
     const fillArea  = new PIXI.Graphics();
+
+    layer.sortableChildren = true;
+    fillArea.zIndex  = 0;
+    levelLine.zIndex = 5;
+    rsiLine.zIndex   = 10;
+
     layer.addChild(fillArea, levelLine, rsiLine);
-    //Калькуляция
+
     function calculateRSI(data, p) {
       const result = [];
-      if (!data || data.length < p + 1) return result;
+      if (!data || data.length < p + 1) return Array(data?.length || 0).fill(null);
       let gain = 0, loss = 0;
       for (let i = 1; i < p; i++) {
         const diff = data[i].close - data[i - 1].close;
@@ -45,33 +53,37 @@ export const rsi = {
       }
       return Array(p).fill(null).concat(result);
     }
-    //Render
-    function render(currentLayout) {
-      const candles = currentLayout.candles;
+
+    function render(localLayout) {
+      const candles = localLayout.candles;
       if (!candles?.length) return;
+
       const rsiValues = calculateRSI(candles, period);
+
       rsiLine.clear();
       levelLine.clear();
       fillArea.clear();
-      const cw      = (currentLayout.config.candleWidth + currentLayout.config.spacing) * currentLayout.scaleX;
-      const plotW   = currentLayout.plotW || 500;
-      const plotH   = rsi.meta.height;
-      const offsetY = 0;
-      const usableW = currentLayout.usableW ?? plotW;
-      //BG center
-      const yLow  = offsetY + plotH * (1 - levels[0] / 100);
-      const yHigh = offsetY + plotH * (1 - levels[1] / 100);
+
+      const plotW = localLayout.plotW;
+      const plotH = localLayout.plotH;
+
+      // фон
       fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, yHigh, usableW, yLow - yHigh);
+      fillArea.drawRect(0, 0, plotW, plotH);
       fillArea.endFill();
-      //RSI линия
+
+      // RSI‑линия
       let started = false;
+      rsiLine.beginPath();
       for (let i = 0; i < rsiValues.length; i++) {
         const val = rsiValues[i];
         if (val == null) continue;
-        const x = i * cw + currentLayout.offsetX;
-        if (x > usableW) break;
-        const y = offsetY + plotH * (1 - val / 100);
+
+        const x = localLayout.indexToX(i); // используем indexToX
+        if (x < 0) continue;
+        if (x > plotW) break;
+
+        const y = plotH * (1 - val / 100);
         if (!started) {
           rsiLine.moveTo(x, y);
           started = true;
@@ -79,25 +91,20 @@ export const rsi = {
           rsiLine.lineTo(x, y);
         }
       }
-      //толщина rsi
-      rsiLine.stroke({ width: 1.5, color });
-      //Dashed уровней
-      function drawDashedLine(g, x1, y, x2, dash = 6, gap = 4, c = 0xffffff) {
-        let x = x1;
-        while (x < x2) {
-          g.moveTo(x, y);
-          const xEnd = Math.min(x + dash, x2);
-          g.lineTo(xEnd, y);
-          g.stroke({ width: 1, color: c });
-          x = xEnd + gap;
-        }
+      if (started) {
+        rsiLine.stroke({ width: 2, color });
       }
+
+      // уровни
       levels.forEach((level, idx) => {
-        const y = offsetY + plotH * (1 - level / 100);
+        const y = plotH * (1 - level / 100);
         const lineColor = levelColors[idx] ?? 0xffffff;
-        drawDashedLine(levelLine, 0, y, usableW, 6, 4, lineColor);
+        levelLine.moveTo(0, y);
+        levelLine.lineTo(plotW, y);
+        levelLine.stroke({ width: 1, color: lineColor });
       });
     }
+
     return { render };
   }
 };

@@ -1,155 +1,318 @@
 // chart-mouse.js
-export function Mouse(app, config, state, { zoomX, zoomY, pan, render, update }) {
-  let dragging = false, resizingX = false, resizingY = false, lastX = 0, lastY = 0, movedScale = false;
-  let centerX = 0, centerY = 0, worldX0 = 0, worldY0 = 0, canvasH = 0;
-  const cw = config.candleWidth + config.spacing;
-  let rafPending = false;
+// chart-mouse.js
+import { zoomX, zoomY, pan } from './chart-zoom.js';
 
-  function scheduleRender() {
-    if (!rafPending) {
-      rafPending = true;
-      requestAnimationFrame(() => { render(); rafPending = false; });
+export class Mouse {
+  constructor(app, config, getState, args) {
+    this.app = app;
+    this.config = config;
+    this.getState = getState;
+
+    // безопасное извлечение без дефолтных самоссылок
+    this.render = args?.render;
+    this.update = args?.update;
+    this.chartCore = args?.chartCore;
+
+    // инструменты
+    this.zoomX = zoomX;
+    this.zoomY = zoomY;
+    this.pan = pan;
+
+    // состояния
+    this.dragging = false;
+    this.resizingX = false;
+    this.resizingY = false;
+    this.lastX = 0;
+    this.lastY = 0;
+    this.movedScale = false;
+    this.centerX = 0;
+    this.centerY = 0;
+    this.worldX0 = 0;
+    this.worldY0 = 0;
+    this.canvasH = 0;
+    this.cw = (config.candles?.candleWidth ?? 6) + (config.spacing ?? 2);
+    this.rafPending = false;
+    this.debug = !!config.debugMouse;
+
+    this.minScaleX = config.minScaleX ?? 0.2;
+    this.maxScaleX = config.maxScaleX ?? 8;
+    this.minScaleY = config.minScaleY ?? 0.2;
+    this.maxScaleY = config.maxScaleY ?? 8;
+
+    this.downX = 0;
+    this.downY = 0;
+    this.wasDrag = false;
+  }
+
+  getRect() {
+    const v = this.app?.view;
+    return v ? v.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+  }
+
+  inPlot(s, mx, my) {
+    const L = s.layout; if (!L) return false;
+    return mx >= L.plotX && mx <= L.plotX + L.plotW && my >= L.plotY && my <= L.plotY + L.plotH;
+  }
+
+  scheduleRender() {
+    if (this.rafPending) return;
+    this.rafPending = true;
+    requestAnimationFrame(() => { this.render?.(); this.rafPending = false; });
+  }
+
+  ensureStateSafe(s) {
+    if (typeof s.scaleX !== 'number' || isNaN(s.scaleX)) s.scaleX = 1;
+    if (typeof s.offsetX !== 'number' || isNaN(s.offsetX)) s.offsetX = 0;
+    if (typeof s.scaleY !== 'number' || isNaN(s.scaleY)) s.scaleY = 1;
+    if (typeof s.offsetY !== 'number' || isNaN(s.offsetY)) s.offsetY = 0;
+  }
+
+  onPointerDown = (e) => {
+    const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
+    this.downX = e.clientX; this.downY = e.clientY; this.wasDrag = false;
+
+    const r = this.getRect(), x = e.clientX - r.left, y = e.clientY - r.top;
+    this.movedScale = false; this.centerX = r.width * 0.5; this.centerY = r.height * 0.5; this.canvasH = this.app?.renderer?.height || r.height;
+    const L = s.layout; if (!L) return;
+    const inPriceScale = x >= L.plotX + L.plotW && x <= L.width && y >= L.plotY && y <= L.plotY + L.plotH;
+    const inTimeScale = y >= L.plotY + L.plotH && y <= L.height && x >= L.plotX && x <= L.plotX + L.plotW;
+    const inPlot = this.inPlot(s, x, y);
+
+    if (inPriceScale) { 
+      this.resizingY = true; 
+      this.worldY0 = (this.centerY - s.offsetY) / (this.canvasH * s.scaleY); 
+      this.app.view.style.cursor = 'ns-resize'; 
     }
-  }
-
-  function onPointerDown(e) {
-    movedScale = false;
-    const r = app.view.getBoundingClientRect();
-    centerX = r.width * 0.5;
-    centerY = r.height * 0.5;
-    canvasH = app.renderer.height;
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    if (x > r.width - config.rightOffset) {
-      resizingY = true;
-      worldY0 = (centerY - state.offsetY) / (canvasH * state.scaleY);
-      app.view.style.cursor = 'ns-resize';
-    } else if (y > r.height - config.bottomOffset) {
-      resizingX = true;
-      worldX0 = (centerX - state.offsetX) / (cw * state.scaleX);
-      app.view.style.cursor = 'ew-resize';
-    } else {
-      dragging = true;
-      app.view.style.cursor = 'grabbing';
+    else if (inTimeScale) { 
+      this.resizingX = true; 
+      const spacing = L.spacing ?? this.cw; 
+      this.worldX0 = (this.centerX - s.offsetX) / (spacing * s.scaleX); 
+      this.app.view.style.cursor = 'ew-resize'; 
     }
-    lastX = e.clientX;
-    lastY = e.clientY;
-  }
-
-  function onPointerMove(e) {
-    const r = app.view.getBoundingClientRect();
-    state.mouseX = e.clientX - r.left;
-    state.mouseY = e.clientY - r.top;
-
-    const dx = e.clientX - lastX, dy = e.clientY - lastY;
-    lastX = e.clientX;
-    lastY = e.clientY;
-
-    if (dragging) {
-      const p = pan({ offsetX: state.offsetX, offsetY: state.offsetY, dx, dy });
-      state.offsetX = p.offsetX;
-      state.offsetY = p.offsetY;
-      render();
-    } else if (resizingX && dx !== 0) {
-      movedScale = true;
-      const f = Math.max(config.minScaleX / state.scaleX, Math.min(config.maxScaleX / state.scaleX, 1 - dx * 0.05));
-      state.scaleX *= f;
-      state.offsetX = centerX - worldX0 * (cw * state.scaleX);
-      render();
-    } else if (resizingY && dy !== 0) {
-      movedScale = true;
-      const f = Math.max(config.minScaleY / state.scaleY, Math.min(config.maxScaleY / state.scaleY, 1 - dy * 0.05));
-      state.scaleY *= f;
-      state.offsetY = centerY - worldY0 * (canvasH * state.scaleY);
-      render();
-    } else {
-      const x = e.clientX, y = e.clientY;
-      if (x < r.left || x > r.right || y < r.top || y > r.bottom) return;
-
-      const L = state.layout;
-      if (!L || !state.candles.length) return;
-
-      const { plotX, plotY, plotW, plotH } = L;
-      if (
-        state.mouseX < plotX ||
-        state.mouseX > plotX + plotW ||
-        state.mouseY < plotY ||
-        state.mouseY > plotY + plotH
-      ) return;
-
-      const t = L.screenToTime(state.mouseX);
-      const C = state.candles;
-      const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
-      if (idx === state._lastHoverIdx) return;
-      state._lastHoverIdx = idx;
-      update(C[idx]);
-      render();
+    else if (inPlot) { 
+      this.dragging = true; 
+      this.app.view.style.cursor = 'grabbing'; 
     }
-  }
-  
-  function onPointerUp() {
-    dragging = resizingX = resizingY = false;
-    app.view.style.cursor = 'default';
-  }
+    this.lastX = e.clientX; this.lastY = e.clientY;
+  };
 
-  function onWheel(e) {
+  onPointerMove = (e) => {
+    const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
+    if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) this.wasDrag = true;
+
+    const r = this.getRect(), dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
+    this.lastX = e.clientX; this.lastY = e.clientY; const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const L = s.layout; if (!L) return;
+    const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
+    const inTimeScale = my >= L.plotY + L.plotH && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const inPlot = this.inPlot(s, mx, my);
+
+    if (this.dragging) {
+      if (!inPlot) { this.dragging = false; this.app.view.style.cursor = 'default'; return; }
+      const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy }); 
+      if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; } 
+      this.render?.(); 
+      return;
+    }
+    if (this.resizingX && dx !== 0) {
+      if (!inTimeScale) return;
+      this.movedScale = true; const spacing = L.spacing ?? this.cw; const f = 1 - dx * 0.05;
+      s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, s.scaleX * f)); 
+      s.offsetX = this.centerX - this.worldX0 * (spacing * s.scaleX);
+      this.render?.(); 
+      return;
+    }
+    if (this.resizingY && dy !== 0) {
+      if (!inPriceScale) return;
+      this.movedScale = true; const f = 1 - dy * 0.05;
+      s.scaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f)); 
+      s.offsetY = this.centerY - this.worldY0 * (this.canvasH * s.scaleY);
+      this.render?.(); 
+      return;
+    }
+
+    if (!this.dragging && !this.resizingX && !this.resizingY) {
+      if (inPriceScale) this.app.view.style.cursor = 'ns-resize';
+      else if (inTimeScale) this.app.view.style.cursor = 'ew-resize';
+      else this.app.view.style.cursor = 'default';
+    }
+
+    // Hover по свечам
+    if (!L || !s.candles?.length) return;
+    s.mouseX = mx; s.mouseY = my;
+    if (!inPlot) return;
+    const t = L.screenToTime(mx), C = s.candles;
+    const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
+    if (idx === s._lastHoverIdx) return;
+    s._lastHoverIdx = idx;
+    this.update?.(C[idx]);
+    this.render?.();
+  };
+
+  onPointerUp = () => { 
+    this.dragging = this.resizingX = this.resizingY = false; 
+    if (this.app?.view) this.app.view.style.cursor = 'default'; 
+  };
+  onPointerLeave = () => { 
+    this.dragging = this.resizingX = this.resizingY = false; 
+    if (this.app?.view) this.app.view.style.cursor = 'default'; 
+  };
+
+  onWheel = (e) => {
+    const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
     e.preventDefault();
+    const r = this.getRect(), mx = e.clientX - r.left, my = e.clientY - r.top, L = s.layout; if (!L) return;
+    const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
+    const inTimeScale  = my >= L.plotY + L.plotH && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const inPlot       = this.inPlot(s, mx, my);
     const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
-    if (ax > ay + 2) {
-      state.offsetX -= e.deltaX;
-      render();
-    } else if (ay > ax + 2) {
+
+    // горизонтальный скролл — панорамирование
+    if (inPlot && ax > ay + 2) { 
+      s.offsetX -= e.deltaX; 
+      this.render?.(); 
+      return; 
+    }
+
+    // вертикальный скролл — зум
+    if (ay > ax + 2) {
       const f = Math.exp(-e.deltaY * 0.005);
-      const r = app.view.getBoundingClientRect();
-      if (e.shiftKey) {
-        const z = zoomY({ my: r.height / 2, scaleY: state.scaleY, offsetY: state.offsetY, config, direction: f, height: app.renderer.height });
-        state.scaleY = z.scaleY;
-        state.offsetY = z.offsetY;
-      } else {
-        const z = zoomX({ mx: e.offsetX, scaleX: state.scaleX, offsetX: state.offsetX, config, direction: f });
-        state.scaleX = z.scaleX;
-        state.offsetX = z.offsetX;
-      }
-      render();
-    }
-  }
 
-  function onClick(e) {
-    if (movedScale) { movedScale = false; return; }
-    const r = app.view.getBoundingClientRect();
-    const x = e.clientX - r.left, y = e.clientY - r.top;
-    const factor = e.shiftKey ? 0.9 : 1.1;
-    if (x > r.width - config.rightOffset) {
-      const z = zoomY({ my: y, scaleY: state.scaleY, offsetY: state.offsetY, config, direction: factor, height: app.renderer.height });
-      state.scaleY = z.scaleY;
-      state.offsetY = z.offsetY;
-      scheduleRender();
-    } else if (y > r.height - config.bottomOffset) {
-      const z = zoomX({ mx: x, scaleX: state.scaleX, offsetX: state.offsetX, config, direction: factor });
-      state.scaleX = z.scaleX;
-      state.offsetX = z.offsetX;
-      scheduleRender();
-    }
-  }
-
-  return {
-    init() {
-      const v = app?.view;
-      if (!v) return;
-      v.addEventListener('pointerdown', onPointerDown);
-      window.addEventListener('pointermove', onPointerMove);
-      window.addEventListener('pointerup', onPointerUp);
-      v.addEventListener('wheel', onWheel, { passive: false });
-      v.addEventListener('click', onClick);
-    },
-    destroy() {
-      const v = app?.view;
-      if (v) {
-        v.removeEventListener('pointerdown', onPointerDown);
-        v.removeEventListener('wheel', onWheel);
-        v.removeEventListener('click', onClick);
+      // Y‑зум: правая шкала
+      if (inPriceScale) {
+        const z = this.zoomY?.({
+          my,
+          scaleY: s.scaleY,
+          offsetY: s.offsetY,
+          config: this.config,
+          direction: f,
+          height: L.plotH
+        });
+        if (z) { s.scaleY = z.scaleY; s.offsetY = z.offsetY; }
+        this.render?.();
+        return;
       }
-      window.removeEventListener('pointermove', onPointerMove);
-      window.removeEventListener('pointerup', onPointerUp);
+
+      // X‑зум: нижняя шкала или plot без Shift
+      if (inTimeScale || (inPlot && !e.shiftKey)) {
+        const z = this.zoomX?.({
+          mx,
+          scaleX: s.scaleX,
+          offsetX: s.offsetX,
+          config: this.config,
+          direction: f
+        });
+        if (z) { s.scaleX = z.scaleX; s.offsetX = z.offsetX; }
+        this.render?.(); 
+        return;
+      }
+
+      // Y‑зум: внутри plot с Shift (как клик по правой шкале — из центра)
+      if (inPlot && e.shiftKey) {
+        const centerY = L.plotY + L.plotH / 2;
+        const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+        const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
+        const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+        s.scaleY = newScaleY;
+        s.offsetY = newOffsetY;
+        this.render?.();
+        return;
+      }
     }
   };
+
+  onClick = (e) => {
+    // быстрый клик без движения — ничего
+    const dx = Math.abs(e.clientX - this.downX);
+    const dy = Math.abs(e.clientY - this.downY);
+    if (dx < 3 && dy < 3) return;
+
+    const s = this.getState?.(); if (!s) return; 
+    this.ensureStateSafe(s);
+    if (this.movedScale) { this.movedScale = false; return; }
+
+    const r = this.getRect(), x = e.clientX - r.left, y = e.clientY - r.top, factor = e.shiftKey ? 0.9 : 1.1, L = s.layout; 
+    if (!L) return;
+
+    const inPriceScale = x >= L.plotX + L.plotW && x <= L.width && y >= L.plotY && y <= L.plotY + L.plotH;
+    const inTimeScale  = y >= L.plotY + L.plotH && y <= L.height && x >= L.plotX && x <= L.plotX + L.plotW;
+
+    if (inPriceScale) {
+      // шаговый Y‑зум из центра
+      const centerY = L.plotY + L.plotH / 2;
+      const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+      const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * factor));
+      const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+      s.scaleY = newScaleY;
+      s.offsetY = newOffsetY;
+      this.scheduleRender();
+      return;
+    }
+
+    if (inTimeScale) {
+      // шаговый X‑зум из центра
+      const mxCenter = L.plotX + L.plotW / 2;
+      const z = this.zoomX?.({
+        mx: mxCenter,
+        scaleX: s.scaleX,
+        offsetX: s.offsetX,
+        config: this.config,
+        direction: factor
+      });
+      if (z) { 
+        s.scaleX = z.scaleX; 
+        s.offsetX = z.offsetX; 
+      }
+      this.scheduleRender(); 
+      return;
+    }
+  };
+
+  // двойной клик по plot → скрыть все индикаторы
+  onDblClick = (e) => {
+    const s = this.getState?.(); if (!s) return;
+    const L = s.layout; if (!L) return;
+
+    const r = this.getRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+
+    // двойной клик должен срабатывать только в plot‑области
+    const inPlot =
+      x >= L.plotX && x <= L.plotX + L.plotW &&
+      y >= L.plotY && y <= L.plotY + L.plotH;
+
+    if (!inPlot) return;
+
+    // 🔹 переключаем fullscreen‑режим (убираем/возвращаем только bottom‑индикаторы)
+    this.chartCore?.indicators?.toggleFullscreen();
+  };
+
+  init() {
+    const v = this.app?.view;
+    if (!v) return;
+
+    try { v.style.touchAction = 'none'; } catch {}
+
+    v.addEventListener('pointerdown', this.onPointerDown);
+    v.addEventListener('pointermove', this.onPointerMove);
+    v.addEventListener('pointerup', this.onPointerUp);
+    v.addEventListener('pointerleave', this.onPointerLeave);
+    v.addEventListener('wheel', this.onWheel, { passive: false });
+    v.addEventListener('click', this.onClick);
+    v.addEventListener('dblclick', this.onDblClick);
+  }
+
+  destroy() {
+    const v = this.app?.view;
+    if (!v) return;
+
+    v.removeEventListener('pointerdown', this.onPointerDown);
+    v.removeEventListener('pointermove', this.onPointerMove);
+    v.removeEventListener('pointerup', this.onPointerUp);
+    v.removeEventListener('pointerleave', this.onPointerLeave);
+    v.removeEventListener('wheel', this.onWheel, { passive: false });
+    v.removeEventListener('click', this.onClick);
+    v.removeEventListener('dblclick', this.onDblClick);
+  }
 }

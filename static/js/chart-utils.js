@@ -40,3 +40,26 @@ export function num(v) {
   return typeof n === "number" && isFinite(n) ? n : undefined;
 }
 
+//счетчик памяти
+export function bytesToMB(bytes) {
+  return Math.round((bytes / 1024 / 1024) * 100) / 100;
+}
+export function MEM() {
+  if (performance && performance.memory) {
+    return {
+      usedJSHeap: bytesToMB(performance.memory.usedJSHeapSize),
+      totalJSHeap: bytesToMB(performance.memory.totalJSHeapSize),
+      limitJSHeap: bytesToMB(performance.memory.jsHeapSizeLimit)
+    };
+  }
+  return null;
+}
+
+//формат $ ohlcv
+export function formatMoney(value) {
+  if (value === null || value === undefined || isNaN(value)) return "0";
+  if (value >= 1e9) return (value / 1e9).toFixed(2) + "B";
+  if (value >= 1e6) return (value / 1e6).toFixed(2) + "M";
+  if (value >= 1e3) return (value / 1e3).toFixed(2) + "K";
+  return value.toFixed(2);
+}

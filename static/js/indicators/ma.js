@@ -1,72 +1,87 @@
+// indicators/ma.js
 export const ma = {
   meta: {
     id: 'ma',
-    name: 'Moving Average',
+    name: 'MA50 & MA200',
     position: 'top',
-    zIndex: 60
+    zIndex: 9999,
+    // 🔹 параметры вынесены в meta
+    periods: {
+      fast: 50,
+      slow: 200
+    },
+    colors: {
+      fast: 0x00ff00, // зелёный
+      slow: 0xff0000  // красный
+    },
+    widths: {
+      fast: 2.5,
+      slow: 2.5
+    }
   },
 
-  createIndicator({ layer }, layout, params = {}) {
-    const periods = params.periods ?? [50, 200];
-    const colors  = params.colors  ?? [0x00ff00, 0xff0000, 0x333333];
+  createIndicator({ layer }) {
+    const g = new PIXI.Graphics();
+    g.zIndex = 9999;
+    g.visible = true;
+    layer.sortableChildren = true;
+    layer.addChild(g);
 
-    let lines = [];
-
-    function calculateMA(data, period) {
-      const result = Array(period - 1).fill(null);
+    function calcMA(candles, period) {
+      const out = [];
       let sum = 0;
-      for (let i = 0; i < data.length; i++) {
-        sum += data[i].close;
-        if (i >= period) sum -= data[i - period].close;
-        if (i >= period - 1) result.push(sum / period);
+      for (let i = 0; i < candles.length; i++) {
+        sum += candles[i].close;
+        if (i >= period) sum -= candles[i - period].close;
+        out.push(i >= period - 1 ? sum / period : null);
       }
-      return result;
+      return out;
     }
 
-    function render(currentLayout) {
-      const candles = currentLayout.candles;
-      if (!candles?.length) return;
+    function render(layout) {
+      if (!layout?.candles?.length) return;
 
-      const cw = (currentLayout.config.candleWidth + currentLayout.config.spacing) * currentLayout.scaleX;
-      const prices = candles.flatMap(c => [c.open, c.close, c.high, c.low]);
-      const minPrice = Math.min(...prices);
-      const maxPrice = Math.max(...prices);
-      const priceRange = maxPrice - minPrice || 1;
+      const { candles, indexToX, priceToY } = layout;
+      const { periods, colors, widths } = ma.meta;
 
-      // Удаляем старые линии
-      lines.forEach(line => {
-        layer.removeChild(line);
-        line.destroy({ children: true });
-      });
+      const maFast = calcMA(candles, periods.fast);
+      const maSlow = calcMA(candles, periods.slow);
 
-      lines = periods.map(() => new PIXI.Graphics());
-      lines.forEach(line => layer.addChild(line));
+      g.clear();
 
-      lines.forEach((line, idx) => {
-        const period = periods[idx];
-        const color  = colors[idx];
-        if (!period || !color) return;
-
-        const maValues = calculateMA(candles, period);
-
-        let started = false;
-        for (let i = 0; i < maValues.length; i++) {
-          const val = maValues[i];
-          if (val === null) continue;
-
-          const x = i * cw + currentLayout.offsetX;
-          const y = (currentLayout.plotH * (1 - (val - minPrice) / priceRange)) * currentLayout.scaleY + currentLayout.offsetY;
-
-          if (!started) {
-            line.moveTo(x, y);
-            started = true;
-          } else {
-            line.lineTo(x, y);
-          }
+      // 🔹 MA50 (зелёная)
+      let started = false;
+      for (let i = 0; i < candles.length; i++) {
+        const val = maFast[i];
+        if (val == null) continue;
+        const x = indexToX(i);
+        const y = priceToY(val);
+        if (!started) {
+          g.moveTo(x, y);
+          started = true;
+        } else {
+          g.lineTo(x, y);
         }
+      }
+      if (started) g.stroke({ width: widths.fast, color: colors.fast });
 
-        line.stroke({ width: 1.5, color });
-      });
+      // 🔹 MA200 (красная)
+      started = false;
+      for (let i = 0; i < candles.length; i++) {
+        const val = maSlow[i];
+        if (val == null) continue;
+        const x = indexToX(i);
+        const y = priceToY(val);
+        if (!started) {
+          g.moveTo(x, y);
+          started = true;
+        } else {
+          g.lineTo(x, y);
+        }
+      }
+      if (started) g.stroke({ width: widths.slow, color: colors.slow });
+
+      //console.log(`[MA] rendered: candles=${candles.length}, MA50+MA200`);
     }
 
     return { render };

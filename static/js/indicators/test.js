@@ -4,62 +4,36 @@ export const test = {
     id: 'test',
     name: 'Test Indicator',
     position: 'bottom',
-    height: 70,
+    height: 100,
     zIndex: 10
   },
-  createIndicator({ layer }) {
+  createIndicator({ layer, chartCore }) {
+    const overlayMgr = chartCore.overlayMgr;
     return {
-      render(layout, meta) {
+      render(localLayout, globalLayout) {
+        // очищаем слой
         layer.removeChildren();
-        const g = new PIXI.Graphics();
-        g.beginFill(0x333333, 0.5) // зелёный
-         .drawRect(0, 0, layout.plotW, meta.height)
-         .endFill();
-        layer.addChild(g);
-      }
-    };
-  }
-};
 
-export const test2 = {
-  meta: {
-    id: 'test2',
-    name: 'Test Indicator 2',
-    position: 'bottom',
-    height: 70,
-    zIndex: 11
-  },
-  createIndicator({ layer }) {
-    return {
-      render(layout, meta) {
-        layer.removeChildren();
+        // фон
         const g = new PIXI.Graphics();
-        g.beginFill(0x1B1626) // синий
-         .drawRect(0, 0, layout.plotW, meta.height)
+        g.beginFill(0x222222)
+         .drawRect(0, 0, localLayout.plotW, localLayout.plotH)
          .endFill();
         layer.addChild(g);
-      }
-    };
-  }
-};
 
-export const test3 = {
-  meta: {
-    id: 'test3',
-    name: 'Test Indicator 3',
-    position: 'bottom',
-    height: 70,
-    zIndex: 12
-  },
-  createIndicator({ layer }) {
-    return {
-      render(layout, meta) {
+        // Overlay — используем глобальные координаты
+        overlayMgr.ensureOverlay(
+          'test',
+          'Test Indicator',
+          100,
+          () => 500,
+          { showPar: true, showVal: true }
+        );
+        overlayMgr.updateOverlayBox('test', globalLayout);
+      },
+      destroy() {
         layer.removeChildren();
-        const g = new PIXI.Graphics();
-        g.beginFill(0x1F1616) // красный
-         .drawRect(0, 0, layout.plotW, meta.height)
-         .endFill();
-        layer.addChild(g);
+        overlayMgr.removeOverlay('test');
       }
     };
   }
