@@ -37,43 +37,64 @@ export class OHLCV {
     this.exchange   = options.exchange;
     this.marketType = options.marketType;
     this.symbol     = options.symbol;
-    this.interval = options.interval ?? 500; // частота автообновления
-    this._alive = true;
+    this.interval   = options.interval ?? 500;
+    this._alive     = true;
+
+    this._hoverCandle = null;   // 👉 текущая свеча под курсором
+
     this.update = this.update.bind(this);
     this.timer = setInterval(this.update, this.interval);
+
+    // первичная отрисовка
+    this.update();
   }
 
-  // автообновление последней свечи
   update() {
     if (!this._alive) return;
     const candles = this.chartCore?.state?.candles;
     if (!candles?.length) return;
+
+    // 👉 если курсор на свече (и это не последняя) — не трогаем
+    if (this._hoverCandle) {
+      this.renderItems(this._hoverCandle, candles);
+      return;
+    }
+
+    // иначе показываем последнюю
     const last = candles[candles.length - 1];
     this.renderItems(last, candles);
   }
 
-  // обновление при наведении на конкретную свечу
   updateHover(candle) {
-    if (!candle) return;
     const candles = this.chartCore?.state?.candles;
-    this.renderItems(candle, candles);
+    if (!candles?.length) return;
+    const last = candles[candles.length - 1];
+
+    if (candle) {
+      if (candle === last) {
+        // навели на последнюю → автообновление
+        this._hoverCandle = null;
+        this.renderItems(last, candles);
+      } else {
+        // навели на закрытую свечу → фиксируем её
+        this._hoverCandle = candle;
+        this.renderItems(candle, candles);
+      }
+    } else {
+      // курсор ушёл → сброс
+      this._hoverCandle = null;
+      this.renderItems(last, candles);
+    }
   }
 
-  // общий метод отрисовки
   renderItems(candle, candles) {
+    if (!candle) return;
     const items = getOHLCVItems(candle, candles);
     const header = `<strong class="id">${this.exchange} - ${this.marketType} - ${this.symbol}</strong>`;
     const body = items
       .map(it => `<i class="ohlcv ${it.label.toLowerCase()}"><b>${it.label}:</b>${it.value}</i>`)
       .join(" ");
     this.dom.innerHTML = header + " " + body;
-
-    const tickerEl = this.dom.querySelector(".id");
-    if (tickerEl) {
-      tickerEl.onclick = () => {
-        alert(`${this.exchange} - ${this.marketType} - ${this.symbol}`);
-      };
-    }
   }
 
   destroy() {

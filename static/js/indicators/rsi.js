@@ -15,7 +15,7 @@ export const rsi = {
     }
   },
 
-  createIndicator({ layer }, layout, params = {}) {
+  createIndicator({ layer, overlay }, layout, params = {}) {
     const period      = params.period      ?? rsi.meta.defaultParams.period;
     const color       = params.color       ?? rsi.meta.defaultParams.color;
     const levels      = params.levels      ?? rsi.meta.defaultParams.levels;
@@ -32,6 +32,19 @@ export const rsi = {
     rsiLine.zIndex   = 10;
 
     layer.addChild(fillArea, levelLine, rsiLine);
+
+    // создаём overlay для RSI (если менеджер передан)
+    if (overlay?.ensureOverlay) {
+      overlay.ensureOverlay(
+        'rsi',
+        'Relative Strength Index',
+        `period: ${period}`,
+        () => '',
+        { showPar: true, showVal: true }
+      );
+    }
+
+    let values = [];
 
     function calculateRSI(data, p) {
       const result = [];
@@ -58,7 +71,11 @@ export const rsi = {
       const candles = localLayout.candles;
       if (!candles?.length) return;
 
-      const rsiValues = calculateRSI(candles, period);
+      values = calculateRSI(candles, period);
+
+      // 👉 выводим в консоль последние значения
+      console.log('RSI values (last 5):', values.slice(-5));
+      console.log('RSI last:', values[values.length - 1]);
 
       rsiLine.clear();
       levelLine.clear();
@@ -75,11 +92,11 @@ export const rsi = {
       // RSI‑линия
       let started = false;
       rsiLine.beginPath();
-      for (let i = 0; i < rsiValues.length; i++) {
-        const val = rsiValues[i];
+      for (let i = 0; i < values.length; i++) {
+        const val = values[i];
         if (val == null) continue;
 
-        const x = localLayout.indexToX(i); // используем indexToX
+        const x = localLayout.indexToX(i);
         if (x < 0) continue;
         if (x > plotW) break;
 
@@ -103,8 +120,22 @@ export const rsi = {
         levelLine.lineTo(plotW, y);
         levelLine.stroke({ width: 1, color: lineColor });
       });
+
+      // обновляем overlay последним значением
+      if (overlay?.updateValue) {
+        const last = values[values.length - 1];
+        overlay.updateValue('rsi', last ? last.toFixed(2) : '');
+      }
     }
 
-    return { render };
+    // обновление значения при наведении мыши
+    function updateHover(candle, idx) {
+      if (!overlay?.updateValue) return;
+      if (idx == null || idx < 0 || idx >= values.length) return;
+      const v = values[idx];
+      overlay.updateValue('rsi', v != null ? v.toFixed(2) : '');
+    }
+
+    return { render, updateHover };
   }
 };
