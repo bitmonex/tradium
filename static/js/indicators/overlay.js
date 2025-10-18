@@ -7,12 +7,48 @@ export function createOverlayManager(chartCore) {
     return view?.parentNode ?? null;
   }
 
-  function ensureOverlay(id, title, par, getValue, opts = {}) {
+  // Создание overlay для индикатора
+  function ensureOverlay(id, title, par, opts) {
+    const { showPar = true, showVal = true } = opts || {};
     let ov = overlays.get(id);
-    if (ov) return ov;
 
-    const { showPar = true, showVal = true } = opts;
+    if (ov) {
+      const strong = ov.header.querySelector('strong');
+      if (strong && title) strong.textContent = title;
 
+      // --- PAR ---
+      if (showPar && par) {
+        if (!ov.em) {
+          ov.em = document.createElement('em');
+          ov.header.appendChild(ov.em);
+        }
+        ov.em.textContent = String(par);
+      } else if (!showPar && ov.em) {
+        ov.em.remove();
+        ov.em = null;
+      }
+
+      // --- VAL ---
+      if (showVal) {
+        if (!ov.u) {
+          ov.u = document.createElement('u');
+          ov.u.textContent = '';
+          ov.header.appendChild(ov.u);
+        }
+      } else if (!showVal && ov.u) {
+        ov.u.remove();
+        ov.u = null;
+      }
+
+      // порядок: <em> перед <u>
+      if (ov.em && ov.u) {
+        ov.header.insertBefore(ov.em, ov.u);
+      }
+
+      return ov;
+    }
+
+    // создаём новый overlay
     const container = document.createElement('div');
     container.className = 'indicator-overlay';
     container.dataset.indicator = id;
@@ -29,7 +65,6 @@ export function createOverlayManager(chartCore) {
     header.style.height = '20px';
     header.style.pointerEvents = 'auto';
 
-    // --- название и иконки
     const span = document.createElement('span');
     const strong = document.createElement('strong');
     strong.textContent = title ?? id;
@@ -65,19 +100,18 @@ export function createOverlayManager(chartCore) {
 
     header.appendChild(span);
 
-    // --- параметры (например period)
+    // сначала <em>, потом <u>
     let em = null;
     if (showPar && par) {
       em = document.createElement('em');
-      em.textContent = par;
+      em.textContent = String(par);
       header.appendChild(em);
     }
 
-    // --- значение (например RSI на свече)
     let u = null;
     if (showVal) {
       u = document.createElement('u');
-      u.textContent = getValue ? (typeof getValue === 'function' ? getValue() : getValue) : '';
+      u.textContent = '';
       header.appendChild(u);
     }
 
@@ -91,14 +125,33 @@ export function createOverlayManager(chartCore) {
     return ov;
   }
 
-  function updateValue(id, value) {
+  // Обновление VAL <u>
+  function updateValue(id, value, asHtml = false) {
     const ov = overlays.get(id);
-    if (!ov || !ov.u) return;
-    const text = (typeof value === 'function') ? value() : value;
-    console.log('updateValue', id, text); // 👉 проверка
-    ov.u.textContent = text != null ? text : '';
+    if (!ov) { console.warn('[Overlay] нет overlay для', id); return; }
+    if (!ov.u) { console.warn('[Overlay] нет <u> для', id); return; }
+    if (asHtml) {
+      ov.u.innerHTML = value != null ? String(value) : '';
+    } else {
+      ov.u.textContent = value != null ? String(value) : '';
+    }
   }
 
+  // Обновление PAR <em>
+  function updateParam(id, parText) {
+    const ov = overlays.get(id);
+    if (!ov) return;
+    if (!ov.em) {
+      ov.em = document.createElement('em');
+      ov.header.appendChild(ov.em);
+    }
+    ov.em.textContent = parText != null ? String(parText) : '';
+    if (ov.u) {
+      ov.header.insertBefore(ov.em, ov.u);
+    }
+  }
+
+  // Позиционирование overlay
   function updateOverlayBox(id, subLayout) {
     const ov = overlays.get(id);
     if (!ov) return;
@@ -131,7 +184,7 @@ export function createOverlayManager(chartCore) {
   }
 
   function toggleAllVisible(visible) {
-    for (const [id, ov] of overlays.entries()) {
+    for (const [, ov] of overlays.entries()) {
       if (!ov) continue;
       ov.container.style.display = visible ? 'block' : 'none';
     }
@@ -139,8 +192,9 @@ export function createOverlayManager(chartCore) {
 
   return {
     ensureOverlay,
-    updateOverlayBox,
     updateValue,
+    updateParam,
+    updateOverlayBox,
     removeOverlay,
     clearAll,
     setVisible,

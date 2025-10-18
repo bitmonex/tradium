@@ -22,6 +22,9 @@ export const rsi = {
     const levelColors = params.levelColors ?? rsi.meta.defaultParams.levelColors;
     const fillColor   = params.fillColor   ?? rsi.meta.defaultParams.fillColor;
 
+    const showPar = true;
+    const showVal = true;
+
     const rsiLine   = new PIXI.Graphics();
     const levelLine = new PIXI.Graphics();
     const fillArea  = new PIXI.Graphics();
@@ -33,18 +36,8 @@ export const rsi = {
 
     layer.addChild(fillArea, levelLine, rsiLine);
 
-    // создаём overlay для RSI (если менеджер передан)
-    if (overlay?.ensureOverlay) {
-      overlay.ensureOverlay(
-        'rsi',
-        'Relative Strength Index',
-        `period: ${period}`,
-        () => '',
-        { showPar: true, showVal: true }
-      );
-    }
-
     let values = [];
+    let hoverIdx = null;
 
     function calculateRSI(data, p) {
       const result = [];
@@ -73,9 +66,8 @@ export const rsi = {
 
       values = calculateRSI(candles, period);
 
-      // 👉 выводим в консоль последние значения
-      console.log('RSI values (last 5):', values.slice(-5));
-      console.log('RSI last:', values[values.length - 1]);
+      const lastIdx = values.length - 1;
+      const lastVal = values[lastIdx];
 
       rsiLine.clear();
       levelLine.clear();
@@ -89,7 +81,7 @@ export const rsi = {
       fillArea.drawRect(0, 0, plotW, plotH);
       fillArea.endFill();
 
-      // RSI‑линия
+      // линия RSI
       let started = false;
       rsiLine.beginPath();
       for (let i = 0; i < values.length; i++) {
@@ -101,12 +93,8 @@ export const rsi = {
         if (x > plotW) break;
 
         const y = plotH * (1 - val / 100);
-        if (!started) {
-          rsiLine.moveTo(x, y);
-          started = true;
-        } else {
-          rsiLine.lineTo(x, y);
-        }
+        if (!started) { rsiLine.moveTo(x, y); started = true; }
+        else { rsiLine.lineTo(x, y); }
       }
       if (started) {
         rsiLine.stroke({ width: 2, color });
@@ -121,17 +109,30 @@ export const rsi = {
         levelLine.stroke({ width: 1, color: lineColor });
       });
 
-      // обновляем overlay последним значением
-      if (overlay?.updateValue) {
-        const last = values[values.length - 1];
-        overlay.updateValue('rsi', last ? last.toFixed(2) : '');
+      // overlay
+      if (showPar && overlay?.updateParam) {
+        overlay.updateParam('rsi', `period: ${period}`);
+      }
+      if (showVal && overlay?.updateValue && values.length) {
+        const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
+        const val = isHoverLocked ? values[hoverIdx] : lastVal;
+        overlay.updateValue('rsi', val != null ? val.toFixed(2) : '');
       }
     }
 
-    // обновление значения при наведении мыши
     function updateHover(candle, idx) {
-      if (!overlay?.updateValue) return;
-      if (idx == null || idx < 0 || idx >= values.length) return;
+      if (!showVal || !overlay?.updateValue || !values?.length) return;
+      const lastIdx = values.length - 1;
+
+      if (idx == null || idx < 0 || idx >= values.length) {
+        hoverIdx = null;
+        const autoVal = values[lastIdx];
+        overlay.updateValue('rsi', autoVal != null ? autoVal.toFixed(2) : '');
+        return;
+      }
+
+      // фиксируем индекс свечи
+      hoverIdx = idx;
       const v = values[idx];
       overlay.updateValue('rsi', v != null ? v.toFixed(2) : '');
     }

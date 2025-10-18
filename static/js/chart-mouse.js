@@ -146,6 +146,7 @@ export class Mouse {
     if (idx === s._lastHoverIdx) return;
     s._lastHoverIdx = idx;
     this.update?.(C[idx]);
+    this.chartCore?.indicators?.updateHoverAll(C[idx], idx);
     this.render?.();
   };
 

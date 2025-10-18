@@ -30,9 +30,11 @@
 .m-indicators .switcher:hover{color:#fff}
 
 .iheader{font-size:.95em; height:20px; color:#ccc; padding:8px 0 0 10px; border-top:1px solid #555}
-.iheader span strong{margin-right:7px}
 .iheader span:hover strong{color:#fff; margin-right:12px}
 .iheader span i{display:none; cursor: pointer}
 .iheader span:hover i{display:inline}
 .iheader span i:hover {color:#fff; cursor:pointer}
-.iheader u{color:#999; margin-left:5px}
+.iheader em{color:#555; font-style:normal; margin-left:10px}
+.iheader u{color:#999; margin-left:10px}
+.iheader u i{color:#ccc; margin-right:10px}
+.iheader u b{color:#999; font-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px}

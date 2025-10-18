@@ -17,7 +17,8 @@ export function createIndicatorsManager(chartCore) {
       activeKeys: () => [],
       enterFullscreen: () => {},
       exitFullscreen: () => {},
-      toggleFullscreen: () => {}
+      toggleFullscreen: () => {},
+      updateHoverAll: () => {}
     };
   }
 
@@ -71,7 +72,6 @@ export function createIndicatorsManager(chartCore) {
   function saveFullscreen() {
     localStorage.setItem(fullscreenKey, JSON.stringify(fullscreenMode));
   }
-
   function loadFullscreen() {
     try {
       return JSON.parse(localStorage.getItem(fullscreenKey) || 'false');
@@ -79,21 +79,17 @@ export function createIndicatorsManager(chartCore) {
       return false;
     }
   }
-  
+
   function bindMenuSwitcher() {
     const menu = document.querySelector('.m-indicators');
     const switcher = menu?.querySelector('.switcher');
     if (!switcher) return;
 
     const switcherKey = `indicators_menu_${chartCore.chartId}`;
-
-    // клонируем узел, чтобы снять старые обработчики
     const newSwitcher = switcher.cloneNode(true);
     switcher.replaceWith(newSwitcher);
 
     const icon = newSwitcher.querySelector('b');
-
-    // восстановление состояния
     const saved = localStorage.getItem(switcherKey);
     if (saved === 'off') {
       menu.classList.add('min');
@@ -108,7 +104,7 @@ export function createIndicatorsManager(chartCore) {
       localStorage.setItem(switcherKey, collapsed ? 'off' : 'on');
     });
   }
-  
+
   // --- DOM ---
   function renderDOM(id) {
     if (!menu) return;
@@ -239,17 +235,18 @@ export function createIndicatorsManager(chartCore) {
 
     for (const [id, obj] of active.entries()) {
       if (!obj.instance && L?.candles?.length) {
-        obj.instance = obj.def.createIndicator({ layer: obj.layer, chartCore }, L);
+        obj.instance = obj.def.createIndicator(
+          { layer: obj.layer, chartCore, overlay: chartCore.overlayMgr },
+          L
+        );
       }
       try {
         if (obj.meta.position === 'bottom') {
           if (fullscreenMode) continue;
 
-          // смещаем слой вниз на накопленный offset
           obj.layer.y = offsetY;
           obj.layer.x = 0;
 
-          // локальный layout для рисования внутри слоя
           const localLayout = {
             ...L,
             plotX: 0,
@@ -258,7 +255,6 @@ export function createIndicatorsManager(chartCore) {
             plotH: obj.meta.height
           };
 
-          // глобальный layout для overlay
           const globalLayout = {
             plotX: layout.plotX,
             plotY: layout.plotY + layout.plotH + offsetY,
@@ -374,7 +370,14 @@ export function createIndicatorsManager(chartCore) {
     }
     chartCore.scheduleRender({ full: true });
   }
-  
+
+  // 🔹 Универсальный вызов updateHover для всех индикаторов
+  function updateHoverAll(candle, idx) {
+    for (const [, obj] of active.entries()) {
+      obj.instance?.updateHover?.(candle, idx);
+    }
+  }
+
   return {
     add,
     remove,
@@ -388,6 +391,7 @@ export function createIndicatorsManager(chartCore) {
     enterFullscreen,
     exitFullscreen,
     toggleFullscreen,
-    toggleAllVisibleOnDblClick
+    toggleAllVisibleOnDblClick,
+    updateHoverAll
   };
 }
