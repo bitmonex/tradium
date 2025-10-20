@@ -91,20 +91,28 @@ export class Mouse {
       x >= L.plotX && x <= L.plotX + L.plotW &&
       y >= L.plotY && y <= L.plotY + L.plotH;
 
-    if (inPriceScale) { 
-      this.resizingY = true; 
-      this.worldY0 = (this.centerY - s.offsetY) / (this.canvasH * s.scaleY); 
-      this.app.view.style.cursor = 'ns-resize'; 
+    const inIndicators =
+      y >= L.plotY + L.plotH && y <= L.height - L.bottomOffset &&
+      x >= L.plotX && x <= L.plotX + L.plotW;
+
+    if (inPriceScale) {
+      this.resizingY = true;
+      this.worldY0 = (this.centerY - s.offsetY) / (this.canvasH * s.scaleY);
+      this.app.view.style.cursor = 'ns-resize';
     }
-    else if (inTimeScale) { 
-      this.resizingX = true; 
-      const spacing = L.spacing ?? this.cw; 
-      this.worldX0 = (this.centerX - s.offsetX) / (spacing * s.scaleX); 
-      this.app.view.style.cursor = 'ew-resize'; 
+    else if (inTimeScale) {
+      this.resizingX = true;
+      const spacing = L.spacing ?? this.cw;
+      this.worldX0 = (this.centerX - s.offsetX) / (spacing * s.scaleX);
+      this.app.view.style.cursor = 'ew-resize';
     }
-    else if (inPlot) { 
-      this.dragging = true; 
-      this.app.view.style.cursor = 'grabbing'; 
+    else if (inPlot) {
+      this.dragging = true;
+      this.app.view.style.cursor = 'grabbing';
+    }
+    else if (inIndicators) {
+      this.draggingIndicators = true;
+      this.app.view.style.cursor = 'grabbing';
     }
 
     this.lastX = e.clientX; this.lastY = e.clientY;
@@ -142,6 +150,13 @@ export class Mouse {
       const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy }); 
       if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; } 
       this.render?.(); 
+      return;
+    }
+
+    // только горизонталь в индикаторе bottom
+    if (this.draggingIndicators) {
+      s.offsetX += dx;
+      this.render?.();
       return;
     }
 
@@ -190,12 +205,12 @@ export class Mouse {
   };
 
   onPointerUp = () => { 
-    this.dragging = this.resizingX = this.resizingY = false; 
-    if (this.app?.view) this.app.view.style.cursor = 'default'; 
+    this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
+    if (this.app?.view) this.app.view.style.cursor = 'default';
   };
   onPointerLeave = () => { 
-    this.dragging = this.resizingX = this.resizingY = false; 
-    if (this.app?.view) this.app.view.style.cursor = 'default'; 
+    this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
+    if (this.app?.view) this.app.view.style.cursor = 'default';
   };
 
   onWheel = (e) => {
