@@ -9,7 +9,7 @@ export const volatilityOHLC = {
     defaultParams: {
       period: 10,
       color: 0x00ff00,
-      fillColor: 0x090909
+      fillColor: 0x161616
     }
   },
 

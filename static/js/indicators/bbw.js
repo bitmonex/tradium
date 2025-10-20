@@ -10,7 +10,7 @@ export const bbw = {
       period: 20,
       mult: 2,
       color: 0xffcc00,
-      fillColor: 0x090909
+      fillColor: 0x161616
     }
   },
 
@@ -121,13 +121,14 @@ export const bbw = {
 
       // overlay
       if (showPar && overlay?.updateParam) {
-        overlay.updateParam('bbw', `${period}, mult=${mult}`);
+        overlay.updateParam('bbw', `${period} ${mult}`);
       }
       if (showVal && overlay?.updateValue && values.length) {
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
         const val = isHoverLocked ? values[hoverIdx] : lastVal;
         overlay.updateValue('bbw', val != null ? val.toFixed(2) + '%' : '');
       }
+
     }
 
     function updateHover(candle, idx) {

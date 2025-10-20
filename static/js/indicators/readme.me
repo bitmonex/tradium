@@ -1,48 +1,136 @@
-Шаблон индикатора для TradiumPro
+Структура индикатора
 Каждый индикатор — это объект с двумя ключевыми частями:
 
-1. meta — описание индикатора
+1. meta
+Описание индикатора для UI и конфигурации:
+
 js
 meta: {
-  id: 'ma',                 // Уникальный идентификатор
-  name: 'Moving Average',   // Название для UI
-  position: 'top',          // 'top' — поверх графика, 'bottom' — под графиком
-  zIndex: 60,               // Порядок отрисовки
-  defaultParams: {          // Дефолтные параметры (опционально)
-    periods: [50, 200, null],
-    colors: [0x00ff00, 0xff0000, null]
-  },
-  height: 100               // Только для bottom-индикаторов (высота панели)
+  id: 'rsi',                // Уникальный идентификатор
+  name: 'Relative Strength Index', // Название для UI
+  position: 'bottom',       // 'top' — поверх графика, 'bottom' — под графиком
+  zIndex: 50,               // Порядок отрисовки
+  height: 100,              // Высота панели (только для bottom)
+  defaultParams: {          // Дефолтные параметры
+    period: 14,
+    color: 0xffffff,
+    fillColor: 0x161616,
+    levels: [30, 70],       // Уровни (если нужны)
+    levelColors: [0xFF2E2E, 0x00ff00]
+  }
 }
+2. createIndicator
+Функция, которая создаёт графику и возвращает методы render и updateHover.
 
-createIndicator() — функция создания
-
-createIndicator({ layer, chartCore }, layout, params = {}) {
-  // layer — PIXI.Container, куда рисовать
-  // chartCore — доступ к данным и методам
-  // layout — геометрия графика
-  // params — пользовательские настройки (если есть)
+js
+createIndicator({ layer, overlay }, layout, params = {}) {
+  // layer — PIXI.Container для отрисовки
+  // overlay — объект для вывода параметров/значений в UI
+  // layout — геометрия графика (candles, plotW, plotH, indexToX и т.д.)
+  // params — пользовательские настройки (с дефолтами из meta.defaultParams)
 
   // Создаём графику
-  const line = new PIXI.Graphics();
-  layer.addChild(line);
+  const line     = new PIXI.Graphics();
+  const zeroLine = new PIXI.Graphics(); // если нужен ноль
+  const fillArea = new PIXI.Graphics();
 
-  // Основной метод отрисовки
-  function render(layout) {
-    // layout.candles — массив свечей
-    // layout.plotH, layout.offsetY — геометрия графика
-    // layout.scaleX, scaleY — масштаб
+  layer.sortableChildren = true;
+  fillArea.zIndex  = 0;
+  zeroLine.zIndex  = 5;
+  line.zIndex      = 10;
 
-    line.clear();
-    // ... логика отрисовки
-    line.stroke({ width: 2, color: 0xffcc00 });
+  layer.addChild(fillArea, zeroLine, line);
+
+  let values = [];
+  let hoverIdx = null;
+
+  // --- Вспомогательные функции (например, SMA, EMA, stddev) ---
+  function sma(values, p) { /* ... */ }
+  function ema(values, p) { /* ... */ }
+
+  // --- Основной расчёт индикатора ---
+  function calculate(data, params) {
+    // data = layout.candles
+    // возвращаем массив значений (с null для пустых точек)
   }
 
-  return { render };
+  // --- Отрисовка ---
+  function render(localLayout) {
+    const candles = localLayout.candles;
+    if (!candles?.length) return;
+
+    values = calculate(candles, params);
+
+    const lastIdx = values.length - 1;
+    const lastVal = values[lastIdx];
+
+    line.clear();
+    zeroLine.clear();
+    fillArea.clear();
+
+    const plotW = localLayout.plotW;
+    const plotH = localLayout.plotH;
+
+    // фон
+    fillArea.beginFill(params.fillColor);
+    fillArea.drawRect(0, 0, plotW, plotH);
+    fillArea.endFill();
+
+    // линия индикатора
+    let started = false;
+    line.beginPath();
+    for (let i = 0; i < values.length; i++) {
+      const val = values[i];
+      if (val == null) continue;
+
+      const x = localLayout.indexToX(i);
+      if (x < 0) continue;
+      if (x > plotW) break;
+
+      const y = plotH / 2 - val * (plotH / 2); // нормализация под ось
+      if (!started) { line.moveTo(x, y); started = true; }
+      else line.lineTo(x, y);
+    }
+    if (started) line.stroke({ width: 2, color: params.color });
+
+    // центральная линия (ноль, если нужна)
+    const zeroY = plotH / 2;
+    zeroLine.moveTo(0, zeroY);
+    zeroLine.lineTo(plotW, zeroY);
+    zeroLine.stroke({ width: 0.25, color: 0x555555 });
+
+    // overlay
+    if (overlay?.updateParam) {
+      overlay.updateParam(params.id ?? 'custom', `${params.period}`);
+    }
+    if (overlay?.updateValue && values.length) {
+      const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
+      const val = isHoverLocked ? values[hoverIdx] : lastVal;
+      overlay.updateValue(params.id ?? 'custom', val != null ? val.toFixed(2) : '');
+    }
+  }
+
+  // --- Обновление при наведении ---
+  function updateHover(candle, idx) {
+    if (!overlay?.updateValue || !values?.length) return;
+    const lastIdx = values.length - 1;
+
+    if (idx == null || idx < 0 || idx >= values.length) {
+      hoverIdx = null;
+      const autoVal = values[lastIdx];
+      overlay.updateValue(params.id ?? 'custom', autoVal != null ? autoVal.toFixed(2) : '');
+      return;
+    }
+
+    hoverIdx = idx;
+    const v = values[idx];
+    overlay.updateValue(params.id ?? 'custom', v != null ? v.toFixed(2) : '');
+  }
+
+  return { render, updateHover };
 }
-
-Пример минимального индикатора
-
+📄 Минимальный пример
+js
 export const myIndicator = {
   meta: {
     id: 'myIndicator',
@@ -65,8 +153,8 @@ export const myIndicator = {
 
       line.clear();
       for (let i = 0; i < candles.length; i++) {
-        const x = i * 10 + layout.offsetX;
-        const y = layout.plotH / 2 * layout.scaleY + layout.offsetY;
+        const x = layout.indexToX(i);
+        const y = layout.plotH / 2;
         if (i === 0) line.moveTo(x, y);
         else line.lineTo(x, y);
       }
@@ -76,10 +164,15 @@ export const myIndicator = {
     return { render };
   }
 };
+⚙️ Подключение в конфиг
+js
+indicators: ['ma', 'rsi', 'volume', 'macd']
+Все параметры берутся из meta.defaultParams внутри каждого индикатора.
 
+👉 Теперь у нас есть единый шаблон‑мануал:
 
-Как включать индикаторы в конфиг
+meta описывает индикатор.
 
-Теперь в ChartConfig достаточно просто включить нужные:
-indicators: ['ma', 'rsi', 'volume']
-А параметры будут браться из meta.defaultParams внутри каждого индикатора.
+createIndicator создаёт графику и возвращает render + updateHover.
+
+Внутри render всегда: очистка → фон → линия/гистограмма → нулевая линия (если нужна) → overlay.

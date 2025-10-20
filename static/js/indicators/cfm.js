@@ -9,32 +9,28 @@ export const cfm = {
     defaultParams: {
       period: 20,
       color: 0x00ff00,
-      fillColor: 0x090909,
-      levels: [0],
-      levelColors: [0x888888]
+      fillColor: 0x161616
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period      = params.period      ?? cfm.meta.defaultParams.period;
-    const color       = params.color       ?? cfm.meta.defaultParams.color;
-    const fillColor   = params.fillColor   ?? cfm.meta.defaultParams.fillColor;
-    const levels      = params.levels      ?? cfm.meta.defaultParams.levels;
-    const levelColors = params.levelColors ?? cfm.meta.defaultParams.levelColors;
+    const period    = params.period    ?? cfm.meta.defaultParams.period;
+    const color     = params.color     ?? cfm.meta.defaultParams.color;
+    const fillColor = params.fillColor ?? cfm.meta.defaultParams.fillColor;
 
     const showPar = true;
     const showVal = true;
 
-    const line      = new PIXI.Graphics();
-    const levelLine = new PIXI.Graphics();
-    const fillArea  = new PIXI.Graphics();
+    const line     = new PIXI.Graphics();
+    const zeroLine = new PIXI.Graphics();
+    const fillArea = new PIXI.Graphics();
 
     layer.sortableChildren = true;
     fillArea.zIndex  = 0;
-    levelLine.zIndex = 5;
+    zeroLine.zIndex  = 5;
     line.zIndex      = 10;
 
-    layer.addChild(fillArea, levelLine, line);
+    layer.addChild(fillArea, zeroLine, line);
 
     let values = [];
     let hoverIdx = null;
@@ -54,7 +50,6 @@ export const cfm = {
         let sumVol = 0;
         for (let j = i - p + 1; j <= i; j++) {
           const c = data[j];
-          const prev = data[j - 1];
           const high = c.high;
           const low = c.low;
           const close = c.close;
@@ -83,7 +78,7 @@ export const cfm = {
       const lastVal = values[lastIdx];
 
       line.clear();
-      levelLine.clear();
+      zeroLine.clear();
       fillArea.clear();
 
       const plotW = localLayout.plotW;
@@ -111,14 +106,11 @@ export const cfm = {
       }
       if (started) line.stroke({ width: 2, color });
 
-      // уровни (ноль)
-      levels.forEach((level, idx) => {
-        const y = plotH / 2 - level * (plotH / 2);
-        const lineColor = levelColors[idx] ?? 0xffffff;
-        levelLine.moveTo(0, y);
-        levelLine.lineTo(plotW, y);
-        levelLine.stroke({ width: 1, color: lineColor });
-      });
+      // центральная линия (ноль)
+      const zeroY = plotH / 2;
+      zeroLine.moveTo(0, zeroY);
+      zeroLine.lineTo(plotW, zeroY);
+      zeroLine.stroke({ width: 0.25, color: 0x555555 });
 
       // overlay
       if (showPar && overlay?.updateParam) {

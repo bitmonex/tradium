@@ -14,7 +14,7 @@ export const macd = {
       colorSignal: 0xFF8000, // сигнальная линия
       upColor: 0x00ff00,     // зелёные бары гистограммы
       downColor: 0xff2e2e,   // красные бары гистограммы
-      fillColor: 0x090909,
+      fillColor: 0x161616,
       barWidthFactor: 0.8
     }
   },
@@ -120,7 +120,7 @@ export const macd = {
       const zeroY = plotH / 2;
       zeroLine.moveTo(0, zeroY);
       zeroLine.lineTo(plotW, zeroY);
-      zeroLine.stroke({ width: 1, color: 0x333333 });
+      zeroLine.stroke({ width: 0.25, color: 0x555555 });
 
       // нормализация по максимуму
       const allVals = [...macdVals, ...signalVals, ...histVals].filter(v => v != null);
@@ -163,7 +163,7 @@ export const macd = {
         if (!started) { macdLine.moveTo(x, y); started = true; }
         else macdLine.lineTo(x, y);
       }
-      if (started) macdLine.stroke({ width: 2, color: colorMACD });
+      if (started) macdLine.stroke({ width: 1.5, color: colorMACD });
 
       // --- Signal линия ---
       started = false;
@@ -178,7 +178,7 @@ export const macd = {
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);
       }
-      if (started) signalLine.stroke({ width: 2, color: colorSignal });
+      if (started) signalLine.stroke({ width: 1.5, color: colorSignal });
 
       // overlay
       if (showPar && overlay?.updateParam) {

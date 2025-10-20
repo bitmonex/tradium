@@ -90,7 +90,7 @@ export const ao = {
       const zeroY = plotH / 2;
       zeroLine.moveTo(0, zeroY);
       zeroLine.lineTo(plotW, zeroY);
-      zeroLine.stroke({ width: 1, color: 0x333333 });
+      zeroLine.stroke({ width: 0.25, color: 0x444444 });
 
       // масштаб по максимуму абсолютного значения
       const maxAbs = Math.max(...values.map(v => Math.abs(v) || 0)) || 1;

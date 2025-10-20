@@ -9,32 +9,28 @@ export const efi = {
     defaultParams: {
       period: 13,
       color: 0x00ff00,
-      fillColor: 0x090909,
-      levels: [0],
-      levelColors: [0x333333]
+      fillColor: 0x161616
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period      = params.period      ?? efi.meta.defaultParams.period;
-    const color       = params.color       ?? efi.meta.defaultParams.color;
-    const fillColor   = params.fillColor   ?? efi.meta.defaultParams.fillColor;
-    const levels      = params.levels      ?? efi.meta.defaultParams.levels;
-    const levelColors = params.levelColors ?? efi.meta.defaultParams.levelColors;
+    const period    = params.period    ?? efi.meta.defaultParams.period;
+    const color     = params.color     ?? efi.meta.defaultParams.color;
+    const fillColor = params.fillColor ?? efi.meta.defaultParams.fillColor;
 
     const showPar = true;
     const showVal = true;
 
-    const line      = new PIXI.Graphics();
-    const levelLine = new PIXI.Graphics();
-    const fillArea  = new PIXI.Graphics();
+    const line     = new PIXI.Graphics();
+    const zeroLine = new PIXI.Graphics();
+    const fillArea = new PIXI.Graphics();
 
     layer.sortableChildren = true;
     fillArea.zIndex  = 0;
-    levelLine.zIndex = 5;
+    zeroLine.zIndex  = 5;
     line.zIndex      = 10;
 
-    layer.addChild(fillArea, levelLine, line);
+    layer.addChild(fillArea, zeroLine, line);
 
     let values = [];
     let hoverIdx = null;
@@ -76,7 +72,7 @@ export const efi = {
       const lastVal = values[lastIdx];
 
       line.clear();
-      levelLine.clear();
+      zeroLine.clear();
       fillArea.clear();
 
       const plotW = localLayout.plotW;
@@ -105,14 +101,11 @@ export const efi = {
       }
       if (started) line.stroke({ width: 2, color });
 
-      // уровни (ноль)
-      levels.forEach((level, idx) => {
-        const y = plotH / 2 - (level / maxAbs) * (plotH / 2);
-        const lineColor = levelColors[idx] ?? 0xffffff;
-        levelLine.moveTo(0, y);
-        levelLine.lineTo(plotW, y);
-        levelLine.stroke({ width: 1, color: lineColor });
-      });
+      // центральная линия (ноль)
+      const zeroY = plotH / 2;
+      zeroLine.moveTo(0, zeroY);
+      zeroLine.lineTo(plotW, zeroY);
+      zeroLine.stroke({ width: 0.25, color: 0x555555 });
 
       // overlay
       if (showPar && overlay?.updateParam) {

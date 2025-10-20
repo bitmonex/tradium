@@ -9,7 +9,7 @@ export const atr = {
     defaultParams: {
       period: 14,
       color: 0xff0000,
-      fillColor: 0x090909
+      fillColor: 0x161616
     }
   },
 

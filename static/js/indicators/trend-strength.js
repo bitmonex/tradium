@@ -9,32 +9,28 @@ export const trendStrength = {
     defaultParams: {
       period: 14,
       color: 0xffcc00,
-      levels: [0], // уровень нуля
-      levelColors: [0x333333],
-      fillColor: 0x090909
+      fillColor: 0x161616
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period      = params.period      ?? trendStrength.meta.defaultParams.period;
-    const color       = params.color       ?? trendStrength.meta.defaultParams.color;
-    const levels      = params.levels      ?? trendStrength.meta.defaultParams.levels;
-    const levelColors = params.levelColors ?? trendStrength.meta.defaultParams.levelColors;
-    const fillColor   = params.fillColor   ?? trendStrength.meta.defaultParams.fillColor;
+    const period    = params.period    ?? trendStrength.meta.defaultParams.period;
+    const color     = params.color     ?? trendStrength.meta.defaultParams.color;
+    const fillColor = params.fillColor ?? trendStrength.meta.defaultParams.fillColor;
 
     const showPar = true;
     const showVal = true;
 
-    const line      = new PIXI.Graphics();
-    const levelLine = new PIXI.Graphics();
-    const fillArea  = new PIXI.Graphics();
+    const line     = new PIXI.Graphics();
+    const zeroLine = new PIXI.Graphics();
+    const fillArea = new PIXI.Graphics();
 
     layer.sortableChildren = true;
     fillArea.zIndex  = 0;
-    levelLine.zIndex = 5;
+    zeroLine.zIndex  = 5;
     line.zIndex      = 10;
 
-    layer.addChild(fillArea, levelLine, line);
+    layer.addChild(fillArea, zeroLine, line);
 
     let values = [];
     let hoverIdx = null;
@@ -83,7 +79,7 @@ export const trendStrength = {
       const lastVal = values[lastIdx];
 
       line.clear();
-      levelLine.clear();
+      zeroLine.clear();
       fillArea.clear();
 
       const plotW = localLayout.plotW;
@@ -113,14 +109,11 @@ export const trendStrength = {
         line.stroke({ width: 2, color });
       }
 
-      // уровни (например, нулевая линия)
-      levels.forEach((level, idx) => {
-        const y = plotH / 2 - (level / 100) * (plotH / 2);
-        const lineColor = levelColors[idx] ?? 0xffffff;
-        levelLine.moveTo(0, y);
-        levelLine.lineTo(plotW, y);
-        levelLine.stroke({ width: 1, color: lineColor });
-      });
+      // центральная линия (ноль)
+      const zeroY = plotH / 2;
+      zeroLine.moveTo(0, zeroY);
+      zeroLine.lineTo(plotW, zeroY);
+      zeroLine.stroke({ width: 0.25, color: 0x555555 });
 
       // overlay
       if (showPar && overlay?.updateParam) {

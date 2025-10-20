@@ -12,7 +12,7 @@ export const tsi = {
       signal: 13,
       colorTSI: 0x2196f3,   // основная линия
       colorSignal: 0xe91e63, // сигнальная линия
-      fillColor: 0x090909
+      fillColor: 0x161616
     }
   },
 

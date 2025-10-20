@@ -11,7 +11,7 @@ export const obv = {
       smoothLength: 9,
       colorRaw: 0x00ffff,  // основная OBV
       colorSmooth: 0xffcc00, // сглаженная линия
-      fillColor: 0x090909
+      fillColor: 0x161616
     }
   },
 

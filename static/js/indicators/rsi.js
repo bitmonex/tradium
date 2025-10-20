@@ -10,17 +10,23 @@ export const rsi = {
       period: 14,
       color: 0xffffff,
       levels: [30, 70],
-      levelColors: [0xFF2E2E, 0x00ff00],
-      fillColor: 0x090909
+      levelColors: [0xFF2E2E, 0x00ff00], // красный для 30, зелёный для 70
+      fillColor: 0x161616,
+      dashLen: 6,   // длина штриха
+      gapLen: 5,    // длина промежутка
+      dashThickness: 1 // толщина «кирпичика»
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period      = params.period      ?? rsi.meta.defaultParams.period;
-    const color       = params.color       ?? rsi.meta.defaultParams.color;
-    const levels      = params.levels      ?? rsi.meta.defaultParams.levels;
-    const levelColors = params.levelColors ?? rsi.meta.defaultParams.levelColors;
-    const fillColor   = params.fillColor   ?? rsi.meta.defaultParams.fillColor;
+    const period        = params.period        ?? rsi.meta.defaultParams.period;
+    const color         = params.color         ?? rsi.meta.defaultParams.color;
+    const levels        = params.levels        ?? rsi.meta.defaultParams.levels;
+    const levelColors   = params.levelColors   ?? rsi.meta.defaultParams.levelColors;
+    const fillColor     = params.fillColor     ?? rsi.meta.defaultParams.fillColor;
+    const dashLen       = params.dashLen       ?? rsi.meta.defaultParams.dashLen;
+    const gapLen        = params.gapLen        ?? rsi.meta.defaultParams.gapLen;
+    const dashThickness = params.dashThickness ?? rsi.meta.defaultParams.dashThickness;
 
     const showPar = true;
     const showVal = true;
@@ -60,6 +66,20 @@ export const rsi = {
       return Array(p).fill(null).concat(result);
     }
 
+    // Хелпер: пунктирная горизонтальная линия «кирпичиками»
+    function drawDashedHorizontalRects(gfx, y, width, color, dash = 6, gap = 4, thickness = 1) {
+      // Слегка выровняем по пикселю для резкости
+      const yy = Math.round(y) + 0.5 - (thickness / 2);
+      let x = 0;
+      while (x < width) {
+        const w = Math.min(dash, width - x);
+        gfx.beginFill(color);
+        gfx.drawRect(x, yy, w, thickness);
+        gfx.endFill();
+        x += dash + gap;
+      }
+    }
+
     function render(localLayout) {
       const candles = localLayout.candles;
       if (!candles?.length) return;
@@ -81,7 +101,7 @@ export const rsi = {
       fillArea.drawRect(0, 0, plotW, plotH);
       fillArea.endFill();
 
-      // линия RSI
+      // линия RSI (сплошная)
       let started = false;
       rsiLine.beginPath();
       for (let i = 0; i < values.length; i++) {
@@ -100,13 +120,11 @@ export const rsi = {
         rsiLine.stroke({ width: 2, color });
       }
 
-      // уровни
+      // уровни (пунктир: красный 30, зелёный 70)
       levels.forEach((level, idx) => {
         const y = plotH * (1 - level / 100);
         const lineColor = levelColors[idx] ?? 0xffffff;
-        levelLine.moveTo(0, y);
-        levelLine.lineTo(plotW, y);
-        levelLine.stroke({ width: 1, color: lineColor });
+        drawDashedHorizontalRects(levelLine, y, plotW, lineColor, dashLen, gapLen, dashThickness);
       });
 
       // overlay
