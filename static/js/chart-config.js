@@ -35,6 +35,12 @@ export const ChartConfig = {
     'tsi',
     'trendStrength',
     'atr',
-    'volatilityOHLC'
+    'volatilityOHLC',
+    'cfm',
+    'obv',
+    'bbw',
+    'ao',
+    'efi',
+    'macd'
   ]
 };

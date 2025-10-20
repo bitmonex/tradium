@@ -10,21 +10,37 @@ export const tsi = {
       long: 25,
       short: 13,
       signal: 13,
-      colorTSI: 0x00ffff,   // основная линия
-      colorSignal: 0xff2e2e // сигнальная линия
+      colorTSI: 0x2196f3,   // основная линия
+      colorSignal: 0xe91e63, // сигнальная линия
+      fillColor: 0x090909
     }
   },
 
-  createIndicator({ layer }, layout, params = {}) {
-    const long = params.long ?? tsi.meta.defaultParams.long;
-    const short = params.short ?? tsi.meta.defaultParams.short;
-    const signal = params.signal ?? tsi.meta.defaultParams.signal;
-    const colorTSI = params.colorTSI ?? tsi.meta.defaultParams.colorTSI;
+  createIndicator({ layer, overlay }, layout, params = {}) {
+    const long        = params.long        ?? tsi.meta.defaultParams.long;
+    const short       = params.short       ?? tsi.meta.defaultParams.short;
+    const signal      = params.signal      ?? tsi.meta.defaultParams.signal;
+    const colorTSI    = params.colorTSI    ?? tsi.meta.defaultParams.colorTSI;
     const colorSignal = params.colorSignal ?? tsi.meta.defaultParams.colorSignal;
+    const fillColor   = params.fillColor   ?? tsi.meta.defaultParams.fillColor;
 
-    const tsiLine = new PIXI.Graphics();
+    const showPar = true;
+    const showVal = true;
+
+    const tsiLine    = new PIXI.Graphics();
     const signalLine = new PIXI.Graphics();
-    layer.addChild(tsiLine, signalLine);
+    const fillArea   = new PIXI.Graphics();
+
+    layer.sortableChildren = true;
+    fillArea.zIndex   = 0;
+    tsiLine.zIndex    = 10;
+    signalLine.zIndex = 11;
+
+    layer.addChild(fillArea, tsiLine, signalLine);
+
+    let tsiVals = [];
+    let signalVals = [];
+    let hoverIdx = null;
 
     // EMA helper
     function ema(values, period) {
@@ -67,23 +83,39 @@ export const tsi = {
     }
 
     // Render
-    function render(currentLayout) {
-      const candles = currentLayout.candles;
+    function render(localLayout) {
+      const candles = localLayout.candles;
       if (!candles?.length) return;
 
-      const { tsi: tsiVals, signal: signalVals } = calculateTSI(candles, long, short, signal);
+      const res = calculateTSI(candles, long, short, signal);
+      tsiVals = res.tsi;
+      signalVals = res.signal;
+
+      const lastIdx = tsiVals.length - 1;
+      const lastTSI = tsiVals[lastIdx];
+      const lastSig = signalVals[lastIdx];
 
       tsiLine.clear();
       signalLine.clear();
+      fillArea.clear();
 
-      const plotH = tsi.meta.height;
+      const plotW = localLayout.plotW;
+      const plotH = localLayout.plotH;
+
+      // фон
+      fillArea.beginFill(fillColor);
+      fillArea.drawRect(0, 0, plotW, plotH);
+      fillArea.endFill();
 
       // --- TSI линия ---
       let started = false;
+      tsiLine.beginPath();
       for (let i = 0; i < tsiVals.length; i++) {
         const val = tsiVals[i];
         if (val == null) continue;
-        const x = currentLayout.indexToX(i); // ✅ правильный X
+        const x = localLayout.indexToX(i);
+        if (x < 0) continue;
+        if (x > plotW) break;
         const y = plotH / 2 - (val / 100) * (plotH / 2);
         if (!started) { tsiLine.moveTo(x, y); started = true; }
         else tsiLine.lineTo(x, y);
@@ -92,17 +124,58 @@ export const tsi = {
 
       // --- Signal линия ---
       started = false;
+      signalLine.beginPath();
       for (let i = 0; i < signalVals.length; i++) {
         const val = signalVals[i];
         if (val == null) continue;
-        const x = currentLayout.indexToX(i); // ✅ правильный X
+        const x = localLayout.indexToX(i);
+        if (x < 0) continue;
+        if (x > plotW) break;
         const y = plotH / 2 - (val / 100) * (plotH / 2);
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);
       }
       if (started) signalLine.stroke({ width: 1, color: colorSignal });
+
+      // overlay
+      if (showPar && overlay?.updateParam) {
+        overlay.updateParam('tsi', `${long} ${short} ${signal}`);
+      }
+      if (showVal && overlay?.updateValue && tsiVals.length) {
+        const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
+        const valTSI = isHoverLocked ? tsiVals[hoverIdx] : lastTSI;
+        const valSig = isHoverLocked ? signalVals[hoverIdx] : lastSig;
+        overlay.updateValue('tsi',
+          (valTSI != null ? valTSI.toFixed(4) : '') +
+          (valSig != null ? ' / ' + valSig.toFixed(4) : '')
+        );
+      }
     }
 
-    return { render };
+    function updateHover(candle, idx) {
+      if (!showVal || !overlay?.updateValue || !tsiVals?.length) return;
+      const lastIdx = tsiVals.length - 1;
+
+      if (idx == null || idx < 0 || idx >= tsiVals.length) {
+        hoverIdx = null;
+        const autoTSI = tsiVals[lastIdx];
+        const autoSig = signalVals[lastIdx];
+        overlay.updateValue('tsi',
+          (autoTSI != null ? autoTSI.toFixed(4) : '') +
+          (autoSig != null ? ' / ' + autoSig.toFixed(4) : '')
+        );
+        return;
+      }
+
+      hoverIdx = idx;
+      const vTSI = tsiVals[idx];
+      const vSig = signalVals[idx];
+      overlay.updateValue('tsi',
+        (vTSI != null ? vTSI.toFixed(4) : '') +
+        (vSig != null ? ' / ' + vSig.toFixed(4) : '')
+      );
+    }
+
+    return { render, updateHover };
   }
 };
