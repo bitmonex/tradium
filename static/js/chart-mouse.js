@@ -223,19 +223,18 @@ export class Mouse {
       const f = Math.exp(-e.deltaY * 0.005);
 
       // Y‑зум: правая шкала
-      if (inPriceScale) {
-        const z = this.zoomY?.({
-          my,
-          scaleY: s.scaleY,
-          offsetY: s.offsetY,
-          config: this.config,
-          direction: f,
-          height: L.plotH
-        });
-        if (z) { s.scaleY = z.scaleY; s.offsetY = z.offsetY; }
-        this.render?.();
-        return;
-      }
+// Y‑зум: правая шкала (всегда простой зум из центра)
+if (inPriceScale) {
+  const centerY = L.plotY + L.plotH / 2;
+  const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+  const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
+  const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+  s.scaleY = newScaleY;
+  s.offsetY = newOffsetY;
+  this.render?.();
+  return;
+}
+
 
       // X‑зум: нижняя шкала или график без Shift
       if (inTimeScale || (inPlotX && !e.shiftKey)) {
