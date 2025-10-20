@@ -31,6 +31,10 @@ export const ChartConfig = {
     'volume',
     'ma',
     'sma',
-    'rsi'
+    'rsi',
+    'tsi',
+    'trendStrength',
+    'atr',
+    'volatilityOHLC'
   ]
 };
