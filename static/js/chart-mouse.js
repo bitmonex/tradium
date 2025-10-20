@@ -1,5 +1,4 @@
 // chart-mouse.js
-// chart-mouse.js
 import { zoomX, zoomY, pan } from './chart-zoom.js';
 
 export class Mouse {
@@ -72,11 +71,25 @@ export class Mouse {
     this.downX = e.clientX; this.downY = e.clientY; this.wasDrag = false;
 
     const r = this.getRect(), x = e.clientX - r.left, y = e.clientY - r.top;
-    this.movedScale = false; this.centerX = r.width * 0.5; this.centerY = r.height * 0.5; this.canvasH = this.app?.renderer?.height || r.height;
+    this.movedScale = false; 
+    this.centerX = r.width * 0.5; 
+    this.centerY = r.height * 0.5; 
+    this.canvasH = this.app?.renderer?.height || r.height;
+
     const L = s.layout; if (!L) return;
-    const inPriceScale = x >= L.plotX + L.plotW && x <= L.width && y >= L.plotY && y <= L.plotY + L.plotH;
-    const inTimeScale = y >= L.plotY + L.plotH && y <= L.height && x >= L.plotX && x <= L.plotX + L.plotW;
-    const inPlot = this.inPlot(s, x, y);
+    const { bottomOffset, rightOffset } = L;
+
+    const inPriceScale =
+      x >= L.plotX + L.plotW && x <= L.width &&
+      y >= L.plotY && y <= L.plotY + L.plotH;
+
+    const inTimeScale =
+      y >= L.height - bottomOffset && y <= L.height &&
+      x >= L.plotX && x <= L.plotX + L.plotW;
+
+    const inPlot =
+      x >= L.plotX && x <= L.plotX + L.plotW &&
+      y >= L.plotY && y <= L.plotY + L.plotH;
 
     if (inPriceScale) { 
       this.resizingY = true; 
@@ -93,6 +106,7 @@ export class Mouse {
       this.dragging = true; 
       this.app.view.style.cursor = 'grabbing'; 
     }
+
     this.lastX = e.clientX; this.lastY = e.clientY;
   };
 
@@ -101,30 +115,51 @@ export class Mouse {
     if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) this.wasDrag = true;
 
     const r = this.getRect(), dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
-    this.lastX = e.clientX; this.lastY = e.clientY; const mx = e.clientX - r.left, my = e.clientY - r.top;
+    this.lastX = e.clientX; this.lastY = e.clientY; 
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
     const L = s.layout; if (!L) return;
-    const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
-    const inTimeScale = my >= L.plotY + L.plotH && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
-    const inPlot = this.inPlot(s, mx, my);
+    const { bottomOffset, rightOffset } = L;
+
+    const inPriceScale =
+      mx >= L.plotX + L.plotW && mx <= L.width &&
+      my >= L.plotY && my <= L.plotY + L.plotH;
+
+    const inTimeScale =
+      my >= L.height - bottomOffset && my <= L.height &&
+      mx >= L.plotX && mx <= L.plotX + L.plotW;
+
+    const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const inPlotFull =
+      mx >= L.plotX && mx <= L.plotX + L.plotW &&
+      my >= L.plotY && my <= L.plotY + L.plotH;
 
     if (this.dragging) {
-      if (!inPlot) { this.dragging = false; this.app.view.style.cursor = 'default'; return; }
+      if (!inPlotFull) { 
+        this.dragging = false; 
+        this.app.view.style.cursor = 'default'; 
+        return; 
+      }
       const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy }); 
       if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; } 
       this.render?.(); 
       return;
     }
+
     if (this.resizingX && dx !== 0) {
       if (!inTimeScale) return;
-      this.movedScale = true; const spacing = L.spacing ?? this.cw; const f = 1 - dx * 0.05;
+      this.movedScale = true; 
+      const spacing = L.spacing ?? this.cw; 
+      const f = 1 - dx * 0.05;
       s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, s.scaleX * f)); 
       s.offsetX = this.centerX - this.worldX0 * (spacing * s.scaleX);
       this.render?.(); 
       return;
     }
+
     if (this.resizingY && dy !== 0) {
       if (!inPriceScale) return;
-      this.movedScale = true; const f = 1 - dy * 0.05;
+      this.movedScale = true; 
+      const f = 1 - dy * 0.05;
       s.scaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f)); 
       s.offsetY = this.centerY - this.worldY0 * (this.canvasH * s.scaleY);
       this.render?.(); 
@@ -140,14 +175,18 @@ export class Mouse {
     // Hover по свечам
     if (!L || !s.candles?.length) return;
     s.mouseX = mx; s.mouseY = my;
-    if (!inPlot) return;
+
+    if (!inPlotX) {
+      this.update?.(null);
+      this.chartCore?.indicators?.updateHoverAll?.(null, null);
+      return;
+    }
     const t = L.screenToTime(mx), C = s.candles;
     const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
     if (idx === s._lastHoverIdx) return;
     s._lastHoverIdx = idx;
     this.update?.(C[idx]);
     this.chartCore?.indicators?.updateHoverAll(C[idx], idx);
-    this.render?.();
   };
 
   onPointerUp = () => { 
@@ -162,20 +201,24 @@ export class Mouse {
   onWheel = (e) => {
     const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
     e.preventDefault();
+
     const r = this.getRect(), mx = e.clientX - r.left, my = e.clientY - r.top, L = s.layout; if (!L) return;
     const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
     const inTimeScale  = my >= L.plotY + L.plotH && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
-    const inPlot       = this.inPlot(s, mx, my);
+
+    //  горизонтальный диапазон графика (plot + индикаторы + нижняя шкала)
+    const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
+
     const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
 
-    // горизонтальный скролл — панорамирование
-    if (inPlot && ax > ay + 2) { 
-      s.offsetX -= e.deltaX; 
-      this.render?.(); 
-      return; 
+    // горизонтальный скролл — панорамирование по всей высоте графика
+    if (inPlotX && ax > ay + 2) {
+      s.offsetX -= e.deltaX;
+      this.render?.();
+      return;
     }
 
-    // вертикальный скролл — зум
+    // вертикальный скролл — зум (оставляем как было)
     if (ay > ax + 2) {
       const f = Math.exp(-e.deltaY * 0.005);
 
@@ -194,8 +237,8 @@ export class Mouse {
         return;
       }
 
-      // X‑зум: нижняя шкала или plot без Shift
-      if (inTimeScale || (inPlot && !e.shiftKey)) {
+      // X‑зум: нижняя шкала или график без Shift
+      if (inTimeScale || (inPlotX && !e.shiftKey)) {
         const z = this.zoomX?.({
           mx,
           scaleX: s.scaleX,
@@ -204,12 +247,13 @@ export class Mouse {
           direction: f
         });
         if (z) { s.scaleX = z.scaleX; s.offsetX = z.offsetX; }
-        this.render?.(); 
+        this.render?.();
         return;
       }
 
-      // Y‑зум: внутри plot с Shift (как клик по правой шкале — из центра)
-      if (inPlot && e.shiftKey) {
+      // Y‑зум из центра основного графика при Shift (как было)
+      const inMainPlotY = my >= L.plotY && my <= L.plotY + L.plotH;
+      if (inMainPlotY && e.shiftKey) {
         const centerY = L.plotY + L.plotH / 2;
         const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
         const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
@@ -235,8 +279,11 @@ export class Mouse {
     const r = this.getRect(), x = e.clientX - r.left, y = e.clientY - r.top, factor = e.shiftKey ? 0.9 : 1.1, L = s.layout; 
     if (!L) return;
 
+    const bottomOffset = this.config.bottomOffset;
+    const rightOffset  = this.config.rightOffset;    
+    
     const inPriceScale = x >= L.plotX + L.plotW && x <= L.width && y >= L.plotY && y <= L.plotY + L.plotH;
-    const inTimeScale  = y >= L.plotY + L.plotH && y <= L.height && x >= L.plotX && x <= L.plotX + L.plotW;
+    const inTimeScale = y >= L.height - bottomOffset && y <= L.height && x >= 0 && x <= L.width - rightOffset;
 
     if (inPriceScale) {
       // шаговый Y‑зум из центра
@@ -264,7 +311,7 @@ export class Mouse {
         s.scaleX = z.scaleX; 
         s.offsetX = z.offsetX; 
       }
-      this.scheduleRender(); 
+      this.scheduleRender();
       return;
     }
   };

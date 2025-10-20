@@ -2,7 +2,7 @@
 export const rsi = {
   meta: {
     id: 'rsi',
-    name: 'Relative Strength Index',
+    name: 'RSI',
     position: 'bottom',
     zIndex: 50,
     height: 100,
@@ -111,7 +111,7 @@ export const rsi = {
 
       // overlay
       if (showPar && overlay?.updateParam) {
-        overlay.updateParam('rsi', `period: ${period}`);
+        overlay.updateParam('rsi', `${period}`);
       }
       if (showVal && overlay?.updateValue && values.length) {
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
