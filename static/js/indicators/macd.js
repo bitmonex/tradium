@@ -14,7 +14,6 @@ export const macd = {
       colorSignal: 0xFF8000, // сигнальная линия
       upColor: 0x00ff00,     // зелёные бары гистограммы
       downColor: 0xff2e2e,   // красные бары гистограммы
-      fillColor: 0x161616,
       barWidthFactor: 0.8
     }
   },
@@ -27,7 +26,6 @@ export const macd = {
     const colorSignal = params.colorSignal ?? macd.meta.defaultParams.colorSignal;
     const upColor     = params.upColor     ?? macd.meta.defaultParams.upColor;
     const downColor   = params.downColor   ?? macd.meta.defaultParams.downColor;
-    const fillColor   = params.fillColor   ?? macd.meta.defaultParams.fillColor;
     const barWidthFactor = params.barWidthFactor ?? macd.meta.defaultParams.barWidthFactor;
 
     const showPar = true;
@@ -37,16 +35,14 @@ export const macd = {
     const signalLine = new PIXI.Graphics();
     const histoBars  = new PIXI.Graphics();
     const zeroLine   = new PIXI.Graphics();
-    const fillArea   = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex   = 0;
     zeroLine.zIndex   = 5;
     histoBars.zIndex  = 6;
     macdLine.zIndex   = 10;
     signalLine.zIndex = 11;
 
-    layer.addChild(fillArea, zeroLine, histoBars, macdLine, signalLine);
+    layer.addChild(zeroLine, histoBars, macdLine, signalLine);
 
     let macdVals = [];
     let signalVals = [];
@@ -78,7 +74,6 @@ export const macd = {
       );
 
       const signalVals = ema(macdVals.filter(v => v != null), signalP);
-      // выравниваем длину сигнальной линии
       while (signalVals.length < macdVals.length) signalVals.unshift(null);
 
       const histVals = macdVals.map((v, i) =>
@@ -106,15 +101,9 @@ export const macd = {
       signalLine.clear();
       histoBars.clear();
       zeroLine.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // нулевая линия
       const zeroY = plotH / 2;
@@ -122,7 +111,7 @@ export const macd = {
       zeroLine.lineTo(plotW, zeroY);
       zeroLine.stroke({ width: 0.25, color: 0x555555 });
 
-      // нормализация по максимуму
+      // нормализация
       const allVals = [...macdVals, ...signalVals, ...histVals].filter(v => v != null);
       const maxAbs = Math.max(...allVals.map(v => Math.abs(v))) || 1;
 
@@ -163,7 +152,7 @@ export const macd = {
         if (!started) { macdLine.moveTo(x, y); started = true; }
         else macdLine.lineTo(x, y);
       }
-      if (started) macdLine.stroke({ width: 1.5, color: colorMACD });
+      if (started) macdLine.stroke({ width: 2, color: colorMACD }); // 🔹 толщина 2
 
       // --- Signal линия ---
       started = false;
@@ -178,7 +167,7 @@ export const macd = {
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);
       }
-      if (started) signalLine.stroke({ width: 1.5, color: colorSignal });
+      if (started) signalLine.stroke({ width: 2, color: colorSignal }); // 🔹 толщина 2
 
       // overlay
       if (showPar && overlay?.updateParam) {
@@ -231,4 +220,3 @@ export const macd = {
     return { render, updateHover };
   }
 };
-

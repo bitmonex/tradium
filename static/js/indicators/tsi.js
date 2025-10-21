@@ -11,8 +11,7 @@ export const tsi = {
       short: 13,
       signal: 13,
       colorTSI: 0x2196f3,   // основная линия
-      colorSignal: 0xe91e63, // сигнальная линия
-      fillColor: 0x161616
+      colorSignal: 0xe91e63 // сигнальная линия
     }
   },
 
@@ -22,21 +21,18 @@ export const tsi = {
     const signal      = params.signal      ?? tsi.meta.defaultParams.signal;
     const colorTSI    = params.colorTSI    ?? tsi.meta.defaultParams.colorTSI;
     const colorSignal = params.colorSignal ?? tsi.meta.defaultParams.colorSignal;
-    const fillColor   = params.fillColor   ?? tsi.meta.defaultParams.fillColor;
 
     const showPar = true;
     const showVal = true;
 
     const tsiLine    = new PIXI.Graphics();
     const signalLine = new PIXI.Graphics();
-    const fillArea   = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex   = 0;
     tsiLine.zIndex    = 10;
     signalLine.zIndex = 11;
 
-    layer.addChild(fillArea, tsiLine, signalLine);
+    layer.addChild(tsiLine, signalLine);
 
     let tsiVals = [];
     let signalVals = [];
@@ -97,15 +93,9 @@ export const tsi = {
 
       tsiLine.clear();
       signalLine.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // --- TSI линия ---
       let started = false;

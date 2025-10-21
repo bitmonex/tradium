@@ -9,28 +9,24 @@ export const bbw = {
     defaultParams: {
       period: 20,
       mult: 2,
-      color: 0xffcc00,
-      fillColor: 0x161616
+      color: 0xffcc00
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period    = params.period    ?? bbw.meta.defaultParams.period;
-    const mult      = params.mult      ?? bbw.meta.defaultParams.mult;
-    const color     = params.color     ?? bbw.meta.defaultParams.color;
-    const fillColor = params.fillColor ?? bbw.meta.defaultParams.fillColor;
+    const period = params.period ?? bbw.meta.defaultParams.period;
+    const mult   = params.mult   ?? bbw.meta.defaultParams.mult;
+    const color  = params.color  ?? bbw.meta.defaultParams.color;
 
     const showPar = true;
     const showVal = true;
 
-    const line     = new PIXI.Graphics();
-    const fillArea = new PIXI.Graphics();
+    const line = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex = 0;
-    line.zIndex     = 10;
+    line.zIndex = 10;
 
-    layer.addChild(fillArea, line);
+    layer.addChild(line);
 
     let values = [];
     let hoverIdx = null;
@@ -89,15 +85,9 @@ export const bbw = {
       const lastVal = values[lastIdx];
 
       line.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // линия BBW
       let started = false;
@@ -116,7 +106,7 @@ export const bbw = {
         else { line.lineTo(x, y); }
       }
       if (started) {
-        line.stroke({ width: 2, color });
+        line.stroke({ width: 2, color }); // 🔹 толщина 2
       }
 
       // overlay
@@ -128,7 +118,6 @@ export const bbw = {
         const val = isHoverLocked ? values[hoverIdx] : lastVal;
         overlay.updateValue('bbw', val != null ? val.toFixed(2) + '%' : '');
       }
-
     }
 
     function updateHover(candle, idx) {

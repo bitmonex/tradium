@@ -11,7 +11,6 @@ export const rsi = {
       color: 0xffffff,
       levels: [30, 70],
       levelColors: [0xFF2E2E, 0x00ff00], // красный для 30, зелёный для 70
-      fillColor: 0x161616,
       dashLen: 4,   // длина штриха
       gapLen: 6,    // длина промежутка
       dashThickness: 0.7 // толщина dashed
@@ -23,7 +22,6 @@ export const rsi = {
     const color         = params.color         ?? rsi.meta.defaultParams.color;
     const levels        = params.levels        ?? rsi.meta.defaultParams.levels;
     const levelColors   = params.levelColors   ?? rsi.meta.defaultParams.levelColors;
-    const fillColor     = params.fillColor     ?? rsi.meta.defaultParams.fillColor;
     const dashLen       = params.dashLen       ?? rsi.meta.defaultParams.dashLen;
     const gapLen        = params.gapLen        ?? rsi.meta.defaultParams.gapLen;
     const dashThickness = params.dashThickness ?? rsi.meta.defaultParams.dashThickness;
@@ -33,14 +31,12 @@ export const rsi = {
 
     const rsiLine   = new PIXI.Graphics();
     const levelLine = new PIXI.Graphics();
-    const fillArea  = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex  = 0;
     levelLine.zIndex = 5;
     rsiLine.zIndex   = 10;
 
-    layer.addChild(fillArea, levelLine, rsiLine);
+    layer.addChild(levelLine, rsiLine);
 
     let values = [];
     let hoverIdx = null;
@@ -68,7 +64,6 @@ export const rsi = {
 
     // Хелпер: пунктирная горизонтальная линия «кирпичиками»
     function drawDashedHorizontalRects(gfx, y, width, color, dash = 6, gap = 4, thickness = 1) {
-      // Слегка выровняем по пикселю для резкости
       const yy = Math.round(y) + 0.5 - (thickness / 2);
       let x = 0;
       while (x < width) {
@@ -91,17 +86,11 @@ export const rsi = {
 
       rsiLine.clear();
       levelLine.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
-
-      // линия RSI (сплошная)
+      // линия RSI
       let started = false;
       rsiLine.beginPath();
       for (let i = 0; i < values.length; i++) {
@@ -149,7 +138,6 @@ export const rsi = {
         return;
       }
 
-      // фиксируем индекс свечи
       hoverIdx = idx;
       const v = values[idx];
       overlay.updateValue('rsi', v != null ? v.toFixed(2) : '');

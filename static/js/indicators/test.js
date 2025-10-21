@@ -16,13 +16,6 @@ export const test = {
         // очищаем слой
         layer.removeChildren();
 
-        // фон
-        const g = new PIXI.Graphics();
-        g.beginFill(0x1C1C1C)
-         .drawRect(0, 0, localLayout.plotW, localLayout.plotH)
-         .endFill();
-        layer.addChild(g);
-
         // создаём overlay (с параметром par)
         overlayMgr.ensureOverlay(
           'test',
@@ -40,7 +33,7 @@ export const test = {
             <i><b>Depth</b> 260k</i>
             <i><b>Ratio</b> 0.54</i>
           `,
-          true // говорим, что это HTML
+          true
         );
 
         // позиционируем overlay в пределах подграфика

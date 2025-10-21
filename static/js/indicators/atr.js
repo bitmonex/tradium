@@ -8,24 +8,20 @@ export const atr = {
     height: 100,
     defaultParams: {
       period: 14,
-      color: 0xff0000,
-      fillColor: 0x161616
+      color: 0xff0000
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period    = params.period    ?? atr.meta.defaultParams.period;
-    const color     = params.color     ?? atr.meta.defaultParams.color;
-    const fillColor = params.fillColor ?? atr.meta.defaultParams.fillColor;
+    const period = params.period ?? atr.meta.defaultParams.period;
+    const color  = params.color  ?? atr.meta.defaultParams.color;
 
-    const line     = new PIXI.Graphics();
-    const fillArea = new PIXI.Graphics();
+    const line = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex = 0;
-    line.zIndex     = 10;
+    line.zIndex = 10;
 
-    layer.addChild(fillArea, line);
+    layer.addChild(line);
 
     let values = [];
     let hoverIdx = null;
@@ -70,15 +66,9 @@ export const atr = {
       const lastVal = values[lastIdx];
 
       line.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // линия ATR
       let started = false;

@@ -8,29 +8,25 @@ export const efi = {
     height: 100,
     defaultParams: {
       period: 13,
-      color: 0x00ff00,
-      fillColor: 0x161616
+      color: 0x00ff00
     }
   },
 
   createIndicator({ layer, overlay }, layout, params = {}) {
-    const period    = params.period    ?? efi.meta.defaultParams.period;
-    const color     = params.color     ?? efi.meta.defaultParams.color;
-    const fillColor = params.fillColor ?? efi.meta.defaultParams.fillColor;
+    const period = params.period ?? efi.meta.defaultParams.period;
+    const color  = params.color  ?? efi.meta.defaultParams.color;
 
     const showPar = true;
     const showVal = true;
 
     const line     = new PIXI.Graphics();
     const zeroLine = new PIXI.Graphics();
-    const fillArea = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex  = 0;
-    zeroLine.zIndex  = 5;
-    line.zIndex      = 10;
+    zeroLine.zIndex = 5;
+    line.zIndex     = 10;
 
-    layer.addChild(fillArea, zeroLine, line);
+    layer.addChild(zeroLine, line);
 
     let values = [];
     let hoverIdx = null;
@@ -73,15 +69,9 @@ export const efi = {
 
       line.clear();
       zeroLine.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // линия EFI
       let started = false;

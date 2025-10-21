@@ -42,6 +42,10 @@ export async function createChartCore(container, userConfig = {}) {
   subGroup.sortableChildren = true;
   app.stage.addChild(subGroup);
 
+  const subBg = new PIXI.Graphics();
+  subBg.zIndex = -1;
+  subGroup.addChild(subBg);
+  
   const viewportMask = new PIXI.Graphics();
   graphGroup.mask = viewportMask;
   app.stage.addChild(viewportMask);
@@ -55,6 +59,7 @@ export async function createChartCore(container, userConfig = {}) {
     fps: null,
     graphGroup,
     subGroup,
+    subBg,
     modules,
     candles: [],
     chartStyle: "candles",
@@ -95,7 +100,7 @@ export async function createChartCore(container, userConfig = {}) {
     const { width, height, rightOffset, bottomOffset } = state.layout;
     const w = width - rightOffset;
     const h = height - bottomOffset;
-    g.beginFill(0x090909, 0.1);
+    g.beginFill(0x0F0E0E, 1);
     g.drawRect(0, 0, w, h);
     g.endFill();
   }

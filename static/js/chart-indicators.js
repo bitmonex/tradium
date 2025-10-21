@@ -16,6 +16,10 @@ export function createIndicatorsManager(chartCore) {
   const active = new Map();
   let resizeState = null;
 
+  // фон bottom‑индикаторов
+  const bgLayer = new PIXI.Graphics();
+  chartCore.graphGroup?.addChildAt(bgLayer, 0);
+  
   if (!chartCore.overlayMgr) chartCore.overlayMgr = createOverlayManager(chartCore);
   const overlayMgr = chartCore.overlayMgr;
   const menu = document.querySelector('.m-indicators');
@@ -153,9 +157,24 @@ export function createIndicatorsManager(chartCore) {
   }
 
   function renderAll(layout) {
+    //console.log('config:', chartCore.config);
     if (!layout) return;
     const L = normalizeLayout(layout);
     let offsetY = 0;
+    const subBg = chartCore.state.subBg;
+    subBg.clear();
+    if (!fullscreenMode) {
+      subBg.beginFill(chartCore.config.biBG);
+      subBg.drawRect(
+        0, 0,                 // внутри subGroup координаты начинаются с 0
+        layout.plotW,
+        getBottomStackHeight()
+      );
+      subBg.endFill();
+      subBg.visible = true;
+    } else {
+      subBg.visible = false;
+    }
 
     for (const [id, obj] of active.entries()) {
       try {
@@ -314,6 +333,7 @@ export function createIndicatorsManager(chartCore) {
   function enterFullscreen() {
     fullscreenMode = true;
     chartCore.fullscreenMode = true;
+    bgLayer.visible = false;
     for (const obj of active.values()) {
       if (obj.meta.position === 'bottom') obj.layer.visible = false;
     }
@@ -325,6 +345,7 @@ export function createIndicatorsManager(chartCore) {
   function exitFullscreen() {
     fullscreenMode = false;
     chartCore.fullscreenMode = false;
+    bgLayer.visible = true;
     for (const obj of active.values()) {
       if (obj.meta.position === 'bottom' && !obj.hiddenByEye) obj.layer.visible = true;
     }

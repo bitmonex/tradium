@@ -11,7 +11,6 @@ export const ao = {
       long: 34,
       upColor: 0x00ff00,    // зелёные бары
       downColor: 0xff2e2e,  // красные бары
-      fillColor: 0x161616,
       barWidthFactor: 0.8   // доля от ширины свечи
     }
   },
@@ -21,7 +20,6 @@ export const ao = {
     const long           = params.long           ?? ao.meta.defaultParams.long;
     const upColor        = params.upColor        ?? ao.meta.defaultParams.upColor;
     const downColor      = params.downColor      ?? ao.meta.defaultParams.downColor;
-    const fillColor      = params.fillColor      ?? ao.meta.defaultParams.fillColor;
     const barWidthFactor = params.barWidthFactor ?? ao.meta.defaultParams.barWidthFactor;
 
     const showPar = true;
@@ -29,14 +27,12 @@ export const ao = {
 
     const bars     = new PIXI.Graphics();
     const zeroLine = new PIXI.Graphics();
-    const fillArea = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex = 0;
     zeroLine.zIndex = 5;
     bars.zIndex     = 10;
 
-    layer.addChild(fillArea, zeroLine, bars);
+    layer.addChild(zeroLine, bars);
 
     let values = [];
     let hoverIdx = null;
@@ -76,15 +72,9 @@ export const ao = {
 
       bars.clear();
       zeroLine.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // нулевая линия
       const zeroY = plotH / 2;
@@ -95,7 +85,7 @@ export const ao = {
       // масштаб по максимуму абсолютного значения
       const maxAbs = Math.max(...values.map(v => Math.abs(v) || 0)) || 1;
 
-      // ширина свечи: берём либо candleW, либо дельту между индексами
+      // ширина свечи
       const x0 = localLayout.indexToX(0);
       const x1 = localLayout.indexToX(1);
       const candleW = localLayout.candleW ?? Math.max(1, Math.abs(x1 - x0));
@@ -113,7 +103,7 @@ export const ao = {
         const y1 = zeroY - (val / maxAbs) * (plotH / 2);
         const color = (i > 0 && val > values[i - 1]) ? upColor : downColor;
 
-        // рисуем вертикальный бар, центрированный по xCenter
+        // рисуем вертикальный бар
         bars.moveTo(xCenter, y0);
         bars.lineTo(xCenter, y1);
         bars.stroke({ width: barW, color });

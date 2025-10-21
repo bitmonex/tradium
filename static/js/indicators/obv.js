@@ -9,9 +9,8 @@ export const obv = {
     defaultParams: {
       smoothType: 'sma',   // 'sma' или 'ema'
       smoothLength: 9,
-      colorRaw: 0x00ffff,  // основная OBV
-      colorSmooth: 0xffcc00, // сглаженная линия
-      fillColor: 0x161616
+      colorRaw: 0x41AB00,    // основная OBV
+      colorSmooth: 0x0284CF  // сглаженная линия
     }
   },
 
@@ -20,21 +19,18 @@ export const obv = {
     const smoothLength = params.smoothLength ?? obv.meta.defaultParams.smoothLength;
     const colorRaw     = params.colorRaw     ?? obv.meta.defaultParams.colorRaw;
     const colorSmooth  = params.colorSmooth  ?? obv.meta.defaultParams.colorSmooth;
-    const fillColor    = params.fillColor    ?? obv.meta.defaultParams.fillColor;
 
     const showPar = true;
     const showVal = true;
 
     const rawLine    = new PIXI.Graphics();
     const smoothLine = new PIXI.Graphics();
-    const fillArea   = new PIXI.Graphics();
 
     layer.sortableChildren = true;
-    fillArea.zIndex   = 0;
     rawLine.zIndex    = 10;
     smoothLine.zIndex = 11;
 
-    layer.addChild(fillArea, rawLine, smoothLine);
+    layer.addChild(rawLine, smoothLine);
 
     let rawValues = [];
     let smoothValues = [];
@@ -102,15 +98,9 @@ export const obv = {
 
       rawLine.clear();
       smoothLine.clear();
-      fillArea.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // фон
-      fillArea.beginFill(fillColor);
-      fillArea.drawRect(0, 0, plotW, plotH);
-      fillArea.endFill();
 
       // нормализация
       const allVals = [...rawValues, ...smoothValues].filter(v => v != null);
@@ -131,7 +121,7 @@ export const obv = {
         if (!started) { rawLine.moveTo(x, y); started = true; }
         else rawLine.lineTo(x, y);
       }
-      if (started) rawLine.stroke({ width: 1.5, color: colorRaw });
+      if (started) rawLine.stroke({ width: 2, color: colorRaw }); // 🔹 толщина 2
 
       // --- Smooth OBV ---
       if (smoothValues.length) {
@@ -147,7 +137,7 @@ export const obv = {
           if (!started) { smoothLine.moveTo(x, y); started = true; }
           else smoothLine.lineTo(x, y);
         }
-        if (started) smoothLine.stroke({ width: 1, color: colorSmooth });
+        if (started) smoothLine.stroke({ width: 2, color: colorSmooth }); // 🔹 толщина 2
       }
 
       // overlay
