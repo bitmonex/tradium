@@ -30,7 +30,7 @@
 .m-indicators .switcher:hover{color:#fff}
 
 .indicator-overlay{position:absolute; z-index:100; pointer-events:none}
-.indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto}
+.indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto; user-select: none}
 .indicator-overlay .sw:hover{background:#222}
 .indicator-overlay .sw b{display:block; height:1px; background:#333}
 .indicator-overlay .sw:hover b{background:#777}
