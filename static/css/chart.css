@@ -29,7 +29,7 @@
 .m-indicators .switcher{order: 999; color:#999; font-size:1.1em; margin-left:-2px}
 .m-indicators .switcher:hover{color:#fff}
 
-.iheader{font-size:.95em; height:20px; color:#ccc; padding:8px 0 0 10px; border-top:1px solid #555}
+.iheader{font-size:.95em; height:20px; color:#ccc; padding:8px 0 0 10px; border-top:1px solid #444}
 .iheader span:hover strong{color:#fff; margin-right:12px}
 .iheader span i{display:none; cursor: pointer}
 .iheader span:hover i{display:inline}

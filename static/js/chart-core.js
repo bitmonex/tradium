@@ -95,7 +95,7 @@ export async function createChartCore(container, userConfig = {}) {
     const { width, height, rightOffset, bottomOffset } = state.layout;
     const w = width - rightOffset;
     const h = height - bottomOffset;
-    g.beginFill(0x222222, 0.1);
+    g.beginFill(0x090909, 0.1);
     g.drawRect(0, 0, w, h);
     g.endFill();
   }

@@ -11,7 +11,7 @@ export const ao = {
       long: 34,
       upColor: 0x00ff00,    // зелёные бары
       downColor: 0xff2e2e,  // красные бары
-      fillColor: 0x090909,
+      fillColor: 0x161616,
       barWidthFactor: 0.8   // доля от ширины свечи
     }
   },

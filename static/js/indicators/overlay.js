@@ -62,7 +62,7 @@ export function createOverlayManager(chartCore) {
     header.style.top = '0';
     header.style.left = '0';
     header.style.right = '0';
-    header.style.height = '20px';
+
     header.style.pointerEvents = 'auto';
 
     const span = document.createElement('span');
