@@ -13,7 +13,7 @@ export const bbw = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period = params.period ?? bbw.meta.defaultParams.period;
     const mult   = params.mult   ?? bbw.meta.defaultParams.mult;
     const color  = params.color  ?? bbw.meta.defaultParams.color;
@@ -89,6 +89,10 @@ export const bbw = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('bbw');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия BBW
       let started = false;
       line.beginPath();
@@ -101,12 +105,13 @@ export const bbw = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH * (1 - val / maxVal);
+        // применяем scaleY
+        const y = plotH * (1 - (val / maxVal) * scaleY);
         if (!started) { line.moveTo(x, y); started = true; }
         else { line.lineTo(x, y); }
       }
       if (started) {
-        line.stroke({ width: 2, color }); // 🔹 толщина 2
+        line.stroke({ width: 2, color });
       }
 
       // overlay

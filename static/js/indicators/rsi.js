@@ -11,13 +11,13 @@ export const rsi = {
       color: 0xffffff,
       levels: [30, 70],
       levelColors: [0xFF2E2E, 0x00ff00], // красный для 30, зелёный для 70
-      dashLen: 4,   // длина штриха
-      gapLen: 6,    // длина промежутка
-      dashThickness: 0.7 // толщина dashed
+      dashLen: 4,
+      gapLen: 6,
+      dashThickness: 0.7
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period        = params.period        ?? rsi.meta.defaultParams.period;
     const color         = params.color         ?? rsi.meta.defaultParams.color;
     const levels        = params.levels        ?? rsi.meta.defaultParams.levels;
@@ -62,7 +62,6 @@ export const rsi = {
       return Array(p).fill(null).concat(result);
     }
 
-    // Хелпер: пунктирная горизонтальная линия «кирпичиками»
     function drawDashedHorizontalRects(gfx, y, width, color, dash = 6, gap = 4, thickness = 1) {
       const yy = Math.round(y) + 0.5 - (thickness / 2);
       let x = 0;
@@ -90,6 +89,10 @@ export const rsi = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('rsi');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия RSI
       let started = false;
       rsiLine.beginPath();
@@ -101,7 +104,8 @@ export const rsi = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH * (1 - val / 100);
+        // применяем scaleY
+        const y = plotH/2 - ((val - 50) / 100) * plotH * scaleY;
         if (!started) { rsiLine.moveTo(x, y); started = true; }
         else { rsiLine.lineTo(x, y); }
       }
@@ -111,12 +115,11 @@ export const rsi = {
 
       // уровни (пунктир: красный 30, зелёный 70)
       levels.forEach((level, idx) => {
-        const y = plotH * (1 - level / 100);
+        const y = plotH/2 - ((level - 50) / 100) * plotH * scaleY;
         const lineColor = levelColors[idx] ?? 0xffffff;
         drawDashedHorizontalRects(levelLine, y, plotW, lineColor, dashLen, gapLen, dashThickness);
       });
 
-      // overlay
       if (showPar && overlay?.updateParam) {
         overlay.updateParam('rsi', `${period}`);
       }

@@ -12,7 +12,7 @@ export const trendStrength = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period = params.period ?? trendStrength.meta.defaultParams.period;
     const color  = params.color  ?? trendStrength.meta.defaultParams.color;
 
@@ -80,6 +80,10 @@ export const trendStrength = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('trendStrength');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия индикатора
       let started = false;
       line.beginPath();
@@ -91,7 +95,8 @@ export const trendStrength = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH / 2 - (val / 100) * (plotH / 2);
+        // применяем scaleY
+        const y = plotH / 2 - (val / 100) * (plotH / 2) * scaleY;
         if (!started) { line.moveTo(x, y); started = true; }
         else { line.lineTo(x, y); }
       }

@@ -12,7 +12,7 @@ export const cfm = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period = params.period ?? cfm.meta.defaultParams.period;
     const color  = params.color  ?? cfm.meta.defaultParams.color;
 
@@ -79,6 +79,10 @@ export const cfm = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('cfm');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия CMF
       let started = false;
       line.beginPath();
@@ -90,7 +94,8 @@ export const cfm = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH / 2 - val * (plotH / 2);
+        // применяем scaleY
+        const y = plotH / 2 - val * (plotH / 2) * scaleY;
         if (!started) { line.moveTo(x, y); started = true; }
         else { line.lineTo(x, y); }
       }

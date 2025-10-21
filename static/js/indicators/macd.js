@@ -18,7 +18,7 @@ export const macd = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const fast        = params.fast        ?? macd.meta.defaultParams.fast;
     const slow        = params.slow        ?? macd.meta.defaultParams.slow;
     const signalP     = params.signal      ?? macd.meta.defaultParams.signal;
@@ -105,6 +105,10 @@ export const macd = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 scaleY
+      const obj = chartCore?.indicators?.get('macd');
+      const scaleY = obj?.scaleY ?? 1;
+
       // нулевая линия
       const zeroY = plotH / 2;
       zeroLine.moveTo(0, zeroY);
@@ -131,7 +135,7 @@ export const macd = {
         if (xCenter > plotW) break;
 
         const y0 = zeroY;
-        const y1 = zeroY - (val / maxAbs) * (plotH / 2);
+        const y1 = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         const color = val >= 0 ? upColor : downColor;
 
         histoBars.moveTo(xCenter, y0);
@@ -148,11 +152,11 @@ export const macd = {
         const x = localLayout.indexToX(i);
         if (x < 0) continue;
         if (x > plotW) break;
-        const y = zeroY - (val / maxAbs) * (plotH / 2);
+        const y = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         if (!started) { macdLine.moveTo(x, y); started = true; }
         else macdLine.lineTo(x, y);
       }
-      if (started) macdLine.stroke({ width: 2, color: colorMACD }); // 🔹 толщина 2
+      if (started) macdLine.stroke({ width: 2, color: colorMACD });
 
       // --- Signal линия ---
       started = false;
@@ -163,11 +167,11 @@ export const macd = {
         const x = localLayout.indexToX(i);
         if (x < 0) continue;
         if (x > plotW) break;
-        const y = zeroY - (val / maxAbs) * (plotH / 2);
+        const y = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);
       }
-      if (started) signalLine.stroke({ width: 2, color: colorSignal }); // 🔹 толщина 2
+      if (started) signalLine.stroke({ width: 2, color: colorSignal });
 
       // overlay
       if (showPar && overlay?.updateParam) {

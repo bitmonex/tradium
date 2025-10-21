@@ -12,7 +12,7 @@ export const volatilityOHLC = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period = params.period ?? volatilityOHLC.meta.defaultParams.period;
     const color  = params.color  ?? volatilityOHLC.meta.defaultParams.color;
 
@@ -68,6 +68,10 @@ export const volatilityOHLC = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('volatilityOHLC');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия волатильности
       let started = false;
       line.beginPath();
@@ -80,7 +84,8 @@ export const volatilityOHLC = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH * (1 - val / maxVal);
+        // применяем scaleY
+        const y = plotH * (1 - (val / maxVal) * scaleY);
         if (!started) { line.moveTo(x, y); started = true; }
         else { line.lineTo(x, y); }
       }

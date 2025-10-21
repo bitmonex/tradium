@@ -121,6 +121,17 @@ export class Mouse {
         this.draggingIndicatorId = idx;
       }
     }
+    else {
+      // проверка оффсайд‑зоны индикаторов (правый 70px столбец каждого индикатора)
+      for (const [id, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
+        const box = obj._offsideBox;
+        if (box && x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
+          this.resizingIndicatorId = id;
+          this.app.view.style.cursor = 'ns-resize';
+          break;
+        }
+      }
+    }
 
     this.lastX = e.clientX; this.lastY = e.clientY;
   };
@@ -177,6 +188,13 @@ export class Mouse {
       return;
     }
 
+    // 🔹 drag‑zoom для индикатора через offside‑зону
+    if (this.resizingIndicatorId && dy !== 0) {
+      const factor = 1 - dy * 0.01;
+      this.chartCore.indicators.setScaleOne(this.resizingIndicatorId, factor);
+      return;
+    }
+
     if (this.resizingX && dx !== 0) {
       if (!inTimeScale) return;
       this.movedScale = true; 
@@ -198,10 +216,26 @@ export class Mouse {
       return;
     }
 
-    if (!this.dragging && !this.resizingX && !this.resizingY) {
-      if (inPriceScale) this.app.view.style.cursor = 'ns-resize';
-      else if (inTimeScale) this.app.view.style.cursor = 'ew-resize';
-      else this.app.view.style.cursor = 'default';
+    if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
+      if (inPriceScale) {
+        this.app.view.style.cursor = 'ns-resize';
+      }
+      else if (inTimeScale) {
+        this.app.view.style.cursor = 'ew-resize';
+      }
+      else {
+        // проверка оффсайд‑зоны индикаторов
+        let inOffside = false;
+        for (const [, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
+          const box = obj._offsideBox;
+          if (box && mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
+            inOffside = true;
+            break;
+          }
+        }
+        if (inOffside) this.app.view.style.cursor = 'ns-resize';
+        else this.app.view.style.cursor = 'default';
+      }
     }
 
     // Hover по свечам
@@ -224,6 +258,7 @@ export class Mouse {
   onPointerUp = () => { 
     this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
     this.draggingIndicatorId = null;
+    this.resizingIndicatorId = null;
     if (this.app?.view) this.app.view.style.cursor = 'default';
   };
   onPointerLeave = () => { 
@@ -280,6 +315,16 @@ export class Mouse {
         if (z) { s.scaleX = z.scaleX; s.offsetX = z.offsetX; }
         this.render?.();
         return;
+      }
+      // Проверка оффсайд‑зоны индикаторов
+      for (const [id, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
+        const box = obj._offsideBox;
+        if (!box) continue;
+        if (mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
+          const factor = Math.exp(-e.deltaY * 0.005);
+          this.chartCore.indicators.setScaleOne(id, factor);
+          return;
+        }
       }
 
       // Y‑зум из центра основного графика при Shift (как было)

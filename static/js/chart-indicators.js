@@ -131,7 +131,7 @@ export function createIndicatorsManager(chartCore) {
     active.set(id, {
       meta: def.meta, instance: null, layer, plotLayer, def,
       hiddenByEye, title: def.meta.name ?? id, params: def.meta.paramsText ?? '',
-      height, localOffsetY: 0
+      height, localOffsetY: 0, scaleY: 1
     });
     renderDOM(id); saveToStorage(); chartCore.scheduleRender({ full: true });
   }
@@ -220,6 +220,15 @@ export function createIndicatorsManager(chartCore) {
 
           // кеш для hitTest
           obj._lastGlobalLayout = globalLayout;
+
+          // зона оффсайда индикатора шкала          
+          const offsideBox = {
+            x: globalLayout.plotX + globalLayout.plotW,
+            y: globalLayout.plotY,
+            w: 70,
+            h: globalLayout.plotH
+          };
+          obj._offsideBox = offsideBox;
 
           const ov = overlayMgr.ensureOverlay(id, obj.title, obj.params, null, { showPar: true });
           overlayMgr.setVisible(id, !obj.hiddenByEye);
@@ -388,12 +397,31 @@ export function createIndicatorsManager(chartCore) {
     return null;
   }
 
+  // 🔹 Масштабирование индикаторов
+  function setScaleOne(id, factor) {
+    const obj = active.get(id);
+    if (!obj) return;
+    obj.scaleY = Math.max(0.2, Math.min(5, (obj.scaleY || 1) * factor));
+    chartCore.scheduleRender({ full: true });
+  }
+
+  function setScaleAll(factor) {
+    for (const [, obj] of active.entries()) {
+      if (obj.meta.position === 'bottom') {
+        obj.scaleY = Math.max(0.2, Math.min(5, (obj.scaleY || 1) * factor));
+      }
+    }
+    chartCore.scheduleRender({ full: true });
+  }
+  
   return {
     add, remove, renderAll, initFromConfig,
     destroy: destroyIndicators, reset,
     getBottomStackHeight, isActive, activeKeys,
     enterFullscreen, exitFullscreen, toggleFullscreen,
     toggleAllVisibleOnDblClick, updateHoverAll,
-    hitTestIndicator, get
+    hitTestIndicator, get,
+    setScaleOne, setScaleAll,
+    activeEntries: () => active.entries()
   };
 }

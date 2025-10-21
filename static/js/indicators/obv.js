@@ -14,7 +14,7 @@ export const obv = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const smoothType   = params.smoothType   ?? obv.meta.defaultParams.smoothType;
     const smoothLength = params.smoothLength ?? obv.meta.defaultParams.smoothLength;
     const colorRaw     = params.colorRaw     ?? obv.meta.defaultParams.colorRaw;
@@ -102,6 +102,10 @@ export const obv = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('obv');
+      const scaleY = obj?.scaleY ?? 1;
+
       // нормализация
       const allVals = [...rawValues, ...smoothValues].filter(v => v != null);
       const minVal = Math.min(...allVals);
@@ -117,11 +121,12 @@ export const obv = {
         const x = localLayout.indexToX(i);
         if (x < 0) continue;
         if (x > plotW) break;
-        const y = plotH * (1 - (val - minVal) / range);
+        // применяем scaleY
+        const y = plotH * (1 - ((val - minVal) / range) * scaleY);
         if (!started) { rawLine.moveTo(x, y); started = true; }
         else rawLine.lineTo(x, y);
       }
-      if (started) rawLine.stroke({ width: 2, color: colorRaw }); // 🔹 толщина 2
+      if (started) rawLine.stroke({ width: 2, color: colorRaw });
 
       // --- Smooth OBV ---
       if (smoothValues.length) {
@@ -133,11 +138,12 @@ export const obv = {
           const x = localLayout.indexToX(i);
           if (x < 0) continue;
           if (x > plotW) break;
-          const y = plotH * (1 - (val - minVal) / range);
+          // применяем scaleY
+          const y = plotH * (1 - ((val - minVal) / range) * scaleY);
           if (!started) { smoothLine.moveTo(x, y); started = true; }
           else smoothLine.lineTo(x, y);
         }
-        if (started) smoothLine.stroke({ width: 2, color: colorSmooth }); // 🔹 толщина 2
+        if (started) smoothLine.stroke({ width: 2, color: colorSmooth });
       }
 
       // overlay

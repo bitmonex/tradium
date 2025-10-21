@@ -15,7 +15,7 @@ export const tsi = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const long        = params.long        ?? tsi.meta.defaultParams.long;
     const short       = params.short       ?? tsi.meta.defaultParams.short;
     const signal      = params.signal      ?? tsi.meta.defaultParams.signal;
@@ -97,6 +97,10 @@ export const tsi = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('tsi');
+      const scaleY = obj?.scaleY ?? 1;
+
       // --- TSI линия ---
       let started = false;
       tsiLine.beginPath();
@@ -106,11 +110,12 @@ export const tsi = {
         const x = localLayout.indexToX(i);
         if (x < 0) continue;
         if (x > plotW) break;
-        const y = plotH / 2 - (val / 100) * (plotH / 2);
+        // применяем scaleY
+        const y = plotH / 2 - (val / 100) * (plotH / 2) * scaleY;
         if (!started) { tsiLine.moveTo(x, y); started = true; }
         else tsiLine.lineTo(x, y);
       }
-      if (started) tsiLine.stroke({ width: 1.5, color: colorTSI });
+      if (started) tsiLine.stroke({ width: 2, color: colorTSI });
 
       // --- Signal линия ---
       started = false;
@@ -121,11 +126,12 @@ export const tsi = {
         const x = localLayout.indexToX(i);
         if (x < 0) continue;
         if (x > plotW) break;
-        const y = plotH / 2 - (val / 100) * (plotH / 2);
+        // применяем scaleY
+        const y = plotH / 2 - (val / 100) * (plotH / 2) * scaleY;
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);
       }
-      if (started) signalLine.stroke({ width: 1, color: colorSignal });
+      if (started) signalLine.stroke({ width: 2, color: colorSignal });
 
       // overlay
       if (showPar && overlay?.updateParam) {

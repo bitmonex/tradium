@@ -15,7 +15,7 @@ export const ao = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const short          = params.short          ?? ao.meta.defaultParams.short;
     const long           = params.long           ?? ao.meta.defaultParams.long;
     const upColor        = params.upColor        ?? ao.meta.defaultParams.upColor;
@@ -76,6 +76,10 @@ export const ao = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('ao');
+      const scaleY = obj?.scaleY ?? 1;
+
       // нулевая линия
       const zeroY = plotH / 2;
       zeroLine.moveTo(0, zeroY);
@@ -100,7 +104,7 @@ export const ao = {
         if (xCenter > plotW) break;
 
         const y0 = zeroY;
-        const y1 = zeroY - (val / maxAbs) * (plotH / 2);
+        const y1 = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         const color = (i > 0 && val > values[i - 1]) ? upColor : downColor;
 
         // рисуем вертикальный бар

@@ -12,7 +12,7 @@ export const efi = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period = params.period ?? efi.meta.defaultParams.period;
     const color  = params.color  ?? efi.meta.defaultParams.color;
 
@@ -73,6 +73,10 @@ export const efi = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('efi');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия EFI
       let started = false;
       line.beginPath();
@@ -85,7 +89,8 @@ export const efi = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH / 2 - (val / maxAbs) * (plotH / 2);
+        // применяем scaleY
+        const y = plotH / 2 - (val / maxAbs) * (plotH / 2) * scaleY;
         if (!started) { line.moveTo(x, y); started = true; }
         else line.lineTo(x, y);
       }

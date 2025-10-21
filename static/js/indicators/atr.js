@@ -12,7 +12,7 @@ export const atr = {
     }
   },
 
-  createIndicator({ layer, overlay }, layout, params = {}) {
+  createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period = params.period ?? atr.meta.defaultParams.period;
     const color  = params.color  ?? atr.meta.defaultParams.color;
 
@@ -70,6 +70,10 @@ export const atr = {
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
 
+      // 🔹 берём scaleY из менеджера индикаторов
+      const obj = chartCore?.indicators?.get('atr');
+      const scaleY = obj?.scaleY ?? 1;
+
       // линия ATR
       let started = false;
       line.beginPath();
@@ -82,7 +86,8 @@ export const atr = {
         if (x < 0) continue;
         if (x > plotW) break;
 
-        const y = plotH * (1 - val / maxVal);
+        // применяем scaleY
+        const y = plotH * (1 - (val / maxVal) * scaleY);
         if (!started) { line.moveTo(x, y); started = true; }
         else { line.lineTo(x, y); }
       }
