@@ -52,24 +52,21 @@ export function createOverlayManager(chartCore) {
     const container = document.createElement('div');
     container.className = 'indicator-overlay';
     container.dataset.indicator = id;
-    container.style.position = 'absolute';
-    container.style.pointerEvents = 'none';
-    container.style.zIndex = 100;
 
+    // ресайз-переключалка: отдельный блок на уровне container
+    const sw = document.createElement('div');
+    sw.className = 'sw';
+    sw.innerHTML = '<b></b>';
+    container.appendChild(sw);
+
+    // header + меню
     const header = document.createElement('div');
     header.className = 'iheader';
-    header.style.position = 'absolute';
-    header.style.top = '0';
-    header.style.left = '0';
-    header.style.right = '0';
-
-    header.style.pointerEvents = 'auto';
-
     const span = document.createElement('span');
     const strong = document.createElement('strong');
     strong.textContent = title ?? id;
     span.appendChild(strong);
-
+    // eye
     const eye = document.createElement('i');
     eye.innerHTML = `<b class="icon-view"></b>`;
     eye.addEventListener('click', (e) => {
@@ -80,7 +77,7 @@ export function createOverlayManager(chartCore) {
       setVisible(id, !isVisible);
     });
     span.appendChild(eye);
-
+    // settings
     const settings = document.createElement('i');
     settings.innerHTML = `<b class="icon-settings"></b>`;
     settings.addEventListener('click', (e) => {
@@ -88,7 +85,7 @@ export function createOverlayManager(chartCore) {
       chartCore.emit?.('indicator:settings', { id });
     });
     span.appendChild(settings);
-
+    // delete
     const del = document.createElement('i');
     del.innerHTML = `<b class="icon-delete"></b>`;
     del.addEventListener('click', (e) => {

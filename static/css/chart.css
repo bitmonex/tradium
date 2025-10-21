@@ -29,7 +29,13 @@
 .m-indicators .switcher{order: 999; color:#999; font-size:1.1em; margin-left:-2px}
 .m-indicators .switcher:hover{color:#fff}
 
-.iheader{font-size:.95em; height:20px; color:#ccc; padding:8px 0 0 10px; border-top:1px solid #444}
+.indicator-overlay{position:absolute; z-index:100; pointer-events:none}
+.indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto}
+.indicator-overlay .sw:hover{background:#222}
+.indicator-overlay .sw b{display:block; height:1px; background:#333}
+.indicator-overlay .sw:hover b{background:#777}
+
+.iheader{position:absolute; left:10px; top:10px; height:20px; font-size:.95em; text-shadow: 2px 2px 0 #000; color:#ccc; pointer-events:auto}
 .iheader span:hover strong{color:#fff; margin-right:12px}
 .iheader span i{display:none; cursor: pointer}
 .iheader span:hover i{display:inline}

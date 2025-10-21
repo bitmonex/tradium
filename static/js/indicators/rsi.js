@@ -12,9 +12,9 @@ export const rsi = {
       levels: [30, 70],
       levelColors: [0xFF2E2E, 0x00ff00], // красный для 30, зелёный для 70
       fillColor: 0x161616,
-      dashLen: 6,   // длина штриха
-      gapLen: 5,    // длина промежутка
-      dashThickness: 1 // толщина «кирпичика»
+      dashLen: 4,   // длина штриха
+      gapLen: 6,    // длина промежутка
+      dashThickness: 0.7 // толщина dashed
     }
   },
 

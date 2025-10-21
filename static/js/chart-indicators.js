@@ -23,32 +23,13 @@ export function createIndicatorsManager(chartCore) {
   }
 
   const active = new Map();
+  let resizeState = null;
+
   if (!chartCore.overlayMgr) {
     chartCore.overlayMgr = createOverlayManager(chartCore);
   }
   const overlayMgr = chartCore.overlayMgr;
   const menu = document.querySelector('.m-indicators');
-  const switcher = menu?.querySelector('.switcher');
-  if (switcher) {
-    chartCore._indicatorsMenuBound = true;
-    const switcherKey = `indicators_menu_${chartCore.chartId}`;
-    const icon = switcher.querySelector('b');
-
-    // восстановление состояния
-    const saved = localStorage.getItem(switcherKey);
-    if (saved === 'off') {
-      menu.classList.add('min');
-      if (icon) icon.className = 'icon-off';
-    } else {
-      if (icon) icon.className = 'icon-on';
-    }
-
-    switcher.addEventListener('click', () => {
-      const collapsed = menu.classList.toggle('min');
-      if (icon) icon.className = collapsed ? 'icon-off' : 'icon-on';
-      localStorage.setItem(switcherKey, collapsed ? 'off' : 'on');
-    });
-  }
 
   const storageKey = `indicators_${chartCore.chartId}`;
   const fullscreenKey = `indicators_fullscreen_${chartCore.chartId}`;
@@ -58,7 +39,10 @@ export function createIndicatorsManager(chartCore) {
   function saveToStorage() {
     const data = {};
     for (const [id, obj] of active.entries()) {
-      data[id] = { hiddenByEye: !!obj.hiddenByEye };
+      data[id] = {
+        hiddenByEye: !!obj.hiddenByEye,
+        height: obj.height ?? obj.meta.height ?? 100
+      };
     }
     localStorage.setItem(storageKey, JSON.stringify(data));
   }
@@ -80,6 +64,7 @@ export function createIndicatorsManager(chartCore) {
     }
   }
 
+  // --- переключатель меню ---
   function bindMenuSwitcher() {
     const menu = document.querySelector('.m-indicators');
     const switcher = menu?.querySelector('.switcher');
@@ -105,7 +90,7 @@ export function createIndicatorsManager(chartCore) {
     });
   }
 
-  // --- DOM ---
+  // --- DOM меню ---
   function renderDOM(id) {
     if (!menu) return;
     if (menu.querySelector(`[data-indicator="${id}"]`)) return;
@@ -190,6 +175,8 @@ export function createIndicatorsManager(chartCore) {
       layer.visible = false;
     }
 
+    const height = opts.height ?? def.meta.height ?? 100;
+
     active.set(id, {
       meta: def.meta,
       instance: null,
@@ -197,7 +184,8 @@ export function createIndicatorsManager(chartCore) {
       def,
       hiddenByEye,
       title: def.meta.name ?? id,
-      params: def.meta.paramsText ?? ''
+      params: def.meta.paramsText ?? '',
+      height
     });
 
     renderDOM(id);
@@ -247,30 +235,50 @@ export function createIndicatorsManager(chartCore) {
           obj.layer.y = offsetY;
           obj.layer.x = 0;
 
+          const h = obj.height;
+
           const localLayout = {
             ...L,
             plotX: 0,
             plotY: 0,
             plotW: layout.plotW,
-            plotH: obj.meta.height
+            plotH: h
           };
 
           const globalLayout = {
             plotX: layout.plotX,
             plotY: layout.plotY + layout.plotH + offsetY,
             plotW: layout.plotW,
-            plotH: obj.meta.height
+            plotH: h
           };
 
-          overlayMgr.ensureOverlay(id, obj.title, obj.params, null, { showPar: true });
+          const ov = overlayMgr.ensureOverlay(id, obj.title, obj.params, null, { showPar: true });
           overlayMgr.setVisible(id, !obj.hiddenByEye);
           overlayMgr.updateOverlayBox(id, globalLayout);
+
+          // 🔹 подключаем обработчик к sw
+          if (ov?.container) {
+            const sw = ov.container.querySelector('.sw');
+            if (sw && !sw._resizeBound) {
+              sw.addEventListener('mousedown', (e) => {
+                e.stopPropagation();
+                resizeState = {
+                  id,
+                  startY: e.clientY,
+                  startHeight: obj.height
+                };
+                document.addEventListener('mousemove', onResizeMove);
+                document.addEventListener('mouseup', stopResize);
+              });
+              sw._resizeBound = true;
+            }
+          }
 
           if (!obj.hiddenByEye) {
             obj.instance?.render?.(localLayout, globalLayout);
           }
 
-          offsetY += obj.meta.height;
+          offsetY += h;
         } else {
           if (!obj.hiddenByEye) obj.instance?.render?.(L);
         }
@@ -278,6 +286,24 @@ export function createIndicatorsManager(chartCore) {
         console.error(`[IndicatorsManager] ${id} render error:`, err);
       }
     }
+  }
+
+  // 🔹 функции ресайза
+  function onResizeMove(e) {
+    if (!resizeState) return;
+    const obj = active.get(resizeState.id);
+    if (!obj) return;
+    const dy = resizeState.startY - e.clientY;
+    obj.height = Math.max(40, resizeState.startHeight + dy);
+    chartCore.scheduleRender({ full: true });
+  }
+
+  function stopResize() {
+    if (!resizeState) return;
+    saveToStorage();
+    document.removeEventListener('mousemove', onResizeMove);
+    document.removeEventListener('mouseup', stopResize);
+    resizeState = null;
   }
 
   function initFromConfig() {
@@ -297,7 +323,9 @@ export function createIndicatorsManager(chartCore) {
   }
 
   function destroyIndicators() {
-    for (const id of Array.from(active.keys())) remove(id);
+    for (const id of Array.from(active.keys())) {
+      remove(id);
+    }
     active.clear();
     overlayMgr.clearAll();
   }
@@ -309,14 +337,15 @@ export function createIndicatorsManager(chartCore) {
     menu?.querySelectorAll("span").forEach(el => el.remove());
     menu?.classList.remove("on");
     fullscreenMode = false;
+    chartCore.fullscreenMode = false;
   }
 
   function getBottomStackHeight() {
     if (fullscreenMode) return 0;
     let total = 0;
-    for (const { meta } of active.values()) {
-      if (meta.position === 'bottom' && typeof meta.height === 'number') {
-        total += meta.height; // 🔹 учитываем даже если hiddenByEye = true
+    for (const obj of active.values()) {
+      if (obj.meta.position === 'bottom' && typeof obj.height === 'number') {
+        total += obj.height; // 🔹 учитываем динамическую высоту
       }
     }
     return total;
