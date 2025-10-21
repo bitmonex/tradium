@@ -41,6 +41,9 @@ export class Mouse {
     this.downX = 0;
     this.downY = 0;
     this.wasDrag = false;
+    
+    this.draggingIndicatorId = null;
+    this.indicatorOffsets = new Map();
   }
 
   getRect() {
@@ -113,6 +116,10 @@ export class Mouse {
     else if (inIndicators) {
       this.draggingIndicators = true;
       this.app.view.style.cursor = 'grabbing';
+      const idx = this.chartCore?.indicators?.hitTestIndicator?.(y);
+      if (idx) {
+        this.draggingIndicatorId = idx;
+      }
     }
 
     this.lastX = e.clientX; this.lastY = e.clientY;
@@ -155,7 +162,17 @@ export class Mouse {
 
     // только горизонталь в индикаторе bottom
     if (this.draggingIndicators) {
+      // горизонталь — глобально
       s.offsetX += dx;
+      // вертикаль — только для конкретного индикатора
+      if (this.draggingIndicatorId) {
+        const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
+        if (obj) {
+          const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
+          this.indicatorOffsets.set(this.draggingIndicatorId, prev + dy);
+          obj.localOffsetY = prev + dy;
+        }
+      }
       this.render?.();
       return;
     }
@@ -206,10 +223,12 @@ export class Mouse {
 
   onPointerUp = () => { 
     this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
+    this.draggingIndicatorId = null;
     if (this.app?.view) this.app.view.style.cursor = 'default';
   };
   onPointerLeave = () => { 
     this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
+    this.draggingIndicatorId = null;
     if (this.app?.view) this.app.view.style.cursor = 'default';
   };
 

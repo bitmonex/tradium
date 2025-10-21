@@ -1,8 +1,8 @@
 // indicators/volatility-ohlc.js
 export const volatilityOHLC = {
   meta: {
-    id: 'volatilityOHLC', // 👈 нижний регистр для overlay
-    name: 'Volatility O-H-L-C',
+    id: 'volatilityOHLC',
+    name: 'Volatility OHLC',
     position: 'bottom',
     zIndex: 50,
     height: 100,

@@ -6,28 +6,17 @@ export function createIndicatorsManager(chartCore) {
   if (!chartCore.config.modules?.indicators) {
     console.warn('[IndicatorsManager] модуль индикаторов выключен');
     return {
-      add: () => {},
-      remove: () => {},
-      renderAll: () => {},
-      initFromConfig: () => {},
-      destroy: () => {},
-      reset: () => {},
-      getBottomStackHeight: () => 0,
-      isActive: () => false,
-      activeKeys: () => [],
-      enterFullscreen: () => {},
-      exitFullscreen: () => {},
-      toggleFullscreen: () => {},
-      updateHoverAll: () => {}
+      add: () => {}, remove: () => {}, renderAll: () => {}, initFromConfig: () => {},
+      destroy: () => {}, reset: () => {}, getBottomStackHeight: () => 0,
+      isActive: () => false, activeKeys: () => [], enterFullscreen: () => {},
+      exitFullscreen: () => {}, toggleFullscreen: () => {}, updateHoverAll: () => {}
     };
   }
 
   const active = new Map();
   let resizeState = null;
 
-  if (!chartCore.overlayMgr) {
-    chartCore.overlayMgr = createOverlayManager(chartCore);
-  }
+  if (!chartCore.overlayMgr) chartCore.overlayMgr = createOverlayManager(chartCore);
   const overlayMgr = chartCore.overlayMgr;
   const menu = document.querySelector('.m-indicators');
 
@@ -39,29 +28,18 @@ export function createIndicatorsManager(chartCore) {
   function saveToStorage() {
     const data = {};
     for (const [id, obj] of active.entries()) {
-      data[id] = {
-        hiddenByEye: !!obj.hiddenByEye,
-        height: obj.height ?? obj.meta.height ?? 100
-      };
+      data[id] = { hiddenByEye: !!obj.hiddenByEye, height: obj.height ?? 100 };
     }
     localStorage.setItem(storageKey, JSON.stringify(data));
   }
   function loadFromStorage() {
-    try {
-      return JSON.parse(localStorage.getItem(storageKey) || '{}');
-    } catch {
-      return {};
-    }
+    try { return JSON.parse(localStorage.getItem(storageKey) || '{}'); }
+    catch { return {}; }
   }
-  function saveFullscreen() {
-    localStorage.setItem(fullscreenKey, JSON.stringify(fullscreenMode));
-  }
+  function saveFullscreen() { localStorage.setItem(fullscreenKey, JSON.stringify(fullscreenMode)); }
   function loadFullscreen() {
-    try {
-      return JSON.parse(localStorage.getItem(fullscreenKey) || 'false');
-    } catch {
-      return false;
-    }
+    try { return JSON.parse(localStorage.getItem(fullscreenKey) || 'false'); }
+    catch { return false; }
   }
 
   // --- переключатель меню ---
@@ -69,20 +47,13 @@ export function createIndicatorsManager(chartCore) {
     const menu = document.querySelector('.m-indicators');
     const switcher = menu?.querySelector('.switcher');
     if (!switcher) return;
-
     const switcherKey = `indicators_menu_${chartCore.chartId}`;
     const newSwitcher = switcher.cloneNode(true);
     switcher.replaceWith(newSwitcher);
-
     const icon = newSwitcher.querySelector('b');
     const saved = localStorage.getItem(switcherKey);
-    if (saved === 'off') {
-      menu.classList.add('min');
-      if (icon) icon.className = 'icon-off';
-    } else {
-      if (icon) icon.className = 'icon-on';
-    }
-
+    if (saved === 'off') { menu.classList.add('min'); if (icon) icon.className = 'icon-off'; }
+    else { if (icon) icon.className = 'icon-on'; }
     newSwitcher.addEventListener('click', () => {
       const collapsed = menu.classList.toggle('min');
       if (icon) icon.className = collapsed ? 'icon-off' : 'icon-on';
@@ -94,32 +65,25 @@ export function createIndicatorsManager(chartCore) {
   function renderDOM(id) {
     if (!menu) return;
     if (menu.querySelector(`[data-indicator="${id}"]`)) return;
-
     const span = document.createElement('span');
     span.setAttribute('data-indicator', id);
-
     const title = document.createElement('strong');
     title.textContent = id.toUpperCase();
     span.appendChild(title);
-
     const view = document.createElement('i');
     const obj = active.get(id);
     const icon = document.createElement('b');
     icon.className = obj?.hiddenByEye ? 'icon-view-off' : 'icon-view';
     view.appendChild(icon);
-
     view.addEventListener('click', () => {
       if (!obj) return;
       obj.hiddenByEye = !obj.hiddenByEye;
       obj.layer.visible = !obj.hiddenByEye;
       icon.className = obj.hiddenByEye ? 'icon-view-off' : 'icon-view';
-      saveToStorage();
-      overlayMgr.setVisible(id, !obj.hiddenByEye);
+      saveToStorage(); overlayMgr.setVisible(id, !obj.hiddenByEye);
       chartCore.scheduleRender({ full: true });
     });
-
     span.appendChild(view);
-
     const settings = document.createElement('i');
     settings.innerHTML = `<b class="icon-settings"></b>`;
     settings.addEventListener('click', () => {
@@ -127,22 +91,17 @@ export function createIndicatorsManager(chartCore) {
       window.dispatchEvent(event);
     });
     span.appendChild(settings);
-
     const del = document.createElement('i');
     del.innerHTML = `<b class="icon-delete"></b>`;
     del.addEventListener('click', () => remove(id));
     span.appendChild(del);
-
-    menu.appendChild(span);
-    menu.classList.add('on');
+    menu.appendChild(span); menu.classList.add('on');
   }
 
   function removeDOM(id) {
     const el = menu?.querySelector(`[data-indicator="${id}"]`);
     if (el) el.remove();
-    if (menu && menu.querySelectorAll('span').length === 0) {
-      menu.classList.remove('on');
-    }
+    if (menu && menu.querySelectorAll('span').length === 0) menu.classList.remove('on');
   }
 
   // --- управление ---
@@ -150,60 +109,37 @@ export function createIndicatorsManager(chartCore) {
     if (active.has(id)) return;
     const def = Indicators[id];
     if (!def?.meta || typeof def.createIndicator !== 'function') {
-      console.warn(`[IndicatorsManager] Индикатор ${id} некорректный`);
-      return;
+      console.warn(`[IndicatorsManager] Индикатор ${id} некорректный`); return;
     }
     const layer = new PIXI.Container();
     layer.zIndex = def.meta.zIndex ?? 50;
-
-    let parent;
-    if (def.meta.position === 'bottom') {
-      parent = chartCore.state.subGroup ?? chartCore.graphGroup;
-    } else {
-      parent = chartCore.state.candleLayer ?? chartCore.graphGroup;
-    }
-    if (!parent) {
-      console.warn('[IndicatorsManager] нет контейнера для', id);
-      return;
-    }
+    const plotLayer = new PIXI.Container();
+    layer.addChild(plotLayer);
+    let parent = def.meta.position === 'bottom'
+      ? chartCore.state.subGroup ?? chartCore.graphGroup
+      : chartCore.state.candleLayer ?? chartCore.graphGroup;
+    if (!parent) { console.warn('[IndicatorsManager] нет контейнера для', id); return; }
     parent.addChild(layer);
-
     const hiddenByEye = !!opts.hiddenByEye;
     layer.visible = !hiddenByEye;
-
-    if (fullscreenMode && def.meta.position === 'bottom') {
-      layer.visible = false;
-    }
-
+    if (fullscreenMode && def.meta.position === 'bottom') layer.visible = false;
     const height = opts.height ?? def.meta.height ?? 100;
-
     active.set(id, {
-      meta: def.meta,
-      instance: null,
-      layer,
-      def,
-      hiddenByEye,
-      title: def.meta.name ?? id,
-      params: def.meta.paramsText ?? '',
-      height
+      meta: def.meta, instance: null, layer, plotLayer, def,
+      hiddenByEye, title: def.meta.name ?? id, params: def.meta.paramsText ?? '',
+      height, localOffsetY: 0
     });
-
-    renderDOM(id);
-    saveToStorage();
-    chartCore.scheduleRender({ full: true });
+    renderDOM(id); saveToStorage(); chartCore.scheduleRender({ full: true });
   }
 
   function remove(id) {
-    const obj = active.get(id);
-    if (!obj) return;
+    const obj = active.get(id); if (!obj) return;
     const parent = obj.meta.position === 'bottom'
       ? chartCore.state.subGroup ?? chartCore.graphGroup
       : chartCore.state.graphGroup;
     parent.removeChild(obj.layer);
     obj.layer.destroy({ children: true });
-    active.delete(id);
-    overlayMgr.removeOverlay(id);
-    removeDOM(id);
+    active.delete(id); overlayMgr.removeOverlay(id); removeDOM(id);
     saveToStorage();
     window.dispatchEvent(new CustomEvent('indicator-removed', { detail: { id } }));
     chartCore.scheduleRender({ full: true });
@@ -212,7 +148,7 @@ export function createIndicatorsManager(chartCore) {
   function normalizeLayout(layout) {
     if (!layout) return layout;
     layout.candles ||= chartCore.state.candles;
-    layout.config  ||= chartCore.config;
+    layout.config ||= chartCore.config;
     return layout;
   }
 
@@ -222,25 +158,36 @@ export function createIndicatorsManager(chartCore) {
     let offsetY = 0;
 
     for (const [id, obj] of active.entries()) {
-      if (!obj.instance && L?.candles?.length) {
-        obj.instance = obj.def.createIndicator(
-          { layer: obj.layer, chartCore, overlay: chartCore.overlayMgr },
-          L
-        );
-      }
       try {
         if (obj.meta.position === 'bottom') {
           if (fullscreenMode) continue;
 
+          // фиксируем контейнер блока
           obj.layer.y = offsetY;
           obj.layer.x = 0;
 
           const h = obj.height;
 
+          // маска для содержимого
+          if (!obj._maskRect) {
+            obj._maskRect = new PIXI.Graphics();
+            obj.layer.addChild(obj._maskRect);
+            obj.plotLayer.mask = obj._maskRect;
+          }
+          obj._maskRect.clear();
+          obj._maskRect.beginFill(0x000000, 1);
+          obj._maskRect.drawRect(0, 0, layout.plotW, h);
+          obj._maskRect.endFill();
+
+          // вертикальное смещение содержимого
+          const maxShift = h * 0.5;
+          obj.localOffsetY = Math.min(maxShift, Math.max(-maxShift, obj.localOffsetY || 0));
+          obj.plotLayer.y = obj.localOffsetY;
+
           const localLayout = {
             ...L,
             plotX: 0,
-            plotY: 0,
+            plotY: 0, // внутри plotLayer всегда от нуля
             plotW: layout.plotW,
             plotH: h
           };
@@ -252,11 +199,12 @@ export function createIndicatorsManager(chartCore) {
             plotH: h
           };
 
+          // кеш для hitTest
+          obj._lastGlobalLayout = globalLayout;
+
           const ov = overlayMgr.ensureOverlay(id, obj.title, obj.params, null, { showPar: true });
           overlayMgr.setVisible(id, !obj.hiddenByEye);
           overlayMgr.updateOverlayBox(id, globalLayout);
-
-          // 🔹 подключаем обработчик к sw
           if (ov?.container) {
             const sw = ov.container.querySelector('.sw');
             if (sw && !sw._resizeBound) {
@@ -274,12 +222,25 @@ export function createIndicatorsManager(chartCore) {
             }
           }
 
-          if (!obj.hiddenByEye) {
-            obj.instance?.render?.(localLayout, globalLayout);
+          // создаём instance в plotLayer
+          if (!obj.instance && L?.candles?.length) {
+            obj.instance = obj.def.createIndicator(
+              { layer: obj.plotLayer, chartCore, overlay: chartCore.overlayMgr },
+              L
+            );
           }
+
+          if (!obj.hiddenByEye) obj.instance?.render?.(localLayout, globalLayout);
 
           offsetY += h;
         } else {
+          // все остальные индикаторы (основной график, overlay и т.п.)
+          if (!obj.instance && L?.candles?.length) {
+            obj.instance = obj.def.createIndicator(
+              { layer: obj.layer, chartCore, overlay: chartCore.overlayMgr },
+              L
+            );
+          }
           if (!obj.hiddenByEye) obj.instance?.render?.(L);
         }
       } catch (err) {
@@ -316,16 +277,12 @@ export function createIndicatorsManager(chartCore) {
     }
     fullscreenMode = loadFullscreen();
     chartCore.fullscreenMode = fullscreenMode;
-    if (fullscreenMode) {
-      enterFullscreen();
-    }
+    if (fullscreenMode) enterFullscreen();
     bindMenuSwitcher();
   }
 
   function destroyIndicators() {
-    for (const id of Array.from(active.keys())) {
-      remove(id);
-    }
+    for (const id of Array.from(active.keys())) remove(id);
     active.clear();
     overlayMgr.clearAll();
   }
@@ -345,19 +302,14 @@ export function createIndicatorsManager(chartCore) {
     let total = 0;
     for (const obj of active.values()) {
       if (obj.meta.position === 'bottom' && typeof obj.height === 'number') {
-        total += obj.height; // 🔹 учитываем динамическую высоту
+        total += obj.height;
       }
     }
     return total;
   }
 
-  function isActive(id) {
-    return active.has(id);
-  }
-
-  function activeKeys() {
-    return Array.from(active.keys());
-  }
+  function isActive(id) { return active.has(id); }
+  function activeKeys() { return Array.from(active.keys()); }
 
   function enterFullscreen() {
     fullscreenMode = true;
@@ -374,15 +326,11 @@ export function createIndicatorsManager(chartCore) {
     fullscreenMode = false;
     chartCore.fullscreenMode = false;
     for (const obj of active.values()) {
-      if (obj.meta.position === 'bottom' && !obj.hiddenByEye) {
-        obj.layer.visible = true;
-      }
+      if (obj.meta.position === 'bottom' && !obj.hiddenByEye) obj.layer.visible = true;
     }
     saveFullscreen();
     chartCore.scheduleRender({ full: true });
-    for (const [id, obj] of active.entries()) {
-      overlayMgr.setVisible(id, !obj.hiddenByEye);
-    }
+    for (const [id, obj] of active.entries()) overlayMgr.setVisible(id, !obj.hiddenByEye);
   }
 
   function toggleFullscreen() {
@@ -407,20 +355,24 @@ export function createIndicatorsManager(chartCore) {
     }
   }
 
+  // 🔹 вспомогательные методы для Mouse
+  function get(id) { return active.get(id); }
+  function hitTestIndicator(y) {
+    for (const [id, obj] of active.entries()) {
+      if (obj.meta.position !== 'bottom') continue;
+      const box = obj._lastGlobalLayout;
+      if (!box) continue;
+      if (y >= box.plotY && y <= box.plotY + box.plotH) return id;
+    }
+    return null;
+  }
+
   return {
-    add,
-    remove,
-    renderAll,
-    initFromConfig,
-    destroy: destroyIndicators,
-    reset,
-    getBottomStackHeight,
-    isActive,
-    activeKeys,
-    enterFullscreen,
-    exitFullscreen,
-    toggleFullscreen,
-    toggleAllVisibleOnDblClick,
-    updateHoverAll
+    add, remove, renderAll, initFromConfig,
+    destroy: destroyIndicators, reset,
+    getBottomStackHeight, isActive, activeKeys,
+    enterFullscreen, exitFullscreen, toggleFullscreen,
+    toggleAllVisibleOnDblClick, updateHoverAll,
+    hitTestIndicator, get
   };
 }
