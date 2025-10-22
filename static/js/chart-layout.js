@@ -83,9 +83,10 @@ export function autoCenterCandles(chartCore) {
   // --- Центр по X ---
   chartCore.state.offsetX = layout.width / 2 - layout.indexToX(lastIndex);
 
-  // --- Центр по Y ---
-  const midPrice = (last.high + last.low) / 2; // середина последней свечи
+  // --- Центр по Y с учётом plot‑зоны ---
+  const midPrice = (last.high + last.low) / 2;
   const midY = layout.priceToY(midPrice);
-  chartCore.state.offsetY = layout.height / 2 - midY;
+  const plotCenterY = layout.plotY + layout.plotH / 2;
+  chartCore.state.offsetY = plotCenterY - midY;
 }
 
