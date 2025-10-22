@@ -405,8 +405,6 @@ function fsButton() {
   }
 
   function exitFullscreen() {
-    console.log('[exitFullscreen] EMULATING DOUBLE CLICK');
-
     fullscreenMode = false;
     chartCore.fullscreenMode = false;
     bgLayer.visible = true;
@@ -418,7 +416,6 @@ function fsButton() {
   }
 
   function toggleFullscreen() {
-    console.log('[toggleFullscreen] current mode:', fullscreenMode);
     if (fullscreenMode) {
       exitFullscreen();
       const btn = menu?.querySelector('.fs');
