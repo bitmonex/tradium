@@ -136,144 +136,144 @@ export class Mouse {
     this.lastX = e.clientX; this.lastY = e.clientY;
   };
 
-onPointerMove = (e) => {
-  if (this.ignoreNextMove) {
-    this.ignoreNextMove = false;
-    return;
-  }
-
-  console.log('MOVE', e.type, 'buttons=', e.buttons, 'dx/dy=', e.movementX, e.movementY, 
-              'dragging=', this.dragging, 
-              'resizingIndicatorId=', this.resizingIndicatorId);
-
-  const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
-  if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) this.wasDrag = true;
-
-  const r = this.getRect(), dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
-  this.lastX = e.clientX; this.lastY = e.clientY; 
-  const mx = e.clientX - r.left, my = e.clientY - r.top;
-  const L = s.layout; if (!L) return;
-  const { bottomOffset, rightOffset } = L;
-
-  const inPriceScale =
-    mx >= L.plotX + L.plotW && mx <= L.width &&
-    my >= L.plotY && my <= L.plotY + L.plotH;
-
-  const inTimeScale =
-    my >= L.height - bottomOffset && my <= L.height &&
-    mx >= L.plotX && mx <= L.plotX + L.plotW;
-
-  const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
-  const inPlotFull =
-    mx >= L.plotX && mx <= L.plotX + L.plotW &&
-    my >= L.plotY && my <= L.plotY + L.plotH;
-
-  if (this.dragging) {
-    if (!inPlotFull) { 
-      this.dragging = false; 
-      this.app.view.style.cursor = 'default'; 
-      return; 
-    }
-    const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy }); 
-    if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; } 
-    this.render?.(); 
-    return;
-  }
-
-  // 🔹 Граббинг индикатора — сброс при выходе из зоны
-  if (this.draggingIndicators) {
-    const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
-    const box = obj?._lastGlobalLayout;
-    if (box && (my < box.plotY || my > box.plotY + box.plotH)) {
-      this.draggingIndicators = false;
-      this.draggingIndicatorId = null;
-      this.app.view.style.cursor = 'default';
+  onPointerMove = (e) => {
+    if (this.ignoreNextMove) {
+      this.ignoreNextMove = false;
       return;
     }
 
-    s.offsetX += dx;
-    if (this.draggingIndicatorId) {
-      const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
-      this.indicatorOffsets.set(this.draggingIndicatorId, prev + dy);
-      obj.localOffsetY = prev + dy;
-    }
-    this.render?.();
-    return;
-  }
+    console.log('MOVE', e.type, 'buttons=', e.buttons, 'dx/dy=', e.movementX, e.movementY, 
+                'dragging=', this.dragging, 
+                'resizingIndicatorId=', this.resizingIndicatorId);
 
-  // 🔹 Ресайз индикатора — сброс при выходе из offside‑зоны
-  if (this.resizingIndicatorId && dy !== 0) {
-    const obj = this.chartCore?.indicators?.get(this.resizingIndicatorId);
-    const box = obj?._offsideBox;
-    if (!box || mx < box.x || mx > box.x + box.w || my < box.y || my > box.y + box.h) {
-      this.resizingIndicatorId = null;
-      this.app.view.style.cursor = 'default';
-      return;
-    }
+    const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
+    if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) this.wasDrag = true;
 
-    const factor = 1 - dy * 0.01;
-    this.chartCore.indicators.setScaleOne(this.resizingIndicatorId, factor);
-    return;
-  }
+    const r = this.getRect(), dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
+    this.lastX = e.clientX; this.lastY = e.clientY; 
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const L = s.layout; if (!L) return;
+    const { bottomOffset, rightOffset } = L;
 
-  if (this.resizingX && dx !== 0) {
-    if (!inTimeScale) return;
-    this.movedScale = true; 
-    const spacing = L.spacing ?? this.cw; 
-    const f = 1 - dx * 0.05;
-    s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, s.scaleX * f)); 
-    s.offsetX = this.centerX - this.worldX0 * (spacing * s.scaleX);
-    this.render?.(); 
-    return;
-  }
+    const inPriceScale =
+      mx >= L.plotX + L.plotW && mx <= L.width &&
+      my >= L.plotY && my <= L.plotY + L.plotH;
 
-  if (this.resizingY && dy !== 0) {
-    if (!inPriceScale) return;
-    this.movedScale = true; 
-    const f = 1 - dy * 0.05;
-    s.scaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f)); 
-    s.offsetY = this.centerY - this.worldY0 * (this.canvasH * s.scaleY);
-    this.render?.(); 
-    return;
-  }
+    const inTimeScale =
+      my >= L.height - bottomOffset && my <= L.height &&
+      mx >= L.plotX && mx <= L.plotX + L.plotW;
 
-  if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
-    if (inPriceScale) {
-      this.app.view.style.cursor = 'ns-resize';
-    }
-    else if (inTimeScale) {
-      this.app.view.style.cursor = 'ew-resize';
-    }
-    else {
-      let inOffside = false;
-      for (const [, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
-        const box = obj._offsideBox;
-        if (box && mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
-          inOffside = true;
-          break;
-        }
+    const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const inPlotFull =
+      mx >= L.plotX && mx <= L.plotX + L.plotW &&
+      my >= L.plotY && my <= L.plotY + L.plotH;
+
+    if (this.dragging) {
+      if (!inPlotFull) { 
+        this.dragging = false; 
+        this.app.view.style.cursor = 'default'; 
+        return; 
       }
-      if (inOffside) this.app.view.style.cursor = 'ns-resize';
-      else this.app.view.style.cursor = 'default';
+      const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy }); 
+      if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; } 
+      this.render?.(); 
+      return;
     }
-  }
 
-  // Hover по свечам
-  if (!L || !s.candles?.length) return;
-  s.mouseX = mx; s.mouseY = my;
+    // 🔹 Граббинг индикатора — сброс при выходе из зоны
+    if (this.draggingIndicators) {
+      const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
+      const box = obj?._lastGlobalLayout;
+      if (box && (my < box.plotY || my > box.plotY + box.plotH)) {
+        this.draggingIndicators = false;
+        this.draggingIndicatorId = null;
+        this.app.view.style.cursor = 'default';
+        return;
+      }
 
-  if (!inPlotX) {
-    this.update?.(null);
-    this.chartCore?.indicators?.updateHoverAll?.(null, null);
-    return;
-  }
-  const t = L.screenToTime(mx), C = s.candles;
-  const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
-  if (idx === s._lastHoverIdx) return;
-  s._lastHoverIdx = idx;
-  this.update?.(C[idx]);
-  this.chartCore?.indicators?.updateHoverAll(C[idx], idx);
-};
+      s.offsetX += dx;
+      if (this.draggingIndicatorId) {
+        const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
+        this.indicatorOffsets.set(this.draggingIndicatorId, prev + dy);
+        obj.localOffsetY = prev + dy;
+      }
+      this.render?.();
+      return;
+    }
+
+    // 🔹 Ресайз индикатора — сброс при выходе из offside‑зоны
+    if (this.resizingIndicatorId && dy !== 0) {
+      const obj = this.chartCore?.indicators?.get(this.resizingIndicatorId);
+      const box = obj?._offsideBox;
+      if (!box || mx < box.x || mx > box.x + box.w || my < box.y || my > box.y + box.h) {
+        this.resizingIndicatorId = null;
+        this.app.view.style.cursor = 'default';
+        return;
+      }
+
+      const factor = 1 - dy * 0.01;
+      this.chartCore.indicators.setScaleOne(this.resizingIndicatorId, factor);
+      return;
+    }
+
+    if (this.resizingX && dx !== 0) {
+      if (!inTimeScale) return;
+      this.movedScale = true; 
+      const spacing = L.spacing ?? this.cw; 
+      const f = 1 - dx * 0.05;
+      s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, s.scaleX * f)); 
+      s.offsetX = this.centerX - this.worldX0 * (spacing * s.scaleX);
+      this.render?.(); 
+      return;
+    }
+
+    if (this.resizingY && dy !== 0) {
+      if (!inPriceScale) return;
+      this.movedScale = true; 
+      const f = 1 - dy * 0.05;
+      s.scaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f)); 
+      s.offsetY = this.centerY - this.worldY0 * (this.canvasH * s.scaleY);
+      this.render?.(); 
+      return;
+    }
+
+    if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
+      if (inPriceScale) {
+        this.app.view.style.cursor = 'ns-resize';
+      }
+      else if (inTimeScale) {
+        this.app.view.style.cursor = 'ew-resize';
+      }
+      else {
+        let inOffside = false;
+        for (const [, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
+          const box = obj._offsideBox;
+          if (box && mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
+            inOffside = true;
+            break;
+          }
+        }
+        if (inOffside) this.app.view.style.cursor = 'ns-resize';
+        else this.app.view.style.cursor = 'default';
+      }
+    }
+
+    // Hover по свечам
+    if (!L || !s.candles?.length) return;
+    s.mouseX = mx; s.mouseY = my;
+
+    if (!inPlotX) {
+      this.update?.(null);
+      this.chartCore?.indicators?.updateHoverAll?.(null, null);
+      return;
+    }
+    const t = L.screenToTime(mx), C = s.candles;
+    const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
+    if (idx === s._lastHoverIdx) return;
+    s._lastHoverIdx = idx;
+    this.update?.(C[idx]);
+    this.chartCore?.indicators?.updateHoverAll(C[idx], idx);
+  };
 
   onPointerUp = () => { 
     
@@ -368,23 +368,33 @@ onPointerMove = (e) => {
   };
 
   onClick = (e) => {
-    // быстрый клик без движения — ничего
+    // 🔹 защита от ложного шагового зума после ресайза индикатора
+    if (this.wasDrag || this.resizingIndicatorId != null) return;
+
     const dx = Math.abs(e.clientX - this.downX);
     const dy = Math.abs(e.clientY - this.downY);
     if (dx < 3 && dy < 3) return;
 
-    const s = this.getState?.(); if (!s) return; 
+    const s = this.getState?.(); if (!s) return;
     this.ensureStateSafe(s);
     if (this.movedScale) { this.movedScale = false; return; }
 
-    const r = this.getRect(), x = e.clientX - r.left, y = e.clientY - r.top, factor = e.shiftKey ? 0.9 : 1.1, L = s.layout; 
-    if (!L) return;
+    const r = this.getRect();
+    const x = e.clientX - r.left;
+    const y = e.clientY - r.top;
+    const factor = e.shiftKey ? 0.9 : 1.1;
+    const L = s.layout; if (!L) return;
 
     const bottomOffset = this.config.bottomOffset;
-    const rightOffset  = this.config.rightOffset;    
-    
-    const inPriceScale = x >= L.plotX + L.plotW && x <= L.width && y >= L.plotY && y <= L.plotY + L.plotH;
-    const inTimeScale = y >= L.height - bottomOffset && y <= L.height && x >= 0 && x <= L.width - rightOffset;
+    const rightOffset = this.config.rightOffset;
+
+    const inPriceScale =
+      x >= L.plotX + L.plotW && x <= L.width &&
+      y >= L.plotY && y <= L.plotY + L.plotH;
+
+    const inTimeScale =
+      y >= L.height - bottomOffset && y <= L.height &&
+      x >= 0 && x <= L.width - rightOffset;
 
     if (inPriceScale) {
       // шаговый Y‑зум из центра
@@ -408,9 +418,9 @@ onPointerMove = (e) => {
         config: this.config,
         direction: factor
       });
-      if (z) { 
-        s.scaleX = z.scaleX; 
-        s.offsetX = z.offsetX; 
+      if (z) {
+        s.scaleX = z.scaleX;
+        s.offsetX = z.offsetX;
       }
       this.scheduleRender();
       return;
