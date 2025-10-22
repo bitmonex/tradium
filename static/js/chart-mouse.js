@@ -142,10 +142,6 @@ export class Mouse {
       return;
     }
 
-    console.log('MOVE', e.type, 'buttons=', e.buttons, 'dx/dy=', e.movementX, e.movementY, 
-                'dragging=', this.dragging, 
-                'resizingIndicatorId=', this.resizingIndicatorId);
-
     const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
     if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) this.wasDrag = true;
 
@@ -276,10 +272,6 @@ export class Mouse {
   };
 
   onPointerUp = () => { 
-    
-    console.log('UP', 'dragging=', this.dragging, 
-              'resizingIndicatorId=', this.resizingIndicatorId);
-    
     this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
     this.draggingIndicatorId = null;
     this.resizingIndicatorId = null;

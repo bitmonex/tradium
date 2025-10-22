@@ -28,7 +28,7 @@ export function createIndicatorsManager(chartCore) {
   const fullscreenKey = `indicators_fullscreen_${chartCore.chartId}`;
   let fullscreenMode = false;
 
-  // --- сохранение/загрузка ---
+  // сохранение/загрузка
   function saveToStorage() {
     const data = {};
     for (const [id, obj] of active.entries()) {
@@ -46,7 +46,7 @@ export function createIndicatorsManager(chartCore) {
     catch { return false; }
   }
 
-  // --- переключатель меню ---
+  // переключатель меню
   function bindMenuSwitcher() {
     const menu = document.querySelector('.m-indicators');
     const switcher = menu?.querySelector('.switcher');
@@ -65,7 +65,20 @@ export function createIndicatorsManager(chartCore) {
     });
   }
 
-  // --- DOM меню ---
+  // выход из fs даблклик mode
+  function fsButton() {
+    if (!menu || menu.querySelector('.fs')) return;
+    const btn = document.createElement('i');
+    btn.className = 'fs';
+    btn.textContent = 'F';
+    btn.addEventListener('click', () => {
+      toggleFullscreen();
+      btn.remove();
+    });
+    menu.appendChild(btn);
+  }
+
+  // DOM меню
   function renderDOM(id) {
     if (!menu) return;
     if (menu.querySelector(`[data-indicator="${id}"]`)) return;
@@ -108,7 +121,7 @@ export function createIndicatorsManager(chartCore) {
     if (menu && menu.querySelectorAll('span').length === 0) menu.classList.remove('on');
   }
 
-  // --- управление ---
+  // управление
   function add(id, opts = {}) {
     if (active.has(id)) return;
     const def = Indicators[id];
@@ -166,7 +179,7 @@ export function createIndicatorsManager(chartCore) {
     if (!fullscreenMode) {
       subBg.beginFill(chartCore.config.biBG);
       subBg.drawRect(
-        0, 0,                 // внутри subGroup координаты начинаются с 0
+        0, 0,
         layout.plotW,
         getBottomStackHeight()
       );
@@ -206,7 +219,7 @@ export function createIndicatorsManager(chartCore) {
           const localLayout = {
             ...L,
             plotX: 0,
-            plotY: 0, // внутри plotLayer всегда от нуля
+            plotY: 0,
             plotW: layout.plotW,
             plotH: h
           };
