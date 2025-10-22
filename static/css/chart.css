@@ -26,8 +26,13 @@
 .m-indicators span b{float:left; color:#999; font-size:.9em}
 .m-indicators span b:hover{color:#fff}
 
-.m-indicators .switcher{order: 999; color:#999; font-size:1.1em; margin-left:-2px}
+.m-indicators .switcher{order: 999; color:#998; font-size:1.1em; margin-left:-2px}
 .m-indicators .switcher:hover{color:#fff}
+
+.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center;
+  color:#ccc; background:#3B3B3B; border-radius:50%; margin:1px 0 0 8px}
+
+.m-indicators .fs:hover{color:#000; background:#fff}
 
 .indicator-overlay{position:absolute; z-index:100; pointer-events:none}
 .indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto; user-select: none}

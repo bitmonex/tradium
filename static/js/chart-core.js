@@ -204,6 +204,6 @@ export async function createChartCore(container, userConfig = {}) {
 
   // Первый полный рендер
   scheduleRender({ full: true });
-
+  window.__chartCore = chartCore;
   return chartCore;
 }
