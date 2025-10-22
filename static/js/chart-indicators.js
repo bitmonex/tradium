@@ -404,19 +404,18 @@ function fsButton() {
     fsButton(chartCore);
   }
 
-function exitFullscreen() {
-  console.log('[exitFullscreen] EMULATING DOUBLE CLICK');
+  function exitFullscreen() {
+    console.log('[exitFullscreen] EMULATING DOUBLE CLICK');
 
-  fullscreenMode = false;
-  chartCore.fullscreenMode = false;
-  bgLayer.visible = true;
+    fullscreenMode = false;
+    chartCore.fullscreenMode = false;
+    bgLayer.visible = true;
 
-  toggleAllVisibleOnDblClick(true);
+    toggleAllVisibleOnDblClick(true);
 
-  saveFullscreen();
-  chartCore.scheduleRender({ full: true });
-}
-
+    saveFullscreen();
+    chartCore.scheduleRender({ full: true });
+  }
 
   function toggleFullscreen() {
     console.log('[toggleFullscreen] current mode:', fullscreenMode);
