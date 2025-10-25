@@ -1,5 +1,5 @@
 /*Desk*/
-.desk{display:block; min-width:980px; margin:50px 0 30px 0}
+.desk{flex:1; margin:50px 0 30px 0}
 .desk.wire{margin-right:300px}
     
 /*Filter*/

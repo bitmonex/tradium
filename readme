@@ -1,0 +1,13 @@
+# Загрузка истории свеч
+
+все тикеры и все тф
+python3 -m cex.binance_history all
+
+тикер и все тф
+python3 -m cex.binance_history btcusdt
+
+тикер и тф
+python3 -m cex.binance_history btcusdt 30m
+
+
+# загрузить последние 1000 свеч по всем тф тикера

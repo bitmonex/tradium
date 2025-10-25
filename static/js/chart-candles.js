@@ -208,7 +208,11 @@ export function autoCenterCandles(chartCore) {
   const midPrice = (last.high + last.low) / 2;
   const midY = layout.priceToY(midPrice);
   chartCore.state.offsetY = layout.height / 2 - midY;
+  if (chartCore.state.noMoreData && chartCore.state.offsetX > 0) {
+    chartCore.state.offsetX = 0;
+  }
 }
+
 
 // --- рендер свечей ---
 export function drawCandlesOnly(chartCore) {

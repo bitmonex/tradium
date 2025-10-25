@@ -29,6 +29,7 @@ input{font-family:'Roboto Condensed',Arial; font-size:1.1em}
 .cols .box{clear:none}
 .cols .rb{display:inline-block; float:right; width:250px; margin:0 15px 15px 15px}
 
+.loading{position:absolute; top:0; left:0; background:#ff0; z-index:9999}
 
 /*Heading*/
 h1{font-size:1.6em;}

@@ -17,7 +17,11 @@ export async function createChartCore(container, userConfig = {}) {
     scales: sections.scales,
     indicators: sections.indicators,
     livePrice: sections.livePrice,
-    modules
+    modules,
+    exchange,
+    marketType,
+    symbol,
+    timeframe
   };
 
   const chartSettings = { exchange, marketType, symbol, timeframe };

@@ -1,5 +1,6 @@
 // chart-mouse.js
 import { zoomX, zoomY, pan } from './chart-zoom.js';
+import { loadHistoryChunk } from "./chart.js";
 
 export class Mouse {
   constructor(app, config, getState, args) {
@@ -284,6 +285,45 @@ export class Mouse {
     if (this.app?.view) this.app.view.style.cursor = 'default';
   };
 
+  historyLoadShow = () => {
+    console.log("🔥 historyLoadShow вызван");
+    const container = document.getElementById("chart-container");
+    if (!container) {
+      //alert("❌ Нет контейнера chart-container");
+      return;
+    }
+    if (document.getElementById("chart-loader")) {
+      //alert("⚠️ chart-loader уже есть в DOM");
+      return;
+    }
+    const loader = document.createElement("div");
+    loader.className = "loading";
+    loader.id = "chart-loader";
+    loader.innerHTML = "<i></i>Loading...";
+    container.style.position = "relative";
+    loader.style.position = "absolute";
+    loader.style.top = "406px";
+    loader.style.left = "10px";
+    loader.style.color = "#fff";
+    loader.style.background = "rgba(0,0,0,0.7)";
+    loader.style.padding = "14px 18px";
+    loader.style.borderRadius = "4px";
+    loader.style.zIndex = "9999";
+    container.appendChild(loader);
+    //alert("✅ historyLoadShow вставил loader в DOM");
+  }
+
+  historyLoadHide = () => {
+    const loader = document.getElementById("chart-loader");
+    if (loader) {
+      setTimeout(() => {
+        loader.remove();
+        console.log("⏳ Loader удалён через 2 секунды");
+      }, 1000); // задержка 2 секунды
+    }
+  }
+
+
   onWheel = (e) => {
     const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
     e.preventDefault();
@@ -299,6 +339,11 @@ export class Mouse {
 
     // горизонтальный скролл — панорамирование по всей высоте графика
     if (inPlotX && ax > ay + 2) {
+      // если ушли влево к началу данных
+      if (s.offsetX > 0 && s.offsetX < 50) { // условие под layout
+        this.historyLoadShow();
+        loadHistoryChunk().finally(() => this.historyLoadHide());
+      }
       s.offsetX -= e.deltaX;
       this.render?.();
       return;
