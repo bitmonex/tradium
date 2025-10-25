@@ -1,16 +1,20 @@
 # Загрузка истории свеч
 
 все тикеры и все тф
-python3 -m cex.binance_history all
+python3 -m cex.binance_history all spot
+python3 -m cex.binance_history all futures
 
 тикер и все тф
 python3 -m cex.binance_history btcusdt spot
+python3 -m cex.binance_history btcusdt futures
 
 тикер и тф
+python3 -m cex.binance_history btcusdt spot 30m
 python3 -m cex.binance_history btcusdt futures 30m
 
 тикер тф грузить с и новее диапазон
 python3 -m cex.binance_history btcusdt spot 5m 2023-08
+python3 -m cex.binance_history btcusdt futures 5m 2023-08
 
 # загрузить последние 1000 свеч по всем тф тикера
 python3 cex/binance_candles.py btcusdt
