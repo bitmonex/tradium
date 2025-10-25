@@ -265,7 +265,6 @@ export function drawCandlesOnly(chartCore) {
   }
 }
 
-
 function setVisible(layer, activeKey) {
   ["_candlesG", "_lineG", "_barsG"].forEach(key => {
     if (layer[key]) {
@@ -285,7 +284,6 @@ export function renderCandles(series, layer, layout, config) {
     layer._candlesG = g;
   }
   g.clear();
-
   const candleW = layout.candleWidth * layout.scaleX;
   const bull = config.candles.candleBull;
   const bear = config.candles.candleBear;
@@ -297,7 +295,6 @@ export function renderCandles(series, layer, layout, config) {
     series.length - 1,
     Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
   );
-
   for (let i = startIndex; i <= endIndex; i++) {
     const v = series[i];
     if (!v) continue;
@@ -307,10 +304,8 @@ export function renderCandles(series, layer, layout, config) {
     const yClose = layout.priceToY(v.close);
     const yHigh  = layout.priceToY(v.high);
     const yLow   = layout.priceToY(v.low);
-
     // тень high-low
     g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
-
     // тело свечи
     const top = Math.min(yOpen, yClose);
     const bot = Math.max(yOpen, yClose);
@@ -319,7 +314,19 @@ export function renderCandles(series, layer, layout, config) {
   }
 }
 
-// --- батч-рендер линии ---
+// --- утилита агрегации для линии ---
+function aggregateLine(candles, bucketSize) {
+  if (!candles?.length || bucketSize <= 1) return candles;
+  const out = [];
+  for (let i = 0; i < candles.length; i += bucketSize) {
+    const bucket = candles.slice(i, i + bucketSize);
+    const last = bucket[bucket.length - 1];
+    out.push({ time: bucket[0].time, close: last.close });
+  }
+  return out;
+}
+
+// --- батч-рендер линии с LOD + клиппинг ---
 export function renderLine(candles, layer, layout, config) {
   let g = layer._lineG;
   if (!g || g.destroyed) {
@@ -329,26 +336,52 @@ export function renderLine(candles, layer, layout, config) {
   }
   g.clear();
   const color = config.candles?.lineColor ?? 0xffffff;
+
+  // LOD: если точек сильно больше, чем пикселей по X — агрегируем
+  const maxBars = layout.plotW;
+  let series = candles;
+  if (candles.length > maxBars * 2) {
+    const bucketSize = Math.ceil(candles.length / maxBars);
+    series = aggregateLine(candles, bucketSize);
+  }
+
+  // Клиппинг: рисуем только видимый диапазон с буфером
   const buffer = 5;
-  const startIndex = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer);
+  const startIndex = Math.max(
+    0,
+    Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer
+  );
   const endIndex = Math.min(
-    candles.length - 1,
+    series.length - 1,
     Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
   );
   for (let i = startIndex; i <= endIndex; i++) {
     const x = layout.indexToX(i);
-    const y = layout.priceToY(candles[i].close);
-    if (i === startIndex) {
-      g.moveTo(x, y);
-    } else {
-      g.lineTo(x, y);
-    }
+    const y = layout.priceToY(series[i].close);
+    if (i === startIndex) g.moveTo(x, y);
+    else g.lineTo(x, y);
   }
   g.stroke({ width: 2, color });
 }
 
-// --- батч-рендер баров ---
-export function renderBars(series, layer, layout, config) {
+// --- утилита агрегации для баров/свечей ---
+function aggregateOHLC(series, bucketSize) {
+  if (!series?.length || bucketSize <= 1) return series;
+  const out = [];
+  for (let i = 0; i < series.length; i += bucketSize) {
+    const bucket = series.slice(i, i + bucketSize);
+    const open = bucket[0].open;
+    const close = bucket[bucket.length - 1].close;
+    const high = Math.max(...bucket.map(c => c.high));
+    const low  = Math.min(...bucket.map(c => c.low));
+    const volume = bucket.reduce((s, c) => s + (c.volume || 0), 0);
+    out.push({ open, high, low, close, volume, time: bucket[0].time });
+  }
+  return out;
+}
+
+// --- батч-рендер баров с LOD + клиппинг ---
+export function renderBars(seriesIn, layer, layout, config) {
   let g = layer._barsG;
   if (!g || g.destroyed) {
     g = new PIXI.Graphics();
@@ -359,8 +392,21 @@ export function renderBars(series, layer, layout, config) {
   const candleW = layout.candleWidth * layout.scaleX;
   const bull = config.candles.candleBull;
   const bear = config.candles.candleBear;
+
+  // LOD: агрегируем при избытке точек
+  const maxBars = layout.plotW;
+  let series = seriesIn;
+  if (seriesIn.length > maxBars * 2) {
+    const bucketSize = Math.ceil(seriesIn.length / maxBars);
+    series = aggregateOHLC(seriesIn, bucketSize);
+  }
+
+  // Клиппинг: диапазон индексов с буфером
   const buffer = 5;
-  const startIndex = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer);
+  const startIndex = Math.max(
+    0,
+    Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer
+  );
   const endIndex = Math.min(
     series.length - 1,
     Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
@@ -374,6 +420,7 @@ export function renderBars(series, layer, layout, config) {
     const yClose = layout.priceToY(v.close);
     const yHigh  = layout.priceToY(v.high);
     const yLow   = layout.priceToY(v.low);
+
     // high-low
     g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
     // open слева
@@ -382,4 +429,3 @@ export function renderBars(series, layer, layout, config) {
     g.moveTo(x, yClose).lineTo(x + candleW / 2, yClose).stroke({ width: 1, color });
   }
 }
-
