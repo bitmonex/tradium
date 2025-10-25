@@ -213,26 +213,58 @@ export function autoCenterCandles(chartCore) {
   }
 }
 
+// --- утилита агрегации ---
+function aggregateCandles(candles, bucketSize) {
+  if (!candles?.length || bucketSize <= 1) return candles;
 
-// --- рендер свечей ---
+  const aggregated = [];
+  for (let i = 0; i < candles.length; i += bucketSize) {
+    const bucket = candles.slice(i, i + bucketSize);
+    if (!bucket.length) continue;
+
+    const open = bucket[0].open;
+    const close = bucket[bucket.length - 1].close;
+    const high = Math.max(...bucket.map(c => c.high));
+    const low = Math.min(...bucket.map(c => c.low));
+    const volume = bucket.reduce((sum, c) => sum + (c.volume || 0), 0);
+    const time = bucket[0].time;
+
+    aggregated.push({ open, high, low, close, volume, time });
+  }
+  return aggregated;
+}
+
+// --- рендер свечей с LOD ---
 export function drawCandlesOnly(chartCore) {
   const { candles, chartStyle, layout, candleLayer } = chartCore.state;
   if (!candles?.length || !layout) return;
+
+  let series = candles;
+
+  // --- LOD агрегация ---
+  const maxBars = layout.plotW; // ширина области в пикселях
+  if (candles.length > maxBars * 2) {
+    const bucketSize = Math.ceil(candles.length / maxBars);
+    series = aggregateCandles(candles, bucketSize);
+    // console.log(`[LOD] Агрегация: ${candles.length} → ${series.length}`);
+  }
+
   if (chartStyle === "candles") {
-    renderCandles(candles, candleLayer, layout, chartCore.config);
+    renderCandles(series, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_candlesG");
   } else if (chartStyle === "heikin") {
-    const ha = toHeikin(candles);
+    const ha = toHeikin(series);
     renderCandles(ha, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_candlesG");
   } else if (chartStyle === "line") {
-    renderLine(candles, candleLayer, layout, chartCore.config);
+    renderLine(series, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_lineG");
   } else if (chartStyle === "bars") {
-    renderBars(candles, candleLayer, layout, chartCore.config);
+    renderBars(series, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_barsG");
   }
 }
+
 
 function setVisible(layer, activeKey) {
   ["_candlesG", "_lineG", "_barsG"].forEach(key => {

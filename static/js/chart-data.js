@@ -17,7 +17,7 @@ export async function loadChartData(exchange, marketType, symbol, timeframe) {
 }
 
 // догрузка истории чанками
-export async function loadMoreCandles(exchange, marketType, symbol, timeframe, before, limit = 500) {
+export async function loadMoreCandles(exchange, marketType, symbol, timeframe, before, limit = 2000) {
   const url = `/${exchange}/${marketType}/${symbol}/history?tf=${timeframe}&before=${before}&limit=${limit}`;
   console.log(`[loadMoreCandles] URL запрос: ${url}`);
 
