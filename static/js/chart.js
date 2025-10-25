@@ -1,3 +1,4 @@
+//chart.js
 import { createChartCore } from "./chart-core.js";
 import { loadMoreCandles } from "./chart-data.js";
 

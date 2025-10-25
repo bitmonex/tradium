@@ -253,19 +253,32 @@ export function renderCandles(series, layer, layout, config) {
     layer._candlesG = g;
   }
   g.clear();
+
   const candleW = layout.candleWidth * layout.scaleX;
   const bull = config.candles.candleBull;
   const bear = config.candles.candleBear;
-  for (let i = 0; i < series.length; i++) {
+
+  // --- вычисляем диапазон индексов для отрисовки ---
+  const buffer = 5; // запас в свечах слева/справа
+  const startIndex = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer);
+  const endIndex = Math.min(
+    series.length - 1,
+    Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
+  );
+
+  for (let i = startIndex; i <= endIndex; i++) {
     const v = series[i];
+    if (!v) continue;
     const x = layout.indexToX(i);
     const color = v.close >= v.open ? bull : bear;
     const yOpen  = layout.priceToY(v.open);
     const yClose = layout.priceToY(v.close);
     const yHigh  = layout.priceToY(v.high);
     const yLow   = layout.priceToY(v.low);
+
     // тень high-low
     g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
+
     // тело свечи
     const top = Math.min(yOpen, yClose);
     const bot = Math.max(yOpen, yClose);
@@ -284,10 +297,16 @@ export function renderLine(candles, layer, layout, config) {
   }
   g.clear();
   const color = config.candles?.lineColor ?? 0xffffff;
-  for (let i = 0; i < candles.length; i++) {
+  const buffer = 5;
+  const startIndex = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer);
+  const endIndex = Math.min(
+    candles.length - 1,
+    Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
+  );
+  for (let i = startIndex; i <= endIndex; i++) {
     const x = layout.indexToX(i);
     const y = layout.priceToY(candles[i].close);
-    if (i === 0) {
+    if (i === startIndex) {
       g.moveTo(x, y);
     } else {
       g.lineTo(x, y);
@@ -308,8 +327,15 @@ export function renderBars(series, layer, layout, config) {
   const candleW = layout.candleWidth * layout.scaleX;
   const bull = config.candles.candleBull;
   const bear = config.candles.candleBear;
-  for (let i = 0; i < series.length; i++) {
+  const buffer = 5;
+  const startIndex = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer);
+  const endIndex = Math.min(
+    series.length - 1,
+    Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
+  );
+  for (let i = startIndex; i <= endIndex; i++) {
     const v = series[i];
+    if (!v) continue;
     const x = layout.indexToX(i);
     const color = v.close >= v.open ? bull : bear;
     const yOpen  = layout.priceToY(v.open);
@@ -324,3 +350,4 @@ export function renderBars(series, layer, layout, config) {
     g.moveTo(x, yClose).lineTo(x + candleW / 2, yClose).stroke({ width: 1, color });
   }
 }
+
