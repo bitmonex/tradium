@@ -9,6 +9,7 @@ __pycache__/
 env/
 venv/
 myenv/
+.venv/
 .env/
 
 # IDE configs
