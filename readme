@@ -9,5 +9,8 @@ python3 -m cex.binance_history btcusdt
 тикер и тф
 python3 -m cex.binance_history btcusdt 30m
 
+тикер тф грузить с и новее диапазон
+python3 -m cex.binance_history btcusdt 5m 2023-08
 
 # загрузить последние 1000 свеч по всем тф тикера
+python3 cex/binance_candles.py btcusdt

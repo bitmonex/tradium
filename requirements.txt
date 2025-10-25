@@ -8,3 +8,4 @@ websocket-client
 bs4
 jinja2
 python-multipart
+requests
