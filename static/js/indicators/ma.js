@@ -5,7 +5,6 @@ export const ma = {
     name: 'MA50 & MA200',
     position: 'top',
     zIndex: 9999,
-    // 🔹 параметры вынесены в meta
     periods: {
       fast: 50,
       slow: 200
@@ -38,10 +37,27 @@ export const ma = {
       return out;
     }
 
+    function renderLine(values, color, width, indexToX, priceToY, step) {
+      let started = false;
+      for (let i = 0; i < values.length; i += step) {
+        const val = values[i];
+        if (val == null) continue;
+        const x = indexToX(i);
+        const y = priceToY(val);
+        if (!started) {
+          g.moveTo(x, y);
+          started = true;
+        } else {
+          g.lineTo(x, y);
+        }
+      }
+      if (started) g.stroke({ width, color });
+    }
+
     function render(layout) {
       if (!layout?.candles?.length) return;
 
-      const { candles, indexToX, priceToY } = layout;
+      const { candles, indexToX, priceToY, plotW, candleWidth, scaleX } = layout;
       const { periods, colors, widths } = ma.meta;
 
       const maFast = calcMA(candles, periods.fast);
@@ -49,39 +65,19 @@ export const ma = {
 
       g.clear();
 
+      // --- LOD: шаг прореживания
+      const barWidth = candleWidth * scaleX;
+      const barsOnScreen = plotW / Math.max(1, barWidth);
+      let step = 1;
+      if (barsOnScreen > 3000) step = 10;
+      else if (barsOnScreen > 1500) step = 5;
+      else if (barsOnScreen > 800) step = 2;
+
       // 🔹 MA50 (зелёная)
-      let started = false;
-      for (let i = 0; i < candles.length; i++) {
-        const val = maFast[i];
-        if (val == null) continue;
-        const x = indexToX(i);
-        const y = priceToY(val);
-        if (!started) {
-          g.moveTo(x, y);
-          started = true;
-        } else {
-          g.lineTo(x, y);
-        }
-      }
-      if (started) g.stroke({ width: widths.fast, color: colors.fast });
+      renderLine(maFast, colors.fast, widths.fast, indexToX, priceToY, step);
 
       // 🔹 MA200 (красная)
-      started = false;
-      for (let i = 0; i < candles.length; i++) {
-        const val = maSlow[i];
-        if (val == null) continue;
-        const x = indexToX(i);
-        const y = priceToY(val);
-        if (!started) {
-          g.moveTo(x, y);
-          started = true;
-        } else {
-          g.lineTo(x, y);
-        }
-      }
-      if (started) g.stroke({ width: widths.slow, color: colors.slow });
-
-      //console.log(`[MA] rendered: candles=${candles.length}, MA50+MA200`);
+      renderLine(maSlow, colors.slow, widths.slow, indexToX, priceToY, step);
     }
 
     return { render };

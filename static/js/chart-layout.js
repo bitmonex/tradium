@@ -22,36 +22,24 @@ export function createLayout(app, config, candles, offsetX, offsetY, scaleX, sca
 
   const time0 = candles[0]?.time ?? 0;
 
-  // --- функции преобразования ---
-  const priceToY = (price) =>
-    ((height - bottomOffset - bottomHeight) * (1 - (price - min) / range)) * scaleY + offsetY;
-
-  const timeToX = (ts) =>
-    offsetX + ((ts - time0) / tfMs) * spacing * scaleX;
-
-  const indexToX = (idx) =>
-    offsetX + idx * spacing * scaleX;
-
-  const screenToTime = (x) =>
-    time0 + ((x - offsetX) / (spacing * scaleX)) * tfMs;
-
-  const screenToPrice = (y) =>
-    min + (1 - (y - offsetY) / ((height - bottomOffset - bottomHeight) * scaleY)) * range;
-
   // координаты рабочей области графика
   const plotX = 0;
   const plotY = 0;
   const plotW = width - rightOffset;
   const plotH = height - bottomOffset - bottomHeight; // 🔹 ключевой момент
 
-  return {
+  // --- создаём layout как объект, а функции читают его актуальные поля ---
+  const layout = {
     width,
     height,
+    // динамические параметры — будут обновляться при рендерах
     offsetX,
     offsetY,
     scaleX,
     scaleY,
     tfMs,
+
+    // статические параметры
     candleWidth,
     spacing,
     rightOffset,
@@ -60,19 +48,34 @@ export function createLayout(app, config, candles, offsetX, offsetY, scaleX, sca
     max,
     range,
     time0,
-    priceToY,
-    timeToX,
-    indexToX,
-    screenToTime,
-    screenToPrice,
+
+    // рабочая область
     plotX,
     plotY,
     plotW,
     plotH
   };
+
+  // --- функции преобразования читают layout.*, а не замыкания ---
+  layout.priceToY = (price) =>
+    ((layout.height - layout.bottomOffset - bottomHeight) * (1 - (price - layout.min) / layout.range)) * layout.scaleY + layout.offsetY;
+
+  layout.timeToX = (ts) =>
+    layout.offsetX + ((ts - layout.time0) / layout.tfMs) * layout.spacing * layout.scaleX;
+
+  layout.indexToX = (idx) =>
+    layout.offsetX + idx * layout.spacing * layout.scaleX;
+
+  layout.screenToTime = (x) =>
+    layout.time0 + ((x - layout.offsetX) / (layout.spacing * layout.scaleX)) * layout.tfMs;
+
+  layout.screenToPrice = (y) =>
+    layout.min + (1 - (y - layout.offsetY) / ((layout.height - layout.bottomOffset - bottomHeight) * layout.scaleY)) * layout.range;
+
+  return layout;
 }
 
-//автоцентрирование
+// автоцентрирование
 export function autoCenterCandles(chartCore) {
   const { candles, layout } = chartCore.state;
   if (!candles?.length || !layout) return;
@@ -89,4 +92,3 @@ export function autoCenterCandles(chartCore) {
   const plotCenterY = layout.plotY + layout.plotH / 2;
   chartCore.state.offsetY = plotCenterY - midY;
 }
-

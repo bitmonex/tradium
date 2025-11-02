@@ -101,16 +101,25 @@ export const tsi = {
       const obj = chartCore?.indicators?.get('tsi');
       const scaleY = obj?.scaleY ?? 1;
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = tsiVals.length - 1;
+      for (let i = 0; i < tsiVals.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
+      }
+      for (let i = tsiVals.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(tsiVals.length - 1, i + 2); break; }
+      }
+
       // --- TSI линия ---
       let started = false;
       tsiLine.beginPath();
-      for (let i = 0; i < tsiVals.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = tsiVals[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
-        // применяем scaleY
         const y = plotH / 2 - (val / 100) * (plotH / 2) * scaleY;
         if (!started) { tsiLine.moveTo(x, y); started = true; }
         else tsiLine.lineTo(x, y);
@@ -120,13 +129,10 @@ export const tsi = {
       // --- Signal линия ---
       started = false;
       signalLine.beginPath();
-      for (let i = 0; i < signalVals.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = signalVals[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
-        // применяем scaleY
         const y = plotH / 2 - (val / 100) * (plotH / 2) * scaleY;
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);

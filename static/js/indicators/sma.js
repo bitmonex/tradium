@@ -5,7 +5,6 @@ export const sma = {
     name: 'SMA25',
     position: 'top',
     zIndex: 9999,
-    // 🔹 параметры вынесены в meta
     period: 25,
     color: 0xffa500, // оранжевый
     width: 1.25
@@ -29,18 +28,9 @@ export const sma = {
       return out;
     }
 
-    function render(layout) {
-      if (!layout?.candles?.length) return;
-
-      const { candles, indexToX, priceToY } = layout;
-      const { period, color, width } = sma.meta;
-
-      const values = calcSMA(candles, period);
-
-      g.clear();
-
+    function renderLine(values, color, width, indexToX, priceToY, step) {
       let started = false;
-      for (let i = 0; i < candles.length; i++) {
+      for (let i = 0; i < values.length; i += step) {
         const val = values[i];
         if (val == null) continue;
         const x = indexToX(i);
@@ -52,10 +42,31 @@ export const sma = {
           g.lineTo(x, y);
         }
       }
-
       if (started) g.stroke({ width, color });
+    }
 
-      //console.log(`[SMA${period}] rendered: candles=${candles.length}`);
+    function render(layout) {
+      if (!layout?.candles?.length) return;
+
+      const { candles, indexToX, priceToY, plotW, candleWidth, scaleX } = layout;
+      const { period, color, width } = sma.meta;
+
+      const values = calcSMA(candles, period);
+
+      g.clear();
+
+      // --- LOD: шаг прореживания
+      const barWidth = candleWidth * scaleX;
+      const barsOnScreen = plotW / Math.max(1, barWidth);
+      let step = 1;
+      if (barsOnScreen > 3000) step = 10;
+      else if (barsOnScreen > 1500) step = 5;
+      else if (barsOnScreen > 800) step = 2;
+
+      // 🔹 SMA25 (оранжевая)
+      renderLine(values, color, width, indexToX, priceToY, step);
+
+      //console.log(`[SMA${period}] rendered: candles=${candles.length}, step=${step}`);
     }
 
     return { render };

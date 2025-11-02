@@ -10,7 +10,7 @@ export const volume = {
       downColor: 0xff3b3b  // красный
     },
     height: 80,           // высота блока объёмов
-    autoheight: true       // автоподгон по видимым барам
+    autoheight: true
   },
 
   createIndicator({ layer }) {
@@ -20,9 +20,8 @@ export const volume = {
     layer.sortableChildren = true;
     layer.addChild(g);
 
-    // кэш для стабильности autoheight
     let lastMaxVolVisible = 1;
-    let lastCandlesKey = null; // 🔹 отслеживаем смену данных
+    let lastCandlesKey = null;
 
     function render(layout) {
       const {
@@ -36,10 +35,9 @@ export const volume = {
 
       if (!candles?.length) return;
 
-      // 🔹 формируем ключ по данным (кол-во + время первой и последней свечи)
+      // ключ для сброса кэша
       const candlesKey = `${candles.length}_${candles[0]?.time}_${candles[candles.length - 1]?.time}`;
       if (candlesKey !== lastCandlesKey) {
-        // новые данные → сброс кэша и пересчёт
         lastMaxVolVisible = 1;
         lastCandlesKey = candlesKey;
       }
@@ -51,54 +49,80 @@ export const volume = {
 
       g.clear();
 
-      let maxVol;
-      if (volume.meta.autoheight) {
-        let visibleMax = 0;
-        for (let i = 0; i < candles.length; i++) {
-          const xCenter = indexToX(i);
-          const xLeft = xCenter - barWidth / 2;
-          const xRight = xCenter + barWidth / 2;
-          // бар считается видимым, если пересекает экран [0, plotW]
-          if (xRight >= 0 && xLeft <= plotW) {
-            const v = candles[i].volume || 0;
-            if (v > visibleMax) visibleMax = v;
-          }
-        }
+      // безопасная ширина для расчёта количества баров
+      const safeBarWidth = Math.max(1, barWidth);
+      const barsOnScreen = plotW / safeBarWidth;
 
-        if (visibleMax > 0) {
-          // если это первый рендер после смены данных → берём сразу без сглаживания
-          if (lastMaxVolVisible === 1) {
-            lastMaxVolVisible = visibleMax;
-          } else {
-            const alpha = 0.3; // сглаживание при скролле/зуме
-            lastMaxVolVisible =
-              lastMaxVolVisible * (1 - alpha) + visibleMax * alpha;
-          }
-          maxVol = lastMaxVolVisible;
-        } else {
-          // если ничего видимого — fallback на глобальный максимум
-          maxVol = Math.max(...candles.map(c => c.volume || 0)) || 1;
+      // авто‑масштаб
+      let visibleMax = 0;
+      for (let i = 0; i < candles.length; i++) {
+        const xCenter = indexToX(i);
+        const xLeft = xCenter - barWidth / 2;
+        const xRight = xCenter + barWidth / 2;
+        if (xRight >= 0 && xLeft <= plotW) {
+          const v = candles[i].volume || 0;
+          if (v > visibleMax) visibleMax = v;
+        }
+      }
+      let maxVol = visibleMax || 1;
+      if (lastMaxVolVisible === 1) {
+        lastMaxVolVisible = maxVol;
+      } else {
+        const alpha = 0.3;
+        lastMaxVolVisible = lastMaxVolVisible * (1 - alpha) + maxVol * alpha;
+      }
+      maxVol = lastMaxVolVisible;
+
+      // --- режимы LOD ---
+      if (barsOnScreen < 800) {
+        // 🔹 близко — рисуем все бары
+        for (let i = 0; i < candles.length; i++) {
+          const c = candles[i];
+          const x = indexToX(i) - barWidth / 2;
+          let h = (c.volume / maxVol) * volH;
+          if (h > volH) h = volH;
+          if (h < 0) h = 0;
+          const y = baseY + (volH - h);
+          const color = c.close >= c.open ? upColor : downColor;
+          g.beginFill(color);
+          g.drawRect(x, y, barWidth, h);
+          g.endFill();
+        }
+      } else if (barsOnScreen < 2000) {
+        // 🔹 средне — тонкие бары (1–2px)
+        const thinWidth = Math.max(1, Math.min(2, barWidth));
+        for (let i = 0; i < candles.length; i++) {
+          const c = candles[i];
+          const x = indexToX(i) - thinWidth / 2;
+          let h = (c.volume / maxVol) * volH;
+          if (h > volH) h = volH;
+          if (h < 0) h = 0;
+          const y = baseY + (volH - h);
+          const color = c.close >= c.open ? upColor : downColor;
+          g.beginFill(color);
+          g.drawRect(x, y, thinWidth, h);
+          g.endFill();
         }
       } else {
-        // глобальный режим
-        maxVol = Math.max(...candles.map(c => c.volume || 0)) || 1;
-      }
-
-      // рисуем бары
-      for (let i = 0; i < candles.length; i++) {
-        const c = candles[i];
-        const x = indexToX(i) - barWidth / 2;
-
-        let h = (c.volume / maxVol) * volH;
-        if (h > volH) h = volH;
-        if (h < 0) h = 0;
-
-        const y = baseY + (volH - h);
-        const color = c.close >= c.open ? upColor : downColor;
-
-        g.beginFill(color);
-        g.drawRect(x, y, barWidth, h);
-        g.endFill();
+        // 🔹 далеко — линия 1px
+        g.lineStyle(1, 0x888888, 1);
+        let first = true;
+        const step = Math.max(1, Math.ceil(candles.length / plotW));
+        for (let i = 0; i < candles.length; i += step) {
+          const c = candles[i];
+          const x = indexToX(i);
+          let h = (c.volume / maxVol) * volH;
+          if (h > volH) h = volH;
+          if (h < 0) h = 0;
+          const y = baseY + (volH - h);
+          if (first) {
+            g.moveTo(x, y);
+            first = false;
+          } else {
+            g.lineTo(x, y);
+          }
+        }
+        g.lineStyle(0);
       }
     }
 

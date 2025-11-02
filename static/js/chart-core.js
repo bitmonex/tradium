@@ -17,16 +17,10 @@ export async function createChartCore(container, userConfig = {}) {
     scales: sections.scales,
     indicators: sections.indicators,
     livePrice: sections.livePrice,
-    modules,
-    exchange,
-    marketType,
-    symbol,
-    timeframe
+    modules
   };
 
   const chartSettings = { exchange, marketType, symbol, timeframe };
-
-  // PIXI приложение
   const app = new PIXI.Application();
   await app.init({
     resizeTo: container,
@@ -37,7 +31,6 @@ export async function createChartCore(container, userConfig = {}) {
   app.stage.sortableChildren = true;
   container.appendChild(app.view);
 
-  // --- группы ---
   const graphGroup = new PIXI.Container();
   graphGroup.sortableChildren = true;
   app.stage.addChild(graphGroup);
@@ -116,6 +109,8 @@ export async function createChartCore(container, userConfig = {}) {
   const Render = ({ full = false } = {}) => {
     if (full) {
       const bottomHeight = chartCore.indicators?.getBottomStackHeight() || 0;
+
+      // пересоздаём layout
       state.layout = createLayout(
         app,
         config,
@@ -127,27 +122,26 @@ export async function createChartCore(container, userConfig = {}) {
         state.tfMs,
         bottomHeight
       );
-      if (!state.layout) return; // 🔹 защита
+      if (!state.layout) return;
       state.layout.candles = state.candles;
 
+      // автоцентрирование — только один раз
       if (state.candles.length && !state._centered) {
         autoCenterCandles({ state });
         state._centered = true;
+
+        // пересоздаём layout после автоцентра
         state.layout = createLayout(
-          app,
-          config,
-          state.candles,
-          state.offsetX,
-          state.offsetY,
-          state.scaleX,
-          state.scaleY,
-          state.tfMs,
-          bottomHeight
+          app, config, state.candles,
+          state.offsetX, state.offsetY,
+          state.scaleX, state.scaleY,
+          state.tfMs, bottomHeight
         );
-        if (!state.layout) return; // 🔹 защита
+        if (!state.layout) return;
         state.layout.candles = state.candles;
       }
 
+      // маска и подгруппа
       state.subGroup.y = state.layout.plotY + state.layout.plotH;
       viewportMask
         .clear()
@@ -160,23 +154,37 @@ export async function createChartCore(container, userConfig = {}) {
         )
         .endFill();
 
+      // синхронизация актуальных значений в layout перед рендером
+      state.layout.offsetX = state.offsetX;
+      state.layout.offsetY = state.offsetY;
+      state.layout.scaleX  = state.scaleX;
+      state.layout.scaleY  = state.scaleY;
       state.candlesModule?.render();
       chartCore.indicators?.renderAll(state.layout);
       renderDebugViewport(state, graphGroup);
+      state._needRedrawCandles = false;
 
     } else if (state._needRedrawCandles) {
+      if (state.layout) {
+        state.layout.offsetX = state.offsetX;
+        state.layout.offsetY = state.offsetY;
+        state.layout.scaleX  = state.scaleX;
+        state.layout.scaleY  = state.scaleY;
+      }
       state.candlesModule?.render();
       state._needRedrawCandles = false;
       if (state.layout) chartCore.indicators?.renderAll(state.layout);
     }
   };
 
+  let resizeTimer;
   const resize = () => {
     const { width, height } = container.getBoundingClientRect();
     app.renderer.resize(width, height);
     app.view.style.width = width + 'px';
     app.view.style.height = height + 'px';
-    scheduleRender({ full: true });
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => scheduleRender({ full:true }), 2);
   };
 
   const destroy = () => {

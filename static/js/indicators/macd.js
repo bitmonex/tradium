@@ -125,15 +125,24 @@ export const macd = {
       const candleW = localLayout.candleW ?? Math.max(1, Math.abs(x1 - x0));
       const barW = Math.max(1, candleW * barWidthFactor);
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = macdVals.length - 1;
+      for (let i = 0; i < macdVals.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
+      }
+      for (let i = macdVals.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(macdVals.length - 1, i + 2); break; }
+      }
+
       // --- Гистограмма ---
-      for (let i = 0; i < histVals.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = histVals[i];
         if (val == null) continue;
 
         const xCenter = localLayout.indexToX(i);
-        if (xCenter < 0) continue;
-        if (xCenter > plotW) break;
-
         const y0 = zeroY;
         const y1 = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         const color = val >= 0 ? upColor : downColor;
@@ -146,12 +155,10 @@ export const macd = {
       // --- MACD линия ---
       let started = false;
       macdLine.beginPath();
-      for (let i = 0; i < macdVals.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = macdVals[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
         const y = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         if (!started) { macdLine.moveTo(x, y); started = true; }
         else macdLine.lineTo(x, y);
@@ -161,12 +168,10 @@ export const macd = {
       // --- Signal линия ---
       started = false;
       signalLine.beginPath();
-      for (let i = 0; i < signalVals.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = signalVals[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
         const y = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);

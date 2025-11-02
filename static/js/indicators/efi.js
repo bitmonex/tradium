@@ -77,19 +77,27 @@ export const efi = {
       const obj = chartCore?.indicators?.get('efi');
       const scaleY = obj?.scaleY ?? 1;
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = values.length - 1;
+      for (let i = 0; i < values.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
+      }
+      for (let i = values.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; }
+      }
+
       // линия EFI
       let started = false;
       line.beginPath();
       const maxAbs = Math.max(...values.map(v => Math.abs(v) || 0)) || 1;
-      for (let i = 0; i < values.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = values[i];
         if (val == null) continue;
 
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
-
-        // применяем scaleY
         const y = plotH / 2 - (val / maxAbs) * (plotH / 2) * scaleY;
         if (!started) { line.moveTo(x, y); started = true; }
         else line.lineTo(x, y);

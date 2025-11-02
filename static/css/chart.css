@@ -3,7 +3,7 @@
 
 .m-fps{position:absolute; top:40px; left:15px; font-size:.95em; color:#0f0; pointer-events:none}
 
-.m-ohlcv{ position:absolute; top:13px; left:15px; font-size:.95em; pointer-events: none}
+.m-ohlcv{ position:absolute; top:13px; left:15px; font-size:.95em; pointer-events: none; user-select:none}
 .m-ohlcv strong{text-transform: uppercase; color:#FFC61C; margin-right:10px; cursor:pointer; pointer-events: auto}
 .m-ohlcv i {color:#BDBDBD; margin-right:10px}
 .m-ohlcv i b{color:#666; margin-right:3px}
@@ -19,7 +19,7 @@
 .m-indicators i{cursor:pointer}
 .m-indicators.min span{display:none}
 .m-indicators span{clear:both; display:block; width:100%; height:20px; margin-bottom:7px; text-shadow: 2px 2px 2px rgba(0,0,0,5);}
-.m-indicators span strong{float:left; font-size:.9em; font-weight:normal}
+.m-indicators span strong{float:left; font-size:.9em; font-weight:normal; user-select:none}
 .m-indicators span:hover strong{color:#fff}
 .m-indicators span i{float:left; color margin:0; padding:0; width:16px; margin-left:7px}
 .m-indicators span i:hover{color:#fff}
@@ -29,18 +29,18 @@
 .m-indicators .switcher{order: 999; color:#998; font-size:1.1em; margin-left:-2px}
 .m-indicators .switcher:hover{color:#fff}
 
-.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center;
-  color:#ccc; background:#3B3B3B; border-radius:50%; margin:1px 0 0 8px}
-
+.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center; color:#ccc; background:#3B3B3B; border-radius:50%; margin:1px 0 0 8px}
 .m-indicators .fs:hover{color:#000; background:#fff}
 
-.indicator-overlay{position:absolute; z-index:100; pointer-events:none}
+.indicator-overlay{position:absolute; xz-index:100; pointer-events:none; user-select:none;}
 .indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto; user-select: none}
 .indicator-overlay .sw:hover{background:#222}
 .indicator-overlay .sw b{display:block; height:1px; background:#333}
 .indicator-overlay .sw:hover b{background:#777}
 
 .iheader{position:absolute; left:10px; top:10px; height:20px; font-size:.95em; text-shadow: 2px 2px 0 #000; color:#ccc; pointer-events:auto}
+.on .iheader span strong{color:#ccc}
+.iheader span strong{color:#555; cursor:pointer}
 .iheader span:hover strong{color:#fff; margin-right:12px}
 .iheader span i{display:none; cursor: pointer}
 .iheader span:hover i{display:inline}
@@ -49,3 +49,8 @@
 .iheader u{color:#999; margin-left:10px}
 .iheader u i{color:#ccc; margin-right:10px}
 .iheader u b{color:#999; font-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px}
+.on .iheader em,.on .iheader u{visibility:visible}
+.iheader em,.iheader u{visibility:hidden; user-select:none}
+
+.loader{position:absolute;transform: translateY(-100%);  z-index:9999; background:#000; border:1px solid #777; colorL:#fff; padding:5px 10px}
+

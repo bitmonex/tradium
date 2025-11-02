@@ -93,18 +93,26 @@ export const rsi = {
       const obj = chartCore?.indicators?.get('rsi');
       const scaleY = obj?.scaleY ?? 1;
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = values.length - 1;
+      for (let i = 0; i < values.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; } // буфер слева
+      }
+      for (let i = values.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; } // буфер справа
+      }
+
       // линия RSI
       let started = false;
       rsiLine.beginPath();
-      for (let i = 0; i < values.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = values[i];
         if (val == null) continue;
 
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
-
-        // применяем scaleY
         const y = plotH/2 - ((val - 50) / 100) * plotH * scaleY;
         if (!started) { rsiLine.moveTo(x, y); started = true; }
         else { rsiLine.lineTo(x, y); }

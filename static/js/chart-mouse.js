@@ -1,6 +1,5 @@
 // chart-mouse.js
 import { zoomX, zoomY, pan } from './chart-zoom.js';
-import { loadHistoryChunk } from "./chart.js";
 
 export class Mouse {
   constructor(app, config, getState, args) {
@@ -57,10 +56,13 @@ export class Mouse {
     return mx >= L.plotX && mx <= L.plotX + L.plotW && my >= L.plotY && my <= L.plotY + L.plotH;
   }
 
-  scheduleRender() {
+  scheduleRender(opts = { full: false }) {
     if (this.rafPending) return;
     this.rafPending = true;
-    requestAnimationFrame(() => { this.render?.(); this.rafPending = false; });
+    requestAnimationFrame(() => { 
+      this.chartCore?.scheduleRender(opts); 
+      this.rafPending = false; 
+    });
   }
 
   ensureStateSafe(s) {
@@ -71,9 +73,11 @@ export class Mouse {
   }
 
   onPointerDown = (e) => {
+    if (e.pointerType === "touch") {
+      e.preventDefault();
+    }
     const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
     this.downX = e.clientX; this.downY = e.clientY; this.wasDrag = false;
-
     const r = this.getRect(), x = e.clientX - r.left, y = e.clientY - r.top;
     this.movedScale = false; 
     this.centerX = r.width * 0.5; 
@@ -123,7 +127,6 @@ export class Mouse {
       }
     }
     else {
-      // проверка оффсайд‑зоны индикаторов (правый 70px столбец каждого индикатора)
       for (const [id, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
         const box = obj._offsideBox;
         if (box && x >= box.x && x <= box.x + box.w && y >= box.y && y <= box.y + box.h) {
@@ -134,22 +137,44 @@ export class Mouse {
       }
     }
 
+    // 🔹 поддержка тача
+    if (e.pointerType === "touch" && inPlot) {
+      this.dragging = true;
+      this.app.view.style.cursor = 'grabbing';
+    }
+
     this.lastX = e.clientX; this.lastY = e.clientY;
   };
 
   onPointerMove = (e) => {
+    if (e.pointerType === "touch") {
+      e.preventDefault();
+    }
+    
     if (this.ignoreNextMove) {
       this.ignoreNextMove = false;
       return;
     }
 
-    const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
-    if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) this.wasDrag = true;
+    const s = this.getState?.(); 
+    if (!s) return; 
+    this.ensureStateSafe(s);
 
-    const r = this.getRect(), dx = e.clientX - this.lastX, dy = e.clientY - this.lastY;
-    this.lastX = e.clientX; this.lastY = e.clientY; 
-    const mx = e.clientX - r.left, my = e.clientY - r.top;
-    const L = s.layout; if (!L) return;
+    if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) {
+      this.wasDrag = true;
+    }
+
+    const r = this.getRect();
+    const dx = e.clientX - this.lastX;
+    const dy = e.clientY - this.lastY;
+    this.lastX = e.clientX; 
+    this.lastY = e.clientY; 
+
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    const L = s.layout; 
+    if (!L) return;
+
     const { bottomOffset, rightOffset } = L;
 
     const inPriceScale =
@@ -165,19 +190,24 @@ export class Mouse {
       mx >= L.plotX && mx <= L.plotX + L.plotW &&
       my >= L.plotY && my <= L.plotY + L.plotH;
 
+    // --- Dragging графика ---
     if (this.dragging) {
+      const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy });
       if (!inPlotFull) { 
         this.dragging = false; 
         this.app.view.style.cursor = 'default'; 
         return; 
       }
-      const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy }); 
-      if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; } 
-      this.render?.(); 
+      if (p) { 
+        s.offsetX = p.offsetX; 
+        s.offsetY = p.offsetY; 
+      } 
+      s._needRedrawCandles = true;
+      this.chartCore?.scheduleRender({ full:true });
       return;
     }
 
-    // 🔹 Граббинг индикатора — сброс при выходе из зоны
+    // --- Граббинг индикатора ---
     if (this.draggingIndicators) {
       const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
       const box = obj?._lastGlobalLayout;
@@ -188,17 +218,17 @@ export class Mouse {
         return;
       }
 
-      s.offsetX += dx;
       if (this.draggingIndicatorId) {
+        s.offsetX += dx;
         const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
         this.indicatorOffsets.set(this.draggingIndicatorId, prev + dy);
         obj.localOffsetY = prev + dy;
       }
-      this.render?.();
+      this.chartCore?.scheduleRender({ full:true });
       return;
     }
 
-    // 🔹 Ресайз индикатора — сброс при выходе из offside‑зоны
+    // --- Ресайз индикатора ---
     if (this.resizingIndicatorId && dy !== 0) {
       const obj = this.chartCore?.indicators?.get(this.resizingIndicatorId);
       const box = obj?._offsideBox;
@@ -207,12 +237,12 @@ export class Mouse {
         this.app.view.style.cursor = 'default';
         return;
       }
-
       const factor = 1 - dy * 0.01;
       this.chartCore.indicators.setScaleOne(this.resizingIndicatorId, factor);
       return;
     }
 
+    // --- Горизонтальный ресайз (масштаб по X) ---
     if (this.resizingX && dx !== 0) {
       if (!inTimeScale) return;
       this.movedScale = true; 
@@ -220,20 +250,32 @@ export class Mouse {
       const f = 1 - dx * 0.05;
       s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, s.scaleX * f)); 
       s.offsetX = this.centerX - this.worldX0 * (spacing * s.scaleX);
-      this.render?.(); 
+      this.chartCore?.scheduleRender({ full:true }); 
       return;
     }
 
+    // --- Вертикальный ресайз (масштаб по Y) ---
     if (this.resizingY && dy !== 0) {
       if (!inPriceScale) return;
       this.movedScale = true; 
       const f = 1 - dy * 0.05;
-      s.scaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f)); 
-      s.offsetY = this.centerY - this.worldY0 * (this.canvasH * s.scaleY);
-      this.render?.(); 
+
+      // центр именно plot‑зоны
+      const centerY = L.plotY + L.plotH / 2;
+      const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+
+      const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
+      const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+
+      s.scaleY = newScaleY;
+      s.offsetY = newOffsetY;
+
+      this.chartCore?.scheduleRender({ full:true }); 
       return;
     }
 
+
+    // --- Курсор по зонам ---
     if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
       if (inPriceScale) {
         this.app.view.style.cursor = 'ns-resize';
@@ -250,15 +292,14 @@ export class Mouse {
             break;
           }
         }
-        if (inOffside) this.app.view.style.cursor = 'ns-resize';
-        else this.app.view.style.cursor = 'default';
+        this.app.view.style.cursor = inOffside ? 'ns-resize' : 'default';
       }
     }
 
-    // Hover по свечам
+    // --- Hover по свечам ---
     if (!L || !s.candles?.length) return;
-    s.mouseX = mx; s.mouseY = my;
-
+    s.mouseX = mx; 
+    s.mouseY = my;
     if (!inPlotX) {
       this.update?.(null);
       this.chartCore?.indicators?.updateHoverAll?.(null, null);
@@ -285,45 +326,6 @@ export class Mouse {
     if (this.app?.view) this.app.view.style.cursor = 'default';
   };
 
-  historyLoadShow = () => {
-    console.log("🔥 historyLoadShow вызван");
-    const container = document.getElementById("chart-container");
-    if (!container) {
-      //alert("❌ Нет контейнера chart-container");
-      return;
-    }
-    if (document.getElementById("chart-loader")) {
-      //alert("⚠️ chart-loader уже есть в DOM");
-      return;
-    }
-    const loader = document.createElement("div");
-    loader.className = "loading";
-    loader.id = "chart-loader";
-    loader.innerHTML = "<i></i>Loading...";
-    container.style.position = "relative";
-    loader.style.position = "absolute";
-    loader.style.top = "406px";
-    loader.style.left = "10px";
-    loader.style.color = "#fff";
-    loader.style.background = "rgba(0,0,0,0.7)";
-    loader.style.padding = "14px 18px";
-    loader.style.borderRadius = "4px";
-    loader.style.zIndex = "9999";
-    container.appendChild(loader);
-    //alert("✅ historyLoadShow вставил loader в DOM");
-  }
-
-  historyLoadHide = () => {
-    const loader = document.getElementById("chart-loader");
-    if (loader) {
-      setTimeout(() => {
-        loader.remove();
-        console.log("⏳ Loader удалён через 2 секунды");
-      }, 1000); // задержка 2 секунды
-    }
-  }
-
-
   onWheel = (e) => {
     const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
     e.preventDefault();
@@ -339,21 +341,16 @@ export class Mouse {
 
     // горизонтальный скролл — панорамирование по всей высоте графика
     if (inPlotX && ax > ay + 2) {
-      // если ушли влево к началу данных
-      if (s.offsetX > 0 && s.offsetX < 50) { // условие под layout
-        this.historyLoadShow();
-        loadHistoryChunk().finally(() => this.historyLoadHide());
-      }
       s.offsetX -= e.deltaX;
-      this.render?.();
+      this.chartCore?.scheduleRender({ full:true });
       return;
     }
 
-    // вертикальный скролл — зум (оставляем как было)
+    // вертикальный скролл — зум
     if (ay > ax + 2) {
       const f = Math.exp(-e.deltaY * 0.005);
 
-      // Y‑зум: правая шкала (всегда простой зум из центра)
+      // Y‑зум: ценовая шкала (простой зум)
       if (inPriceScale) {
         const centerY = L.plotY + L.plotH / 2;
         const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
@@ -361,11 +358,11 @@ export class Mouse {
         const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
         s.scaleY = newScaleY;
         s.offsetY = newOffsetY;
-        this.render?.();
+        this.chartCore?.scheduleRender({ full:true });
         return;
       }
 
-      // X‑зум: нижняя шкала или график без Shift
+      // X‑зум: временная шкала или график без Shift
       if (inTimeScale || (inPlotX && !e.shiftKey)) {
         const z = this.zoomX?.({
           mx,
@@ -375,7 +372,7 @@ export class Mouse {
           direction: f
         });
         if (z) { s.scaleX = z.scaleX; s.offsetX = z.offsetX; }
-        this.render?.();
+        this.chartCore?.scheduleRender({ full:true });
         return;
       }
       // Проверка оффсайд‑зоны индикаторов
@@ -389,7 +386,7 @@ export class Mouse {
         }
       }
 
-      // Y‑зум из центра основного графика при Shift (как было)
+      // Y‑зум из центра основного графика при Shift
       const inMainPlotY = my >= L.plotY && my <= L.plotY + L.plotH;
       if (inMainPlotY && e.shiftKey) {
         const centerY = L.plotY + L.plotH / 2;
@@ -398,14 +395,14 @@ export class Mouse {
         const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
         s.scaleY = newScaleY;
         s.offsetY = newOffsetY;
-        this.render?.();
+        this.chartCore?.scheduleRender({ full:true });
         return;
       }
     }
   };
 
   onClick = (e) => {
-    // 🔹 защита от ложного шагового зума после ресайза индикатора
+    // защита от ложного шагового зума после ресайза индикатора
     if (this.wasDrag || this.resizingIndicatorId != null) return;
 
     const dx = Math.abs(e.clientX - this.downX);
@@ -433,17 +430,6 @@ export class Mouse {
       y >= L.height - bottomOffset && y <= L.height &&
       x >= 0 && x <= L.width - rightOffset;
 
-    if (inPriceScale) {
-      // шаговый Y‑зум из центра
-      const centerY = L.plotY + L.plotH / 2;
-      const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
-      const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * factor));
-      const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
-      s.scaleY = newScaleY;
-      s.offsetY = newOffsetY;
-      this.scheduleRender();
-      return;
-    }
 
     if (inTimeScale) {
       // шаговый X‑зум из центра
@@ -459,7 +445,7 @@ export class Mouse {
         s.scaleX = z.scaleX;
         s.offsetX = z.offsetX;
       }
-      this.scheduleRender();
+      this.chartCore?.scheduleRender({ full:true });
       return;
     }
   };
@@ -482,13 +468,22 @@ export class Mouse {
 
     // 🔹 переключаем fullscreen‑режим (убираем/возвращаем только bottom‑индикаторы)
     this.chartCore?.indicators?.toggleFullscreen();
+    // перепозиционируем лоадер после пересчёта layout
+    if (this.chartCore) {
+      requestAnimationFrame(() => {
+        if (this.chartCore) {
+          this.chartCore.state?.candlesModule && 
+            this.chartCore.state.candlesModule.positionLoader?.(this.chartCore);
+        }
+      });
+    }
   };
 
   init() {
     const v = this.app?.view;
     if (!v) return;
 
-    try { v.style.touchAction = 'none'; } catch {}
+    try { v.style.touchAction = 'none'; v.style.userSelect = 'none'; } catch {}
 
     v.addEventListener('pointerdown', this.onPointerDown);
     v.addEventListener('pointermove', this.onPointerMove);

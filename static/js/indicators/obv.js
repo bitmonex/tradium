@@ -112,16 +112,25 @@ export const obv = {
       const maxVal = Math.max(...allVals);
       const range = maxVal - minVal || 1;
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = rawValues.length - 1;
+      for (let i = 0; i < rawValues.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
+      }
+      for (let i = rawValues.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(rawValues.length - 1, i + 2); break; }
+      }
+
       // --- Raw OBV ---
       let started = false;
       rawLine.beginPath();
-      for (let i = 0; i < rawValues.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = rawValues[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
-        // применяем scaleY
         const y = plotH * (1 - ((val - minVal) / range) * scaleY);
         if (!started) { rawLine.moveTo(x, y); started = true; }
         else rawLine.lineTo(x, y);
@@ -132,13 +141,10 @@ export const obv = {
       if (smoothValues.length) {
         started = false;
         smoothLine.beginPath();
-        for (let i = 0; i < smoothValues.length; i++) {
+        for (let i = firstIdx; i <= lastVisibleIdx; i++) {
           const val = smoothValues[i];
           if (val == null) continue;
           const x = localLayout.indexToX(i);
-          if (x < 0) continue;
-          if (x > plotW) break;
-          // применяем scaleY
           const y = plotH * (1 - ((val - minVal) / range) * scaleY);
           if (!started) { smoothLine.moveTo(x, y); started = true; }
           else smoothLine.lineTo(x, y);

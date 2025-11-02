@@ -7,9 +7,52 @@ export const candleRenderSettings = {
   candleGap: 2,
 };
 
+let isLoadingHistory = false;
+let noMoreHistory = false;
+let historyLoadTimer = null;
+
+// --- UI лоадера ---
+function ensureLoader(chartCore) {
+  const parent = chartCore?.app?.view?.parentNode;
+  if (!parent) return null;
+  let loader = parent.querySelector('.loader');
+  if (!loader) {
+    loader = document.createElement('div');
+    loader.className = 'loader';
+    parent.appendChild(loader);
+  }
+  return loader;
+}
+function showLoader(chartCore, text) {
+  const loader = ensureLoader(chartCore);
+  if (loader) {
+    loader.textContent = text;
+    loader.style.display = 'flex';
+    positionLoader(chartCore);
+  }
+}
+
+function hideLoader(chartCore) {
+  const loader = chartCore?.app?.view?.parentNode?.querySelector('.loader');
+  if (loader) loader.style.display = 'none';
+}
+
+// --- позиционирование лоадера ---
+export function positionLoader(chartCore) {
+  const loader = chartCore?.app?.view?.parentNode?.querySelector('.loader');
+  const L = chartCore?.state?.layout;
+  if (!loader || !L) return;
+  const { plotX, plotY, plotH } = L;
+  loader.style.left = plotX + 'px';
+  loader.style.top  = (plotY + plotH) + 'px';
+}
+
 // --- инициализация свечей ---
 export function initCandles(chartCore, chartSettings) {
+  isLoadingHistory = false;
+  noMoreHistory = false;
   chartCore._alive = true;
+  hideLoader(chartCore);
   chartCore.state.candleRenderSettings = candleRenderSettings;
   // восстановим стиль
   const savedStyle = (localStorage.getItem("chartStyle") 
@@ -27,6 +70,9 @@ export function initCandles(chartCore, chartSettings) {
     destroy: () => {
       try { chartCore._candleSocket?.close(); } catch {}
       cleanupCandles(chartCore);
+      isLoadingHistory = false;
+      noMoreHistory = false;
+      clearTimeout(historyLoadTimer);
     }
   };
 }
@@ -58,9 +104,86 @@ async function loadOHLCV(chartCore, { exchange, marketType, symbol, timeframe })
     chartCore.state.volumes = candles.map(c => c.volume);
     chartCore.state._centered = false;
     chartCore.scheduleRender({ full: true });
+    positionLoader(chartCore);
   } catch (err) {
     console.error("[candles] loadOHLCV error:", err);
   }
+}
+
+// --- проверка и подгрузка истории ---
+async function checkAndLoadHistory(chartCore, trigger = "viewport") {
+  if (isLoadingHistory || noMoreHistory) return;
+  const { candles, layout } = chartCore.state;
+  if (!candles?.length || !layout) return;
+
+  // вычисляем индекс первой видимой свечи
+  const leftIndex = Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX));
+  if (leftIndex > 2) {
+    // если ушли вправо, а раньше показывали "The End" — убираем плашку
+    if (chartCore.state.noMoreData) hideLoader(chartCore);
+    return;
+  }
+
+  clearTimeout(historyLoadTimer);
+  historyLoadTimer = setTimeout(async () => {
+    isLoadingHistory = true;
+    showLoader(chartCore, "Loading...");
+    //alert(`[${trigger}]  Начало подгрузки истории...`);
+    try {
+      const oldest = candles[0].time;
+      const url = `/${chartCore.chartSettings.exchange}/${chartCore.chartSettings.marketType}/${chartCore.chartSettings.symbol}/history?tf=${chartCore.chartSettings.timeframe}&before=${Math.floor(oldest/1000)}&limit=1000`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      if (!data.length) {
+        noMoreHistory = true;
+        chartCore.state.noMoreData = true;
+        console.log(`[${trigger}] ⚠️ The End`);
+        showLoader(chartCore, "The End");
+        return;
+      }
+      const intervalMs = chartCore.state.tfMs || 60000;
+      const more = data.map(c => {
+        let ts = c.time ?? c.timestamp ?? c.openTime;
+        if (!ts) return null;
+        if (ts < 1e12) ts *= 1000;
+        ts = Math.floor(ts / intervalMs) * intervalMs;
+        return {
+          open: +c.open,
+          high: +c.high,
+          low: +c.low,
+          close: +c.close,
+          volume: +c.volume,
+          time: ts,
+          timestamp: ts
+        };
+      }).filter(Boolean);
+
+      if (more.length) {
+        // сортируем по времени
+        more.sort((a, b) => a.time - b.time);
+        // фильтруем дубли
+        const firstTime = candles[0].time;
+        const fresh = more.filter(c => c.time < firstTime);
+        if (fresh.length) {
+          chartCore.state.candles.unshift(...fresh);
+          chartCore.state.volumes.unshift(...fresh.map(c => c.volume));
+          chartCore.scheduleRender({ full: true });
+          positionLoader(chartCore);
+          // компенсируем сдвиг графика
+          const added = fresh.length;
+          chartCore.state.offsetX -= added * (chartCore.state.layout.spacing * chartCore.state.scaleX);
+          hideLoader(chartCore);          
+        } else {
+          console.log(`[${trigger}] ⚠️ сервер вернул только дубли, ничего не добавлено`);
+        }
+      }
+    } catch (err) {
+      console.error(`[${trigger}] ❌ ошибка подгрузки истории:`, err);
+    } finally {
+      isLoadingHistory = false;
+    }
+  }, 300);
 }
 
 // --- подключение сокета ---
@@ -208,61 +331,27 @@ export function autoCenterCandles(chartCore) {
   const midPrice = (last.high + last.low) / 2;
   const midY = layout.priceToY(midPrice);
   chartCore.state.offsetY = layout.height / 2 - midY;
-  if (chartCore.state.noMoreData && chartCore.state.offsetX > 0) {
-    chartCore.state.offsetX = 0;
-  }
 }
 
-// --- утилита агрегации ---
-function aggregateCandles(candles, bucketSize) {
-  if (!candles?.length || bucketSize <= 1) return candles;
-
-  const aggregated = [];
-  for (let i = 0; i < candles.length; i += bucketSize) {
-    const bucket = candles.slice(i, i + bucketSize);
-    if (!bucket.length) continue;
-
-    const open = bucket[0].open;
-    const close = bucket[bucket.length - 1].close;
-    const high = Math.max(...bucket.map(c => c.high));
-    const low = Math.min(...bucket.map(c => c.low));
-    const volume = bucket.reduce((sum, c) => sum + (c.volume || 0), 0);
-    const time = bucket[0].time;
-
-    aggregated.push({ open, high, low, close, volume, time });
-  }
-  return aggregated;
-}
-
-// --- рендер свечей с LOD ---
+// --- рендер свечей ---
 export function drawCandlesOnly(chartCore) {
   const { candles, chartStyle, layout, candleLayer } = chartCore.state;
   if (!candles?.length || !layout) return;
-
-  let series = candles;
-
-  // --- LOD агрегация ---
-  const maxBars = layout.plotW; // ширина области в пикселях
-  if (candles.length > maxBars * 2) {
-    const bucketSize = Math.ceil(candles.length / maxBars);
-    series = aggregateCandles(candles, bucketSize);
-    // console.log(`[LOD] Агрегация: ${candles.length} → ${series.length}`);
-  }
-
   if (chartStyle === "candles") {
-    renderCandles(series, candleLayer, layout, chartCore.config);
+    renderCandles(candles, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_candlesG");
   } else if (chartStyle === "heikin") {
-    const ha = toHeikin(series);
+    const ha = toHeikin(candles);
     renderCandles(ha, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_candlesG");
   } else if (chartStyle === "line") {
-    renderLine(series, candleLayer, layout, chartCore.config);
+    renderLine(candles, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_lineG");
   } else if (chartStyle === "bars") {
-    renderBars(series, candleLayer, layout, chartCore.config);
+    renderBars(candles, candleLayer, layout, chartCore.config);
     setVisible(candleLayer, "_barsG");
   }
+  checkAndLoadHistory(chartCore, "render");
 }
 
 function setVisible(layer, activeKey) {
@@ -288,13 +377,16 @@ export function renderCandles(series, layer, layout, config) {
   const bull = config.candles.candleBull;
   const bear = config.candles.candleBear;
 
-  // --- вычисляем диапазон индексов для отрисовки ---
-  const buffer = 5; // запас в свечах слева/справа
-  const startIndex = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer);
+  const buffer = 5;
+  const startIndex = Math.max(
+    0,
+    Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer
+  );
   const endIndex = Math.min(
     series.length - 1,
     Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
   );
+
   for (let i = startIndex; i <= endIndex; i++) {
     const v = series[i];
     if (!v) continue;
@@ -304,9 +396,8 @@ export function renderCandles(series, layer, layout, config) {
     const yClose = layout.priceToY(v.close);
     const yHigh  = layout.priceToY(v.high);
     const yLow   = layout.priceToY(v.low);
-    // тень high-low
+
     g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
-    // тело свечи
     const top = Math.min(yOpen, yClose);
     const bot = Math.max(yOpen, yClose);
     const h = Math.max(1, bot - top);
@@ -314,19 +405,7 @@ export function renderCandles(series, layer, layout, config) {
   }
 }
 
-// --- утилита агрегации для линии ---
-function aggregateLine(candles, bucketSize) {
-  if (!candles?.length || bucketSize <= 1) return candles;
-  const out = [];
-  for (let i = 0; i < candles.length; i += bucketSize) {
-    const bucket = candles.slice(i, i + bucketSize);
-    const last = bucket[bucket.length - 1];
-    out.push({ time: bucket[0].time, close: last.close });
-  }
-  return out;
-}
-
-// --- батч-рендер линии с LOD + клиппинг ---
+// --- батч-рендер линии ---
 export function renderLine(candles, layer, layout, config) {
   let g = layer._lineG;
   if (!g || g.destroyed) {
@@ -337,51 +416,27 @@ export function renderLine(candles, layer, layout, config) {
   g.clear();
   const color = config.candles?.lineColor ?? 0xffffff;
 
-  // LOD: если точек сильно больше, чем пикселей по X — агрегируем
-  const maxBars = layout.plotW;
-  let series = candles;
-  if (candles.length > maxBars * 2) {
-    const bucketSize = Math.ceil(candles.length / maxBars);
-    series = aggregateLine(candles, bucketSize);
-  }
-
-  // Клиппинг: рисуем только видимый диапазон с буфером
   const buffer = 5;
   const startIndex = Math.max(
     0,
     Math.floor((layout.plotX - layout.offsetX) / (layout.spacing * layout.scaleX)) - buffer
   );
   const endIndex = Math.min(
-    series.length - 1,
+    candles.length - 1,
     Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
   );
+
   for (let i = startIndex; i <= endIndex; i++) {
     const x = layout.indexToX(i);
-    const y = layout.priceToY(series[i].close);
+    const y = layout.priceToY(candles[i].close);
     if (i === startIndex) g.moveTo(x, y);
     else g.lineTo(x, y);
   }
   g.stroke({ width: 2, color });
 }
 
-// --- утилита агрегации для баров/свечей ---
-function aggregateOHLC(series, bucketSize) {
-  if (!series?.length || bucketSize <= 1) return series;
-  const out = [];
-  for (let i = 0; i < series.length; i += bucketSize) {
-    const bucket = series.slice(i, i + bucketSize);
-    const open = bucket[0].open;
-    const close = bucket[bucket.length - 1].close;
-    const high = Math.max(...bucket.map(c => c.high));
-    const low  = Math.min(...bucket.map(c => c.low));
-    const volume = bucket.reduce((s, c) => s + (c.volume || 0), 0);
-    out.push({ open, high, low, close, volume, time: bucket[0].time });
-  }
-  return out;
-}
-
-// --- батч-рендер баров с LOD + клиппинг ---
-export function renderBars(seriesIn, layer, layout, config) {
+// --- батч-рендер баров ---
+export function renderBars(series, layer, layout, config) {
   let g = layer._barsG;
   if (!g || g.destroyed) {
     g = new PIXI.Graphics();
@@ -393,15 +448,6 @@ export function renderBars(seriesIn, layer, layout, config) {
   const bull = config.candles.candleBull;
   const bear = config.candles.candleBear;
 
-  // LOD: агрегируем при избытке точек
-  const maxBars = layout.plotW;
-  let series = seriesIn;
-  if (seriesIn.length > maxBars * 2) {
-    const bucketSize = Math.ceil(seriesIn.length / maxBars);
-    series = aggregateOHLC(seriesIn, bucketSize);
-  }
-
-  // Клиппинг: диапазон индексов с буфером
   const buffer = 5;
   const startIndex = Math.max(
     0,
@@ -411,6 +457,7 @@ export function renderBars(seriesIn, layer, layout, config) {
     series.length - 1,
     Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / (layout.spacing * layout.scaleX)) + buffer
   );
+
   for (let i = startIndex; i <= endIndex; i++) {
     const v = series[i];
     if (!v) continue;
@@ -421,11 +468,8 @@ export function renderBars(seriesIn, layer, layout, config) {
     const yHigh  = layout.priceToY(v.high);
     const yLow   = layout.priceToY(v.low);
 
-    // high-low
     g.moveTo(x, yHigh).lineTo(x, yLow).stroke({ width: 1, color });
-    // open слева
     g.moveTo(x - candleW / 2, yOpen).lineTo(x, yOpen).stroke({ width: 1, color });
-    // close справа
     g.moveTo(x, yClose).lineTo(x + candleW / 2, yClose).stroke({ width: 1, color });
   }
 }

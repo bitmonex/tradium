@@ -11,7 +11,6 @@ export function createOverlayManager(chartCore) {
   function ensureOverlay(id, title, par, opts) {
     const { showPar = true, showVal = true } = opts || {};
     let ov = overlays.get(id);
-
     if (ov) {
       const strong = ov.header.querySelector('strong');
       if (strong && title) strong.textContent = title;
@@ -40,7 +39,6 @@ export function createOverlayManager(chartCore) {
         ov.u = null;
       }
 
-      // порядок: <em> перед <u>
       if (ov.em && ov.u) {
         ov.header.insertBefore(ov.em, ov.u);
       }
@@ -53,48 +51,19 @@ export function createOverlayManager(chartCore) {
     container.className = 'indicator-overlay';
     container.dataset.indicator = id;
 
-    // ресайз-переключалка: отдельный блок на уровне container
+    // ресайз-переключалка
     const sw = document.createElement('div');
     sw.className = 'sw';
     sw.innerHTML = '<b></b>';
     container.appendChild(sw);
 
-    // header + меню
+    // header (только заголовок, меню вставляется позже из chart-indicators.js)
     const header = document.createElement('div');
     header.className = 'iheader';
     const span = document.createElement('span');
     const strong = document.createElement('strong');
     strong.textContent = title ?? id;
     span.appendChild(strong);
-    // eye
-    const eye = document.createElement('i');
-    eye.innerHTML = `<b class="icon-view"></b>`;
-    eye.addEventListener('click', (e) => {
-      e.stopPropagation();
-      const ov = overlays.get(id);
-      if (!ov) return;
-      const isVisible = ov.container.style.display !== 'none';
-      setVisible(id, !isVisible);
-    });
-    span.appendChild(eye);
-    // settings
-    const settings = document.createElement('i');
-    settings.innerHTML = `<b class="icon-settings"></b>`;
-    settings.addEventListener('click', (e) => {
-      e.stopPropagation();
-      chartCore.emit?.('indicator:settings', { id });
-    });
-    span.appendChild(settings);
-    // delete
-    const del = document.createElement('i');
-    del.innerHTML = `<b class="icon-delete"></b>`;
-    del.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeOverlay(id);
-      chartCore.emit?.('indicator:remove', { id });
-    });
-    span.appendChild(del);
-
     header.appendChild(span);
 
     // сначала <em>, потом <u>
@@ -113,7 +82,6 @@ export function createOverlayManager(chartCore) {
     }
 
     container.appendChild(header);
-
     const parentNode = getCanvasParent();
     if (parentNode) parentNode.appendChild(container);
 
@@ -125,8 +93,14 @@ export function createOverlayManager(chartCore) {
   // Обновление VAL <u>
   function updateValue(id, value, asHtml = false) {
     const ov = overlays.get(id);
-    if (!ov) { console.warn('[Overlay] нет overlay для', id); return; }
-    if (!ov.u) { console.warn('[Overlay] нет <u> для', id); return; }
+    if (!ov) {
+      console.warn('[Overlay] нет overlay для', id);
+      return;
+    }
+    if (!ov.u) {
+      console.warn('[Overlay] нет <u> для', id);
+      return;
+    }
     if (asHtml) {
       ov.u.innerHTML = value != null ? String(value) : '';
     } else {
@@ -177,13 +151,31 @@ export function createOverlayManager(chartCore) {
   function setVisible(id, visible) {
     const ov = overlays.get(id);
     if (!ov) return;
-    ov.container.style.display = visible ? 'block' : 'none';
+    ov.container.classList.remove('on', 'off');
+    if (visible === true) {
+      ov.container.classList.add('on');
+    } else if (visible === false) {
+      ov.container.classList.add('off');
+    }
+    // undefined/null — без классов: полностью скрыт (например, fullscreen)
+  }
+
+  function setHidden(id, hidden) {
+    const ov = overlays.get(id);
+    if (!ov) return;
+    if (hidden) {
+      ov.container.classList.add('hide');
+    } else {
+      ov.container.classList.remove('hide');
+    }
   }
 
   function toggleAllVisible(visible) {
     for (const [, ov] of overlays.entries()) {
       if (!ov) continue;
-      ov.container.style.display = visible ? 'block' : 'none';
+      ov.container.classList.remove('on', 'off');
+      if (visible === true) ov.container.classList.add('on');
+      else if (visible === false) ov.container.classList.add('off');
     }
   }
 
@@ -195,6 +187,7 @@ export function createOverlayManager(chartCore) {
     removeOverlay,
     clearAll,
     setVisible,
+    setHidden,
     toggleAllVisible
   };
 }

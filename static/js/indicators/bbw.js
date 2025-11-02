@@ -93,19 +93,27 @@ export const bbw = {
       const obj = chartCore?.indicators?.get('bbw');
       const scaleY = obj?.scaleY ?? 1;
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = values.length - 1;
+      for (let i = 0; i < values.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
+      }
+      for (let i = values.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; }
+      }
+
       // линия BBW
       let started = false;
       line.beginPath();
       const maxVal = Math.max(...values.filter(v => v != null));
-      for (let i = 0; i < values.length; i++) {
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = values[i];
         if (val == null) continue;
 
         const x = localLayout.indexToX(i);
-        if (x < 0) continue;
-        if (x > plotW) break;
-
-        // применяем scaleY
         const y = plotH * (1 - (val / maxVal) * scaleY);
         if (!started) { line.moveTo(x, y); started = true; }
         else { line.lineTo(x, y); }

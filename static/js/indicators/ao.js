@@ -89,25 +89,34 @@ export const ao = {
       // масштаб по максимуму абсолютного значения
       const maxAbs = Math.max(...values.map(v => Math.abs(v) || 0)) || 1;
 
-      // ширина свечи
+      // ширина бара как у свечей
       const x0 = localLayout.indexToX(0);
       const x1 = localLayout.indexToX(1);
       const candleW = localLayout.candleW ?? Math.max(1, Math.abs(x1 - x0));
       const barW = Math.max(1, candleW * barWidthFactor);
 
+      // --- определяем видимый диапазон + буфер ---
+      let firstIdx = 0;
+      let lastVisibleIdx = values.length - 1;
       for (let i = 0; i < values.length; i++) {
+        const x = localLayout.indexToX(i);
+        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; } // буфер слева
+      }
+      for (let i = values.length - 1; i >= 0; i--) {
+        const x = localLayout.indexToX(i);
+        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; } // буфер справа
+      }
+
+      // --- рисуем только видимый диапазон ---
+      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
         const val = values[i];
         if (val == null) continue;
 
         const xCenter = localLayout.indexToX(i);
-        if (xCenter < 0) continue;
-        if (xCenter > plotW) break;
-
         const y0 = zeroY;
         const y1 = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         const color = (i > 0 && val > values[i - 1]) ? upColor : downColor;
 
-        // рисуем вертикальный бар
         bars.moveTo(xCenter, y0);
         bars.lineTo(xCenter, y1);
         bars.stroke({ width: barW, color });
