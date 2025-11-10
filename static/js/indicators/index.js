@@ -14,6 +14,7 @@ import { obv } from './obv.js';
 import { ao } from './ao.js';
 import { efi } from './efi.js';
 import { macd } from './macd.js';
+import { vpvr } from './vpvr.js';
 
 export const Indicators = {
   volume,
@@ -30,6 +31,7 @@ export const Indicators = {
   ao,
   efi,
   macd,
+  vpvr,
   test
 };
 

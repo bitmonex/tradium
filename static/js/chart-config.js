@@ -42,6 +42,7 @@ export const ChartConfig = {
     'bbw',
     'ao',
     'efi',
-    'macd'
+    'macd',
+    'vpvr'
   ]
 };
