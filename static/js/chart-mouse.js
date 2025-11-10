@@ -1,5 +1,6 @@
 // chart-mouse.js
 import { zoomX, zoomY, pan } from './chart-zoom.js';
+import { safeCheckAndLoadHistory } from './chart-candles.js';
 
 export class Mouse {
   constructor(app, config, getState, args) {
@@ -21,6 +22,7 @@ export class Mouse {
     this.dragging = false;
     this.resizingX = false;
     this.resizingY = false;
+    this._lastResizeX = 0;
     this.lastX = 0;
     this.lastY = 0;
     this.movedScale = false;
@@ -72,6 +74,25 @@ export class Mouse {
     if (typeof s.offsetY !== 'number' || isNaN(s.offsetY)) s.offsetY = 0;
   }
 
+  // Автоматическая догрузка истории до заполнения окна
+  loadUntilFilled(trigger) {
+    const core = this.chartCore;
+    if (!core) return;
+    const tryLoad = () => {
+      const s = core.state;
+      if (!s?.layout || !s?.candles?.length) return;
+      if (s.noMoreData) return;
+      // если первая свеча уже видна — стоп
+      const leftIndex = s.layout ? Math.floor((s.layout.plotX - s.offsetX) / (s.layout.spacing * s.scaleX)) : 0;
+      if (leftIndex > 0) return;
+      // грузим ещё кусок
+      safeCheckAndLoadHistory(core, trigger);
+      // повторим через 300мс, пока условие не изменится
+      setTimeout(tryLoad, 300);
+    };
+    tryLoad();
+  }
+  
   onPointerDown = (e) => {
     if (e.pointerType === "touch") {
       e.preventDefault();
@@ -136,78 +157,48 @@ export class Mouse {
         }
       }
     }
-
-    // 🔹 поддержка тача
+    // поддержка тача
     if (e.pointerType === "touch" && inPlot) {
       this.dragging = true;
       this.app.view.style.cursor = 'grabbing';
     }
-
     this.lastX = e.clientX; this.lastY = e.clientY;
   };
 
   onPointerMove = (e) => {
-    if (e.pointerType === "touch") {
-      e.preventDefault();
-    }
-    
-    if (this.ignoreNextMove) {
-      this.ignoreNextMove = false;
-      return;
-    }
-
+    if (e.pointerType === "touch") e.preventDefault();
+    if (this.ignoreNextMove) { this.ignoreNextMove = false; return; }
     const s = this.getState?.(); 
     if (!s) return; 
     this.ensureStateSafe(s);
-
-    if (Math.abs(e.clientX - this.downX) > 3 || Math.abs(e.clientY - this.downY) > 3) {
-      this.wasDrag = true;
-    }
-
     const r = this.getRect();
     const dx = e.clientX - this.lastX;
     const dy = e.clientY - this.lastY;
     this.lastX = e.clientX; 
     this.lastY = e.clientY; 
-
     const mx = e.clientX - r.left;
     const my = e.clientY - r.top;
     const L = s.layout; 
     if (!L) return;
-
-    const { bottomOffset, rightOffset } = L;
-
-    const inPriceScale =
-      mx >= L.plotX + L.plotW && mx <= L.width &&
-      my >= L.plotY && my <= L.plotY + L.plotH;
-
-    const inTimeScale =
-      my >= L.height - bottomOffset && my <= L.height &&
-      mx >= L.plotX && mx <= L.plotX + L.plotW;
-
-    const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
-    const inPlotFull =
-      mx >= L.plotX && mx <= L.plotX + L.plotW &&
-      my >= L.plotY && my <= L.plotY + L.plotH;
-
-    // --- Dragging графика ---
+    const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
+    const inTimeScale  = my >= L.height - L.bottomOffset && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const inPlotFull   = mx >= L.plotX && mx <= L.plotX + L.plotW && my >= L.plotY && my <= L.plotY + L.plotH;
+    const inPlotX      = mx >= L.plotX && mx <= L.plotX + L.plotW;
+    
+    // --- Dragging графика/клик и перетаскивание графика ---
     if (this.dragging) {
       const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy });
-      if (!inPlotFull) { 
-        this.dragging = false; 
-        this.app.view.style.cursor = 'default'; 
-        return; 
-      }
-      if (p) { 
-        s.offsetX = p.offsetX; 
-        s.offsetY = p.offsetY; 
-      } 
+      if (!inPlotFull) { this.dragging = false; this.app.view.style.cursor = 'default'; return; }
+      if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; }
       s._needRedrawCandles = true;
-      this.chartCore?.scheduleRender({ full:true });
+      this.chartCore?.scheduleRender();
+      if (!this.chartCore?.state?.noMoreData) {
+        this.loadUntilFilled("drag");
+      }
       return;
     }
 
-    // --- Граббинг индикатора ---
+    // --- Граббинг индикатора/ клик и перетаскивание индикатора ---
     if (this.draggingIndicators) {
       const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
       const box = obj?._lastGlobalLayout;
@@ -217,12 +208,11 @@ export class Mouse {
         this.app.view.style.cursor = 'default';
         return;
       }
-
       if (this.draggingIndicatorId) {
-        s.offsetX += dx;
         const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
-        this.indicatorOffsets.set(this.draggingIndicatorId, prev + dy);
-        obj.localOffsetY = prev + dy;
+        const next = prev + dy;
+        this.indicatorOffsets.set(this.draggingIndicatorId, next);
+        obj.localOffsetY = next;
       }
       this.chartCore?.scheduleRender({ full:true });
       return;
@@ -242,7 +232,7 @@ export class Mouse {
       return;
     }
 
-    // --- Горизонтальный ресайз (масштаб по X) ---
+    // --- Горизонтальный ресайз (масштаб по X) клик по временной шкале ---
     if (this.resizingX && dx !== 0) {
       if (!inTimeScale) return;
       this.movedScale = true; 
@@ -250,30 +240,30 @@ export class Mouse {
       const f = 1 - dx * 0.05;
       s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, s.scaleX * f)); 
       s.offsetX = this.centerX - this.worldX0 * (spacing * s.scaleX);
-      this.chartCore?.scheduleRender({ full:true }); 
+      s._needRedrawCandles = true;
+      const now = Date.now();
+      if (now - this._lastResizeX > 150) {
+        this.chartCore?.scheduleRender({ full:true });
+        this._lastResizeX = now;
+      }
       return;
     }
 
-    // --- Вертикальный ресайз (масштаб по Y) ---
+    // --- Вертикальный ресайз (масштаб по Y) клик по ценовой шкале  ---
     if (this.resizingY && dy !== 0) {
       if (!inPriceScale) return;
       this.movedScale = true; 
       const f = 1 - dy * 0.05;
-
-      // центр именно plot‑зоны
       const centerY = L.plotY + L.plotH / 2;
       const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
-
       const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
       const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
-
       s.scaleY = newScaleY;
       s.offsetY = newOffsetY;
-
-      this.chartCore?.scheduleRender({ full:true }); 
+      s._needRedrawCandles = true;
+      this.chartCore?.scheduleRender();
       return;
     }
-
 
     // --- Курсор по зонам ---
     if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
@@ -318,8 +308,9 @@ export class Mouse {
     this.draggingIndicatorId = null;
     this.resizingIndicatorId = null;
     if (this.app?.view) this.app.view.style.cursor = 'default';
+    this.chartCore?.scheduleRender({ full:true });
   };
-  
+
   onPointerLeave = () => { 
     this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
     this.draggingIndicatorId = null;
@@ -336,15 +327,30 @@ export class Mouse {
 
     //  горизонтальный диапазон графика (plot + индикаторы + нижняя шкала)
     const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
-
     const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
 
     // горизонтальный скролл — панорамирование по всей высоте графика
-    if (inPlotX && ax > ay + 2) {
-      s.offsetX -= e.deltaX;
-      this.chartCore?.scheduleRender({ full:true });
-      return;
-    }
+if (inPlotX && ax > ay + 2) {
+  s.offsetX -= e.deltaX;
+
+  const C = s.candles;
+  const L = s.layout;
+  const lastIdx = C.length - 1;
+
+  if (lastIdx >= 0 && C.length > 5000) {
+    const maxRight = L.indexToX(lastIdx) + 2 * L.plotW;
+    const minLeft = L.indexToX(0) - 2 * L.plotW;
+    s.offsetX = Math.min(maxRight, Math.max(minLeft, s.offsetX));
+  }
+
+  this.chartCore?.scheduleRender({ full:true });
+
+  if (!this.chartCore?.state?.noMoreData) {
+    this.loadUntilFilled("wheel");
+  }
+  return;
+}
+
 
     // вертикальный скролл — зум
     if (ay > ax + 2) {
@@ -373,6 +379,7 @@ export class Mouse {
         });
         if (z) { s.scaleX = z.scaleX; s.offsetX = z.offsetX; }
         this.chartCore?.scheduleRender({ full:true });
+        safeCheckAndLoadHistory(this.chartCore, "zoomX");
         return;
       }
       // Проверка оффсайд‑зоны индикаторов

@@ -87,6 +87,26 @@ export function createIndicatorsManager(chartCore) {
     try { return JSON.parse(localStorage.getItem(fullscreenKey) || 'false'); }
     catch { return false; }
   }
+  
+  // LOD Универсальная функция определения видимого диапазона индексов
+  function LOD(layout, seriesLength, buffer = 2) {
+    if (!layout || !Number.isFinite(seriesLength) || seriesLength <= 0) {
+      return { start: 0, end: 0 };
+    }
+    // та же математика, что в getLeftVisibleIndex/getRightVisibleIndex
+    const denom = layout.spacing * layout.scaleX;
+    if (!Number.isFinite(denom) || denom === 0) {
+      return { start: 0, end: seriesLength - 1 };
+    }
+
+    const left = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / denom) - buffer);
+    const right = Math.min(
+      seriesLength - 1,
+      Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / denom) - 1 + buffer
+    );
+
+    return { start: left, end: right };
+  }
 
   // Синхронизация иконок глаза и состояния оверлея
   function syncEye(id, hidden) {
@@ -286,7 +306,8 @@ export function createIndicatorsManager(chartCore) {
             plotX: 0,
             plotY: 0,
             plotW: layout.plotW,
-            plotH: h
+            plotH: h,
+            indexToX: (i) => L.indexToX(i) - L.plotX
           };
 
           const globalLayout = {
@@ -345,21 +366,40 @@ export function createIndicatorsManager(chartCore) {
               L
             );
           }
+          if (obj.instance?.calculate) { obj.instance.values = obj.instance.calculate(L.candles); }
 
           // рендерим только если глаз открыт
-          if (!obj.hiddenByEye) obj.instance?.render?.(localLayout, globalLayout);
+          if (!obj.hiddenByEye) obj.instance?.render?.(localLayout, globalLayout, L);
 
           offsetY += h;
-        } else {
-          // индикаторы в основной области
-          if (!obj.instance && L?.candles?.length) {
-            obj.instance = obj.def.createIndicator(
-              { layer: obj.layer, chartCore, overlay: chartCore.overlayMgr },
-              L
-            );
+          } else {
+            // индикаторы в основной области (поверх графика)
+            // Привязка слоя к plot-координатам
+            obj.layer.x = L.plotX;
+            obj.layer.y = L.plotY;
+
+            // Маска основной области, чтобы линия/оверлеи не вылезали за plot
+            if (!obj._maskRect) {
+              obj._maskRect = new PIXI.Graphics();
+              obj.layer.addChild(obj._maskRect);
+              obj.layer.mask = obj._maskRect;
+            }
+            obj._maskRect.clear();
+            obj._maskRect.beginFill(0x000000, 1);
+            obj._maskRect.drawRect(0, 0, L.plotW, L.plotH);
+            obj._maskRect.endFill();
+
+            if (!obj.instance && L?.candles?.length) {
+              obj.instance = obj.def.createIndicator(
+                { layer: obj.plotLayer, chartCore, overlay: chartCore.overlayMgr },
+                L
+              );
+            }
+            if (obj.instance?.calculate) { obj.instance.values = obj.instance.calculate(L.candles); }
+
+            if (!obj.hiddenByEye) obj.instance?.render?.(L);
           }
-          if (!obj.hiddenByEye) obj.instance?.render?.(L);
-        }
+
       } catch (err) {
         console.error(`[IndicatorsManager] ${id} render error:`, err);
       }
@@ -535,6 +575,7 @@ export function createIndicatorsManager(chartCore) {
     hitTestIndicator, get,
     setScaleOne, setScaleAll,
     activeEntries: () => active.entries(),
-    active, saveToStorage
+    active, saveToStorage,
+    LOD
   };
 }

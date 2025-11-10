@@ -52,5 +52,5 @@
 .on .iheader em,.on .iheader u{visibility:visible}
 .iheader em,.iheader u{visibility:hidden; user-select:none}
 
-.loader{position:absolute;transform: translateY(-100%);  z-index:9999; background:#000; border:1px solid #777; colorL:#fff; padding:5px 10px}
+.loader{position:absolute;transform: translateY(-100%); z-index:9999; background:#222; color:#ccc; border-radius:25px; padding:5px 10px; margin:-10px 0 0 10px}
 

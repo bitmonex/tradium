@@ -9,8 +9,9 @@ export const rsi = {
     defaultParams: {
       period: 14,
       color: 0xffffff,
+      lineWidth: 1.5,
       levels: [30, 70],
-      levelColors: [0xFF2E2E, 0x00ff00], // красный для 30, зелёный для 70
+      levelColors: [0xFF2E2E, 0x00ff00],
       dashLen: 4,
       gapLen: 6,
       dashThickness: 0.7
@@ -20,6 +21,7 @@ export const rsi = {
   createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
     const period        = params.period        ?? rsi.meta.defaultParams.period;
     const color         = params.color         ?? rsi.meta.defaultParams.color;
+    const lineWidth     = params.lineWidth     ?? rsi.meta.defaultParams.lineWidth;
     const levels        = params.levels        ?? rsi.meta.defaultParams.levels;
     const levelColors   = params.levelColors   ?? rsi.meta.defaultParams.levelColors;
     const dashLen       = params.dashLen       ?? rsi.meta.defaultParams.dashLen;
@@ -42,8 +44,8 @@ export const rsi = {
     let hoverIdx = null;
 
     function calculateRSI(data, p) {
-      const result = [];
-      if (!data || data.length < p + 1) return Array(data?.length || 0).fill(null);
+      if (!Array.isArray(data) || data.length < p + 1) return Array(data?.length || 0).fill(null);
+      const result = Array(p).fill(null);
       let gain = 0, loss = 0;
       for (let i = 1; i < p; i++) {
         const diff = data[i].close - data[i - 1].close;
@@ -56,10 +58,9 @@ export const rsi = {
         gain = (gain * (p - 1) + up) / p;
         loss = (loss * (p - 1) + down) / p;
         const rs = loss === 0 ? 100 : gain / (loss || 1e-9);
-        const rsiVal = 100 - (100 / (1 + rs));
-        result.push(rsiVal);
+        result[i] = 100 - (100 / (1 + rs));
       }
-      return Array(p).fill(null).concat(result);
+      return result;
     }
 
     function drawDashedHorizontalRects(gfx, y, width, color, dash = 6, gap = 4, thickness = 1) {
@@ -74,11 +75,14 @@ export const rsi = {
       }
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!values?.length) return;
+      if (!localLayout?.plotW || !localLayout?.plotH) return;
 
-      values = calculateRSI(candles, period);
+      const indexToXPanel = (i) => {
+        if (typeof baseLayout?.indexToX !== 'function' || typeof baseLayout?.plotX !== 'number') return null;
+        return baseLayout.indexToX(i) - baseLayout.plotX;
+      };
 
       const lastIdx = values.length - 1;
       const lastVal = values[lastIdx];
@@ -88,40 +92,35 @@ export const rsi = {
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // 🔹 берём scaleY из менеджера индикаторов
       const obj = chartCore?.indicators?.get('rsi');
       const scaleY = obj?.scaleY ?? 1;
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = values.length - 1;
-      for (let i = 0; i < values.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; } // буфер слева
-      }
-      for (let i = values.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; } // буфер справа
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, values.length, 2);
 
-      // линия RSI
+      const windowSize = 2; // сглаживание
       let started = false;
       rsiLine.beginPath();
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
-        const val = values[i];
+      for (let i = start; i <= end; i++) {
+        let avg = 0, count = 0;
+        for (let j = 0; j < windowSize; j++) {
+          const v = values[i + j];
+          if (v != null) { avg += v; count++; }
+        }
+        const val = count ? avg / count : values[i];
         if (val == null) continue;
 
-        const x = localLayout.indexToX(i);
+        const x = indexToXPanel(i);
+        if (x == null) continue;
         const y = plotH/2 - ((val - 50) / 100) * plotH * scaleY;
+
         if (!started) { rsiLine.moveTo(x, y); started = true; }
         else { rsiLine.lineTo(x, y); }
       }
       if (started) {
-        rsiLine.stroke({ width: 2, color });
+        rsiLine.stroke({ width: lineWidth, color }); // 🔹 используем толщину линии
       }
 
-      // уровни (пунктир: красный 30, зелёный 70)
+      // уровни
       levels.forEach((level, idx) => {
         const y = plotH/2 - ((level - 50) / 100) * plotH * scaleY;
         const lineColor = levelColors[idx] ?? 0xffffff;
@@ -141,19 +140,25 @@ export const rsi = {
     function updateHover(candle, idx) {
       if (!showVal || !overlay?.updateValue || !values?.length) return;
       const lastIdx = values.length - 1;
-
       if (idx == null || idx < 0 || idx >= values.length) {
         hoverIdx = null;
         const autoVal = values[lastIdx];
         overlay.updateValue('rsi', autoVal != null ? autoVal.toFixed(2) : '');
         return;
       }
-
       hoverIdx = idx;
       const v = values[idx];
       overlay.updateValue('rsi', v != null ? v.toFixed(2) : '');
     }
 
-    return { render, updateHover };
+    return {
+      render,
+      updateHover,
+      calculate: (candles) => {
+        values = calculateRSI(candles, period);
+        return values;
+      },
+      values
+    };
   }
 };

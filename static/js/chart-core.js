@@ -2,6 +2,7 @@
 import { ChartConfig } from './chart-config.js';
 import { initModules } from './chart-modules.js';
 import { createLayout, autoCenterCandles } from './chart-layout.js';
+import { getLeftVisibleIndex, getRightVisibleIndex } from './chart-candles.js';
 
 export async function createChartCore(container, userConfig = {}) {
   const chartId = userConfig.chartId || container.id || "chart1";
@@ -106,42 +107,54 @@ export async function createChartCore(container, userConfig = {}) {
   const chartCore = {};
 
   // --- Render ---
-  const Render = ({ full = false } = {}) => {
+  let isRendering = false;
+
+const Render = ({ full = false } = {}) => {
+  if (isRendering) return;
+  isRendering = true;
+
+  try {
     if (full) {
       const bottomHeight = chartCore.indicators?.getBottomStackHeight() || 0;
 
-      // пересоздаём layout
+      const left = Math.max(0, getLeftVisibleIndex(state.layout) - 2000);
+      const right = Math.min(
+        state.candles.length - 1,
+        getRightVisibleIndex(state.layout, state.candles.length) + 2000
+      );
+
+      const visibleCandles = state.candles.slice(left, right);
+      const priceWindow = visibleCandles.length ? visibleCandles : state.candles.slice(-1);
+
       state.layout = createLayout(
-        app,
-        config,
-        state.candles,
-        state.offsetX,
-        state.offsetY,
-        state.scaleX,
-        state.scaleY,
-        state.tfMs,
-        bottomHeight
+        app, config, state.candles,
+        state.offsetX, state.offsetY,
+        state.scaleX, state.scaleY,
+        state.tfMs, bottomHeight,
+        priceWindow
       );
       if (!state.layout) return;
       state.layout.candles = state.candles;
 
-      // автоцентрирование — только один раз
+      const minX = state.layout.indexToX(0) - state.layout.plotW;
+      const maxX = state.layout.indexToX(state.candles.length - 1) + state.layout.plotW;
+      state.offsetX = Math.min(maxX, Math.max(minX, state.offsetX));
+
       if (state.candles.length && !state._centered) {
         autoCenterCandles({ state });
         state._centered = true;
 
-        // пересоздаём layout после автоцентра
         state.layout = createLayout(
           app, config, state.candles,
           state.offsetX, state.offsetY,
           state.scaleX, state.scaleY,
-          state.tfMs, bottomHeight
+          state.tfMs, bottomHeight,
+          priceWindow
         );
         if (!state.layout) return;
         state.layout.candles = state.candles;
       }
 
-      // маска и подгруппа
       state.subGroup.y = state.layout.plotY + state.layout.plotH;
       viewportMask
         .clear()
@@ -154,12 +167,12 @@ export async function createChartCore(container, userConfig = {}) {
         )
         .endFill();
 
-      // синхронизация актуальных значений в layout перед рендером
       state.layout.offsetX = state.offsetX;
       state.layout.offsetY = state.offsetY;
       state.layout.scaleX  = state.scaleX;
       state.layout.scaleY  = state.scaleY;
-      state.candlesModule?.render();
+
+      state.candlesModule?.render(visibleCandles);
       chartCore.indicators?.renderAll(state.layout);
       renderDebugViewport(state, graphGroup);
       state._needRedrawCandles = false;
@@ -175,7 +188,10 @@ export async function createChartCore(container, userConfig = {}) {
       state._needRedrawCandles = false;
       if (state.layout) chartCore.indicators?.renderAll(state.layout);
     }
-  };
+  } finally {
+    isRendering = false;
+  }
+};
 
   let resizeTimer;
   const resize = () => {
