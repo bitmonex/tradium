@@ -9,8 +9,9 @@ export const obv = {
     defaultParams: {
       smoothType: 'sma',   // 'sma' или 'ema'
       smoothLength: 9,
-      colorRaw: 0x41AB00,    // основная OBV
-      colorSmooth: 0x0284CF  // сглаженная линия
+      colorRaw: 0x41AB00,
+      colorSmooth: 0x0284CF,
+      lineWidth: 1.5
     }
   },
 
@@ -19,6 +20,7 @@ export const obv = {
     const smoothLength = params.smoothLength ?? obv.meta.defaultParams.smoothLength;
     const colorRaw     = params.colorRaw     ?? obv.meta.defaultParams.colorRaw;
     const colorSmooth  = params.colorSmooth  ?? obv.meta.defaultParams.colorSmooth;
+    const lineWidth    = params.lineWidth    ?? obv.meta.defaultParams.lineWidth;
 
     const showPar = true;
     const showVal = true;
@@ -29,7 +31,6 @@ export const obv = {
     layer.sortableChildren = true;
     rawLine.zIndex    = 10;
     smoothLine.zIndex = 11;
-
     layer.addChild(rawLine, smoothLine);
 
     let rawValues = [];
@@ -38,37 +39,38 @@ export const obv = {
 
     // SMA helper
     function sma(values, p) {
-      const result = [];
+      const out = Array(values.length).fill(null);
       let sum = 0;
       for (let i = 0; i < values.length; i++) {
         sum += values[i];
         if (i >= p) sum -= values[i - p];
-        result.push(i >= p - 1 ? sum / p : null);
+        if (i >= p - 1) out[i] = sum / p;
       }
-      return result;
+      return out;
     }
 
     // EMA helper
     function ema(values, p) {
+      const out = Array(values.length).fill(null);
       const k = 2 / (p + 1);
       let emaPrev = values[0];
-      const result = [emaPrev];
+      out[0] = emaPrev;
       for (let i = 1; i < values.length; i++) {
         emaPrev = values[i] * k + emaPrev * (1 - k);
-        result.push(emaPrev);
+        out[i] = emaPrev;
       }
-      return result;
+      return out;
     }
 
-    // OBV calculation (raw)
-    function calculateOBV(data) {
-      if (!data || data.length < 2) return Array(data?.length || 0).fill(null);
+    // OBV calculation
+    function calculateOBV(candles) {
+      if (!candles || candles.length < 2) return Array(candles?.length || 0).fill(null);
 
       const obvVals = [0];
-      for (let i = 1; i < data.length; i++) {
-        const prevClose = data[i - 1].close;
-        const currClose = data[i].close;
-        const vol = data[i].volume ?? 0;
+      for (let i = 1; i < candles.length; i++) {
+        const prevClose = candles[i - 1].close;
+        const currClose = candles[i].close;
+        const vol = candles[i].volume ?? 0;
 
         if (currClose > prevClose) obvVals.push(obvVals[i - 1] + vol);
         else if (currClose < prevClose) obvVals.push(obvVals[i - 1] - vol);
@@ -77,13 +79,8 @@ export const obv = {
       return obvVals;
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
-
+    function calculate(candles) {
       rawValues = calculateOBV(candles);
-
-      // сглаживание
       if (smoothLength > 1) {
         smoothValues = (smoothType === 'ema')
           ? ema(rawValues, smoothLength)
@@ -91,43 +88,31 @@ export const obv = {
       } else {
         smoothValues = [];
       }
+      return rawValues;
+    }
 
-      const lastIdx = rawValues.length - 1;
-      const lastRaw = rawValues[lastIdx];
-      const lastSmooth = smoothValues.length ? smoothValues[lastIdx] : null;
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!rawValues?.length) return;
 
       rawLine.clear();
       smoothLine.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // 🔹 берём scaleY из менеджера индикаторов
       const obj = chartCore?.indicators?.get('obv');
       const scaleY = obj?.scaleY ?? 1;
 
-      // нормализация
       const allVals = [...rawValues, ...smoothValues].filter(v => v != null);
       const minVal = Math.min(...allVals);
       const maxVal = Math.max(...allVals);
       const range = maxVal - minVal || 1;
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = rawValues.length - 1;
-      for (let i = 0; i < rawValues.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
-      }
-      for (let i = rawValues.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(rawValues.length - 1, i + 2); break; }
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, rawValues.length, 2);
 
-      // --- Raw OBV ---
+      // Raw OBV
       let started = false;
       rawLine.beginPath();
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = rawValues[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
@@ -135,13 +120,13 @@ export const obv = {
         if (!started) { rawLine.moveTo(x, y); started = true; }
         else rawLine.lineTo(x, y);
       }
-      if (started) rawLine.stroke({ width: 2, color: colorRaw });
+      if (started) rawLine.stroke({ width: lineWidth, color: colorRaw });
 
-      // --- Smooth OBV ---
+      // Smooth OBV
       if (smoothValues.length) {
         started = false;
         smoothLine.beginPath();
-        for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+        for (let i = start; i <= end; i++) {
           const val = smoothValues[i];
           if (val == null) continue;
           const x = localLayout.indexToX(i);
@@ -149,7 +134,7 @@ export const obv = {
           if (!started) { smoothLine.moveTo(x, y); started = true; }
           else smoothLine.lineTo(x, y);
         }
-        if (started) smoothLine.stroke({ width: 2, color: colorSmooth });
+        if (started) smoothLine.stroke({ width: lineWidth, color: colorSmooth });
       }
 
       // overlay
@@ -157,9 +142,10 @@ export const obv = {
         overlay.updateParam('obv', `${smoothType.toUpperCase()} ${smoothLength}`);
       }
       if (showVal && overlay?.updateValue && rawValues.length) {
+        const lastIdx = rawValues.length - 1;
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
-        const valRaw = isHoverLocked ? rawValues[hoverIdx] : lastRaw;
-        const valSmooth = isHoverLocked ? smoothValues[hoverIdx] : lastSmooth;
+        const valRaw = isHoverLocked ? rawValues[hoverIdx] : rawValues[lastIdx];
+        const valSmooth = isHoverLocked ? smoothValues[hoverIdx] : smoothValues[lastIdx];
         overlay.updateValue(
           'obv',
           (valRaw != null ? valRaw.toFixed(0) : '') +
@@ -194,6 +180,7 @@ export const obv = {
       );
     }
 
-    return { render, updateHover };
+    return { render, updateHover, calculate, values: rawValues };
   }
 };
+

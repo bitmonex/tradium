@@ -8,57 +8,57 @@ export const volatilityOHLC = {
     height: 100,
     defaultParams: {
       period: 10,
-      color: 0x00ff00
+      color: 0x00ff00,
+      lineWidth: 1.5
     }
   },
 
   createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
-    const period = params.period ?? volatilityOHLC.meta.defaultParams.period;
-    const color  = params.color  ?? volatilityOHLC.meta.defaultParams.color;
+    const period    = params.period ?? volatilityOHLC.meta.defaultParams.period;
+    const color     = params.color  ?? volatilityOHLC.meta.defaultParams.color;
+    const lineWidth = params.lineWidth ?? volatilityOHLC.meta.defaultParams.lineWidth;
 
     const showPar = true;
     const showVal = true;
 
     const line = new PIXI.Graphics();
-
     layer.sortableChildren = true;
     line.zIndex = 10;
-
     layer.addChild(line);
 
     let values = [];
     let hoverIdx = null;
 
     // SMA helper
-    function sma(values, p) {
-      const result = [];
+    function sma(arr, p) {
+      const out = Array(arr.length).fill(null);
       let sum = 0;
-      for (let i = 0; i < values.length; i++) {
-        sum += values[i];
-        if (i >= p) sum -= values[i - p];
-        result.push(i >= p - 1 ? sum / p : null);
+      for (let i = 0; i < arr.length; i++) {
+        sum += arr[i];
+        if (i >= p) sum -= arr[i - p];
+        if (i >= p - 1) out[i] = sum / p;
       }
-      return result;
+      return out;
     }
 
     // Volatility calculation
-    function calculate(data, p) {
-      if (!data || data.length < p) return Array(data?.length || 0).fill(null);
+    function calculate(candles, p) {
+      if (!candles || candles.length < p) return Array(candles?.length || 0).fill(null);
 
-      const vols = [];
-      for (let i = 1; i < data.length; i++) {
-        const v = ((data[i].high - data[i].low) / data[i - 1].close) * 100;
-        vols.push(v);
+      const vols = Array(candles.length).fill(null);
+      for (let i = 1; i < candles.length; i++) {
+        vols[i] = ((candles[i].high - candles[i].low) / candles[i - 1].close) * 100;
       }
-      const smoothed = sma(vols, p);
-      return [null].concat(smoothed); // выравниваем длину
+      return sma(vols, p);
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!values?.length) return;
 
-      values = calculate(candles, period);
+      const indexToXPanel = (i) => {
+        if (typeof baseLayout?.indexToX !== 'function' || typeof baseLayout?.plotX !== 'number') return null;
+        return baseLayout.indexToX(i) - baseLayout.plotX;
+      };
 
       const lastIdx = values.length - 1;
       const lastVal = values[lastIdx];
@@ -67,41 +67,25 @@ export const volatilityOHLC = {
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // 🔹 берём scaleY из менеджера индикаторов
       const obj = chartCore?.indicators?.get('volatilityOHLC');
       const scaleY = obj?.scaleY ?? 1;
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = values.length - 1;
-      for (let i = 0; i < values.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
-      }
-      for (let i = values.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; }
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, values.length, 2);
 
-      // линия волатильности
+      const maxVal = Math.max(...values.filter(v => v != null)) || 1;
+
       let started = false;
       line.beginPath();
-      const maxVal = Math.max(...values.filter(v => v != null));
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = values[i];
         if (val == null) continue;
-
-        const x = localLayout.indexToX(i);
+        const x = indexToXPanel(i);
         const y = plotH * (1 - (val / maxVal) * scaleY);
         if (!started) { line.moveTo(x, y); started = true; }
-        else { line.lineTo(x, y); }
+        else line.lineTo(x, y);
       }
-      if (started) {
-        line.stroke({ width: 2, color });
-      }
+      if (started) line.stroke({ width: lineWidth, color });
 
-      // overlay
       if (showPar && overlay?.updateParam) {
         overlay.updateParam('volatilityOHLC', `${period}`);
       }
@@ -128,6 +112,14 @@ export const volatilityOHLC = {
       overlay.updateValue('volatilityOHLC', v != null ? v.toFixed(2) + '%' : '');
     }
 
-    return { render, updateHover };
+    return {
+      render,
+      updateHover,
+      calculate: (candles) => {
+        values = calculate(candles, period);
+        return values;
+      },
+      values
+    };
   }
 };

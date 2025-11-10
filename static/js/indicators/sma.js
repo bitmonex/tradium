@@ -1,3 +1,4 @@
+// indicators/sma.js
 export const sma = {
   meta: {
     id: 'sma',
@@ -6,7 +7,7 @@ export const sma = {
     zIndex: 9999,
     defaultParams: {
       period: 25,
-      color: 0xffa500, // оранжевый
+      color: 0xffa500,
       width: 1.25
     }
   },
@@ -22,8 +23,9 @@ export const sma = {
     layer.sortableChildren = true;
     layer.addChild(g);
 
+    let values = [];
+
     function calcSMA(candles, period) {
-      if (!Array.isArray(candles) || !candles.length) return [];
       const out = Array(candles.length).fill(null);
       let sum = 0;
       for (let i = 0; i < candles.length; i++) {
@@ -34,7 +36,19 @@ export const sma = {
       return out;
     }
 
-    function renderLine(values, color, width, indexToX, priceToY, step) {
+    function render(layout) {
+      const { indexToX, priceToY, plotW, candleWidth, scaleX } = layout;
+      if (!values?.length) return;
+
+      g.clear();
+
+      const barWidth = candleWidth * scaleX;
+      const barsOnScreen = plotW / Math.max(1, barWidth);
+      let step = 1;
+      if (barsOnScreen > 3000) step = 10;
+      else if (barsOnScreen > 1500) step = 5;
+      else if (barsOnScreen > 800) step = 2;
+
       let started = false;
       g.beginPath();
       for (let i = 0; i < values.length; i += step) {
@@ -48,26 +62,13 @@ export const sma = {
       if (started) g.stroke({ width, color });
     }
 
-    function render(layout) {
-      if (!layout?.candles?.length) return;
-
-      const { candles, indexToX, priceToY, plotW, candleWidth, scaleX } = layout;
-
-      const values = calcSMA(candles, period);
-
-      g.clear();
-
-      // --- LOD: шаг прореживания
-      const barWidth = candleWidth * scaleX;
-      const barsOnScreen = plotW / Math.max(1, barWidth);
-      let step = 1;
-      if (barsOnScreen > 3000) step = 10;
-      else if (barsOnScreen > 1500) step = 5;
-      else if (barsOnScreen > 800) step = 2;
-
-      renderLine(values, color, width, indexToX, priceToY, step);
-    }
-
-    return { render };
+    return {
+      render,
+      calculate: (candles) => {
+        values = calcSMA(candles, period);
+        return values;
+      },
+      values
+    };
   }
 };

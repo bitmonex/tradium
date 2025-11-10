@@ -14,7 +14,8 @@ export const macd = {
       colorSignal: 0xFF8000, // сигнальная линия
       upColor: 0x00ff00,     // зелёные бары гистограммы
       downColor: 0xff2e2e,   // красные бары гистограммы
-      barWidthFactor: 0.8
+      barWidthFactor: 0.8,
+      lineWidth: 1.5
     }
   },
 
@@ -27,6 +28,7 @@ export const macd = {
     const upColor     = params.upColor     ?? macd.meta.defaultParams.upColor;
     const downColor   = params.downColor   ?? macd.meta.defaultParams.downColor;
     const barWidthFactor = params.barWidthFactor ?? macd.meta.defaultParams.barWidthFactor;
+    const lineWidth   = params.lineWidth   ?? macd.meta.defaultParams.lineWidth;
 
     const showPar = true;
     const showVal = true;
@@ -51,51 +53,41 @@ export const macd = {
 
     // EMA helper
     function ema(values, p) {
+      const out = Array(values.length).fill(null);
       const k = 2 / (p + 1);
       let emaPrev = values[0];
-      const result = [emaPrev];
+      out[0] = emaPrev;
       for (let i = 1; i < values.length; i++) {
         emaPrev = values[i] * k + emaPrev * (1 - k);
-        result.push(emaPrev);
+        out[i] = emaPrev;
       }
-      return result;
+      return out;
     }
 
     // MACD calculation
-    function calculate(data, fastP, slowP, signalP) {
-      if (!data || data.length < slowP) return { macd: [], signal: [], hist: [] };
+    function calculate(candles) {
+      if (!candles || candles.length < slow) return { macd: [], signal: [], hist: [] };
 
-      const closes = data.map(c => c.close);
-      const emaFast = ema(closes, fastP);
-      const emaSlow = ema(closes, slowP);
+      const closes = candles.map(c => c.close);
+      const emaFast = ema(closes, fast);
+      const emaSlow = ema(closes, slow);
 
-      const macdVals = closes.map((_, i) =>
+      macdVals = closes.map((_, i) =>
         emaFast[i] != null && emaSlow[i] != null ? emaFast[i] - emaSlow[i] : null
       );
 
-      const signalVals = ema(macdVals.filter(v => v != null), signalP);
+      signalVals = ema(macdVals.map(v => v ?? 0), signalP);
       while (signalVals.length < macdVals.length) signalVals.unshift(null);
 
-      const histVals = macdVals.map((v, i) =>
+      histVals = macdVals.map((v, i) =>
         v != null && signalVals[i] != null ? v - signalVals[i] : null
       );
 
-      return { macd: macdVals, signal: signalVals, hist: histVals };
+      return macdVals;
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
-
-      const res = calculate(candles, fast, slow, signalP);
-      macdVals = res.macd;
-      signalVals = res.signal;
-      histVals = res.hist;
-
-      const lastIdx = macdVals.length - 1;
-      const lastMACD = macdVals[lastIdx];
-      const lastSig  = signalVals[lastIdx];
-      const lastHist = histVals[lastIdx];
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!macdVals?.length) return;
 
       macdLine.clear();
       signalLine.clear();
@@ -104,58 +96,41 @@ export const macd = {
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // 🔹 scaleY
       const obj = chartCore?.indicators?.get('macd');
       const scaleY = obj?.scaleY ?? 1;
 
-      // нулевая линия
       const zeroY = plotH / 2;
       zeroLine.moveTo(0, zeroY);
       zeroLine.lineTo(plotW, zeroY);
       zeroLine.stroke({ width: 0.25, color: 0x555555 });
 
-      // нормализация
       const allVals = [...macdVals, ...signalVals, ...histVals].filter(v => v != null);
       const maxAbs = Math.max(...allVals.map(v => Math.abs(v))) || 1;
 
-      // ширина бара
       const x0 = localLayout.indexToX(0);
       const x1 = localLayout.indexToX(1);
       const candleW = localLayout.candleW ?? Math.max(1, Math.abs(x1 - x0));
       const barW = Math.max(1, candleW * barWidthFactor);
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = macdVals.length - 1;
-      for (let i = 0; i < macdVals.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
-      }
-      for (let i = macdVals.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(macdVals.length - 1, i + 2); break; }
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, macdVals.length, 2);
 
-      // --- Гистограмма ---
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      // Histogram
+      for (let i = start; i <= end; i++) {
         const val = histVals[i];
         if (val == null) continue;
-
         const xCenter = localLayout.indexToX(i);
         const y0 = zeroY;
         const y1 = zeroY - (val / maxAbs) * (plotH / 2) * scaleY;
         const color = val >= 0 ? upColor : downColor;
-
         histoBars.moveTo(xCenter, y0);
         histoBars.lineTo(xCenter, y1);
         histoBars.stroke({ width: barW, color });
       }
 
-      // --- MACD линия ---
+      // MACD line
       let started = false;
       macdLine.beginPath();
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = macdVals[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
@@ -163,12 +138,12 @@ export const macd = {
         if (!started) { macdLine.moveTo(x, y); started = true; }
         else macdLine.lineTo(x, y);
       }
-      if (started) macdLine.stroke({ width: 2, color: colorMACD });
+      if (started) macdLine.stroke({ width: lineWidth, color: colorMACD });
 
-      // --- Signal линия ---
+      // Signal line
       started = false;
       signalLine.beginPath();
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = signalVals[i];
         if (val == null) continue;
         const x = localLayout.indexToX(i);
@@ -176,21 +151,22 @@ export const macd = {
         if (!started) { signalLine.moveTo(x, y); started = true; }
         else signalLine.lineTo(x, y);
       }
-      if (started) signalLine.stroke({ width: 2, color: colorSignal });
+      if (started) signalLine.stroke({ width: lineWidth, color: colorSignal });
 
       // overlay
       if (showPar && overlay?.updateParam) {
         overlay.updateParam('macd', `${fast} ${slow} ${signalP}`);
       }
       if (showVal && overlay?.updateValue && macdVals.length) {
+        const lastIdx = macdVals.length - 1;
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
-        const valMACD = isHoverLocked ? macdVals[hoverIdx] : lastMACD;
-        const valSig  = isHoverLocked ? signalVals[hoverIdx] : lastSig;
-        const valHist = isHoverLocked ? histVals[hoverIdx] : lastHist;
+        const valMACD = isHoverLocked ? macdVals[hoverIdx] : macdVals[lastIdx];
+        const valSig  = isHoverLocked ? signalVals[hoverIdx] : signalVals[lastIdx];
+        const valHist = isHoverLocked ? histVals[hoverIdx] : histVals[lastIdx];
         overlay.updateValue(
           'macd',
           (valMACD != null ? valMACD.toFixed(2) : '') +
-          (valSig != null ? ' / ' + valSig.toFixed(2) : '') +
+          (valSig  != null ? ' / ' + valSig.toFixed(2) : '') +
           (valHist != null ? ' / ' + valHist.toFixed(2) : '')
         );
       }
@@ -226,6 +202,7 @@ export const macd = {
       );
     }
 
-    return { render, updateHover };
+    return { render, updateHover, calculate, values: macdVals };
   }
 };
+

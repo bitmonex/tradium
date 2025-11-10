@@ -8,13 +8,15 @@ export const cfm = {
     height: 100,
     defaultParams: {
       period: 20,
-      color: 0x00ff00
+      color: 0x00ff00,
+      lineWidth: 1.5
     }
   },
 
   createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
-    const period = params.period ?? cfm.meta.defaultParams.period;
-    const color  = params.color  ?? cfm.meta.defaultParams.color;
+    const period    = params.period ?? cfm.meta.defaultParams.period;
+    const color     = params.color  ?? cfm.meta.defaultParams.color;
+    const lineWidth = params.lineWidth ?? cfm.meta.defaultParams.lineWidth;
 
     const showPar = true;
     const showVal = true;
@@ -25,27 +27,29 @@ export const cfm = {
     layer.sortableChildren = true;
     zeroLine.zIndex  = 5;
     line.zIndex      = 10;
-
     layer.addChild(zeroLine, line);
 
     let values = [];
     let hoverIdx = null;
 
     // CMF calculation
-    function calculate(data, p) {
-      if (!data || data.length < p) return Array(data?.length || 0).fill(null);
+    function calculate(candles) {
+      if (!candles || candles.length < period) {
+        values = Array(candles?.length || 0).fill(null);
+        return values;
+      }
 
       const result = [];
-      for (let i = 0; i < data.length; i++) {
-        if (i < p - 1) {
+      for (let i = 0; i < candles.length; i++) {
+        if (i < period - 1) {
           result.push(null);
           continue;
         }
 
         let sumMFV = 0;
         let sumVol = 0;
-        for (let j = i - p + 1; j <= i; j++) {
-          const c = data[j];
+        for (let j = i - period + 1; j <= i; j++) {
+          const c = candles[j];
           const high = c.high;
           const low = c.low;
           const close = c.close;
@@ -61,53 +65,34 @@ export const cfm = {
         }
         result.push(sumVol !== 0 ? sumMFV / sumVol : 0);
       }
-      return result;
+      values = result;
+      return values;
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
-
-      values = calculate(candles, period);
-
-      const lastIdx = values.length - 1;
-      const lastVal = values[lastIdx];
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!values?.length) return;
 
       line.clear();
       zeroLine.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // 🔹 берём scaleY из менеджера индикаторов
       const obj = chartCore?.indicators?.get('cfm');
       const scaleY = obj?.scaleY ?? 1;
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = values.length - 1;
-      for (let i = 0; i < values.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
-      }
-      for (let i = values.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; }
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, values.length, 2);
 
-      // линия CMF
       let started = false;
       line.beginPath();
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = values[i];
         if (val == null) continue;
-
         const x = localLayout.indexToX(i);
         const y = plotH / 2 - val * (plotH / 2) * scaleY;
         if (!started) { line.moveTo(x, y); started = true; }
-        else { line.lineTo(x, y); }
+        else line.lineTo(x, y);
       }
-      if (started) line.stroke({ width: 2, color });
+      if (started) line.stroke({ width: lineWidth, color });
 
       // центральная линия (ноль)
       const zeroY = plotH / 2;
@@ -120,8 +105,9 @@ export const cfm = {
         overlay.updateParam('cfm', `${period}`);
       }
       if (showVal && overlay?.updateValue && values.length) {
+        const lastIdx = values.length - 1;
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
-        const val = isHoverLocked ? values[hoverIdx] : lastVal;
+        const val = isHoverLocked ? values[hoverIdx] : values[lastIdx];
         overlay.updateValue('cfm', val != null ? val.toFixed(4) : '');
       }
     }
@@ -142,6 +128,6 @@ export const cfm = {
       overlay.updateValue('cfm', v != null ? v.toFixed(4) : '');
     }
 
-    return { render, updateHover };
+    return { render, updateHover, calculate, values };
   }
 };

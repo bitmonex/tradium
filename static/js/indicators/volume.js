@@ -1,13 +1,14 @@
+// indicators/volume.js
 export const volume = {
   meta: {
     id: 'volume',
     name: 'Volume',
-    position: 'overlay',   // поверх графика, прижат к низу plot
+    position: 'overlay',
     zIndex: 20,
     defaultParams: {
-      upColor: 0x00ff00,   // зелёный
-      downColor: 0xff3b3b, // красный
-      height: 80,          // высота блока объёмов
+      upColor: 0x00ff00,
+      downColor: 0xff3b3b,
+      height: 80,
       autoheight: true
     }
   },
@@ -30,7 +31,6 @@ export const volume = {
       const { candles, indexToX, plotH, candleWidth, scaleX, plotW } = layout;
       if (!candles?.length) return;
 
-      // ключ для сброса кэша
       const candlesKey = `${candles.length}_${candles[0]?.time}_${candles[candles.length - 1]?.time}`;
       if (candlesKey !== lastCandlesKey) {
         lastMaxVolVisible = Math.max(...candles.map(c => c.volume || 0));
@@ -45,7 +45,6 @@ export const volume = {
       const safeBarWidth = Math.max(1, barWidth);
       const barsOnScreen = plotW / safeBarWidth;
 
-      // авто‑масштаб с плавным сглаживанием
       let visibleMax = 0;
       for (let i = 0; i < candles.length; i++) {
         const xCenter = indexToX(i);
@@ -56,14 +55,13 @@ export const volume = {
           if (v > visibleMax) visibleMax = v;
         }
       }
+
       let maxVol = visibleMax || 1;
       const alpha = 0.3;
       lastMaxVolVisible = lastMaxVolVisible * (1 - alpha) + maxVol * alpha;
       maxVol = lastMaxVolVisible;
 
-      // --- LOD ---
       if (barsOnScreen < 800) {
-        // 🔹 близко — группируем по цветам
         g.beginFill(upColor);
         for (let i = 0; i < candles.length; i++) {
           const c = candles[i];
@@ -91,7 +89,6 @@ export const volume = {
         g.endFill();
 
       } else if (barsOnScreen < 2000) {
-        // 🔹 средне — тонкие бары
         const thinWidth = Math.max(1, Math.min(2, barWidth));
         g.beginFill(upColor);
         for (let i = 0; i < candles.length; i++) {
@@ -120,7 +117,6 @@ export const volume = {
         g.endFill();
 
       } else {
-        // 🔹 далеко — линия
         g.lineStyle(1, 0x888888, 1);
         let first = true;
         const step = Math.max(1, Math.ceil(candles.length / plotW));

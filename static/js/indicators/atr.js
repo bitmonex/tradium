@@ -8,19 +8,22 @@ export const atr = {
     height: 100,
     defaultParams: {
       period: 14,
-      color: 0xff0000
+      color: 0xff0000,
+      lineWidth: 1.5
     }
   },
 
   createIndicator({ layer, overlay, chartCore }, layout, params = {}) {
-    const period = params.period ?? atr.meta.defaultParams.period;
-    const color  = params.color  ?? atr.meta.defaultParams.color;
+    const period    = params.period ?? atr.meta.defaultParams.period;
+    const color     = params.color  ?? atr.meta.defaultParams.color;
+    const lineWidth = params.lineWidth ?? atr.meta.defaultParams.lineWidth;
+
+    const showPar = true;
+    const showVal = true;
 
     const line = new PIXI.Graphics();
-
     layer.sortableChildren = true;
     line.zIndex = 10;
-
     layer.addChild(line);
 
     let values = [];
@@ -37,85 +40,64 @@ export const atr = {
     }
 
     // ATR calculation
-    function calculateATR(data, p) {
-      if (!data || data.length < p + 1) return Array(data?.length || 0).fill(null);
-
-      const trs = [];
-      for (let i = 0; i < data.length; i++) {
-        const tr = trueRange(data[i], data[i - 1]);
-        trs.push(tr);
+    function calculate(candles) {
+      if (!candles || candles.length < period + 1) {
+        values = Array(candles?.length || 0).fill(null);
+        return values;
       }
 
-      const result = [];
+      const trs = candles.map((c, i) => trueRange(c, candles[i - 1]));
+      const out = Array(trs.length).fill(null);
       let sum = 0;
       for (let i = 0; i < trs.length; i++) {
         sum += trs[i];
-        if (i >= p) sum -= trs[i - p];
-        result.push(i >= p ? sum / p : null);
+        if (i >= period) sum -= trs[i - period];
+        if (i >= period) out[i] = sum / period;
       }
-      return result;
+      values = out;
+      return values;
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
-
-      values = calculateATR(candles, period);
-
-      const lastIdx = values.length - 1;
-      const lastVal = values[lastIdx];
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!values?.length) return;
 
       line.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // 🔹 берём scaleY из менеджера индикаторов
       const obj = chartCore?.indicators?.get('atr');
       const scaleY = obj?.scaleY ?? 1;
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = values.length - 1;
-      for (let i = 0; i < values.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; }
-      }
-      for (let i = values.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; }
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, values.length, 2);
 
-      // линия ATR
+      const maxVal = Math.max(...values.filter(v => v != null)) || 1;
+
       let started = false;
       line.beginPath();
-      const maxVal = Math.max(...values.filter(v => v != null));
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = values[i];
         if (val == null) continue;
-
         const x = localLayout.indexToX(i);
         const y = plotH * (1 - (val / maxVal) * scaleY);
         if (!started) { line.moveTo(x, y); started = true; }
-        else { line.lineTo(x, y); }
+        else line.lineTo(x, y);
       }
-      if (started) {
-        line.stroke({ width: 2, color });
-      }
+      if (started) line.stroke({ width: lineWidth, color });
 
       // overlay
-      if (overlay?.updateParam) {
+      if (showPar && overlay?.updateParam) {
         overlay.updateParam('atr', `${period}`);
       }
-      if (overlay?.updateValue && values.length) {
+      if (showVal && overlay?.updateValue && values.length) {
+        const lastIdx = values.length - 1;
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
-        const val = isHoverLocked ? values[hoverIdx] : lastVal;
+        const val = isHoverLocked ? values[hoverIdx] : values[lastIdx];
         overlay.updateValue('atr', val != null ? val.toFixed(2) : '');
       }
     }
 
     function updateHover(candle, idx) {
-      if (!overlay?.updateValue || !values?.length) return;
+      if (!showVal || !overlay?.updateValue || !values?.length) return;
       const lastIdx = values.length - 1;
 
       if (idx == null || idx < 0 || idx >= values.length) {
@@ -130,6 +112,6 @@ export const atr = {
       overlay.updateValue('atr', v != null ? v.toFixed(2) : '');
     }
 
-    return { render, updateHover };
+    return { render, updateHover, calculate, values };
   }
 };

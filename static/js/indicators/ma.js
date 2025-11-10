@@ -8,8 +8,8 @@ export const ma = {
     defaultParams: {
       fastPeriod: 50,
       slowPeriod: 200,
-      fastColor: 0x00ff00, // зелёный
-      slowColor: 0xff0000, // красный
+      fastColor: 0x00ff00,
+      slowColor: 0xff0000,
       fastWidth: 2,
       slowWidth: 2
     }
@@ -29,8 +29,10 @@ export const ma = {
     layer.sortableChildren = true;
     layer.addChild(g);
 
+    let maFast = [];
+    let maSlow = [];
+
     function calcMA(candles, period) {
-      if (!Array.isArray(candles) || !candles.length) return [];
       const out = Array(candles.length).fill(null);
       let sum = 0;
       for (let i = 0; i < candles.length; i++) {
@@ -56,16 +58,11 @@ export const ma = {
     }
 
     function render(layout) {
-      if (!layout?.candles?.length) return;
-
-      const { candles, indexToX, priceToY, plotW, candleWidth, scaleX } = layout;
-
-      const maFast = calcMA(candles, fastPeriod);
-      const maSlow = calcMA(candles, slowPeriod);
+      const { indexToX, priceToY, plotW, candleWidth, scaleX } = layout;
+      if (!maFast?.length || !maSlow?.length) return;
 
       g.clear();
 
-      // --- LOD: шаг прореживания
       const barWidth = candleWidth * scaleX;
       const barsOnScreen = plotW / Math.max(1, barWidth);
       let step = 1;
@@ -73,13 +70,18 @@ export const ma = {
       else if (barsOnScreen > 1500) step = 5;
       else if (barsOnScreen > 800) step = 2;
 
-      // 🔹 MA50 (зелёная)
       renderLine(maFast, fastColor, fastWidth, indexToX, priceToY, step);
-
-      // 🔹 MA200 (красная)
       renderLine(maSlow, slowColor, slowWidth, indexToX, priceToY, step);
     }
 
-    return { render };
+    return {
+      render,
+      calculate: (candles) => {
+        maFast = calcMA(candles, fastPeriod);
+        maSlow = calcMA(candles, slowPeriod);
+        return [maFast, maSlow];
+      },
+      values: [maFast, maSlow]
+    };
   }
 };

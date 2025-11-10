@@ -11,7 +11,8 @@ export const ao = {
       long: 34,
       upColor: 0x00ff00,    // зелёные бары
       downColor: 0xff2e2e,  // красные бары
-      barWidthFactor: 0.8   // доля от ширины свечи
+      barWidthFactor: 0.8,  // доля от ширины свечи
+      lineWidth: 1.5
     }
   },
 
@@ -21,6 +22,7 @@ export const ao = {
     const upColor        = params.upColor        ?? ao.meta.defaultParams.upColor;
     const downColor      = params.downColor      ?? ao.meta.defaultParams.downColor;
     const barWidthFactor = params.barWidthFactor ?? ao.meta.defaultParams.barWidthFactor;
+    const lineWidth      = params.lineWidth      ?? ao.meta.defaultParams.lineWidth;
 
     const showPar = true;
     const showVal = true;
@@ -31,52 +33,47 @@ export const ao = {
     layer.sortableChildren = true;
     zeroLine.zIndex = 5;
     bars.zIndex     = 10;
-
     layer.addChild(zeroLine, bars);
 
     let values = [];
     let hoverIdx = null;
 
     // SMA helper
-    function sma(values, p) {
-      const result = [];
+    function sma(arr, p) {
+      const out = Array(arr.length).fill(null);
       let sum = 0;
-      for (let i = 0; i < values.length; i++) {
-        sum += values[i];
-        if (i >= p) sum -= values[i - p];
-        result.push(i >= p - 1 ? sum / p : null);
+      for (let i = 0; i < arr.length; i++) {
+        sum += arr[i];
+        if (i >= p) sum -= arr[i - p];
+        if (i >= p - 1) out[i] = sum / p;
       }
-      return result;
+      return out;
     }
 
     // AO calculation
-    function calculate(data, shortP, longP) {
-      if (!data || data.length < longP) return Array(data?.length || 0).fill(null);
-      const med = data.map(c => (c.high + c.low) / 2);
-      const smaShort = sma(med, shortP);
-      const smaLong  = sma(med, longP);
-      return med.map((_, i) => {
+    function calculate(candles) {
+      if (!candles || candles.length < long) {
+        values = Array(candles?.length || 0).fill(null);
+        return values;
+      }
+      const med = candles.map(c => (c.high + c.low) / 2);
+      const smaShort = sma(med, short);
+      const smaLong  = sma(med, long);
+      values = med.map((_, i) => {
         if (smaShort[i] == null || smaLong[i] == null) return null;
         return smaShort[i] - smaLong[i];
       });
+      return values;
     }
 
-    function render(localLayout) {
-      const candles = localLayout.candles;
-      if (!candles?.length) return;
-
-      values = calculate(candles, short, long);
-
-      const lastIdx = values.length - 1;
-      const lastVal = values[lastIdx];
+    function render(localLayout, globalLayout, baseLayout) {
+      if (!values?.length) return;
 
       bars.clear();
       zeroLine.clear();
 
       const plotW = localLayout.plotW;
       const plotH = localLayout.plotH;
-
-      // берём scaleY из менеджера индикаторов
       const obj = chartCore?.indicators?.get('ao');
       const scaleY = obj?.scaleY ?? 1;
 
@@ -95,20 +92,10 @@ export const ao = {
       const candleW = localLayout.candleW ?? Math.max(1, Math.abs(x1 - x0));
       const barW = Math.max(1, candleW * barWidthFactor);
 
-      // --- определяем видимый диапазон + буфер ---
-      let firstIdx = 0;
-      let lastVisibleIdx = values.length - 1;
-      for (let i = 0; i < values.length; i++) {
-        const x = localLayout.indexToX(i);
-        if (x >= 0) { firstIdx = Math.max(0, i - 2); break; } // буфер слева
-      }
-      for (let i = values.length - 1; i >= 0; i--) {
-        const x = localLayout.indexToX(i);
-        if (x <= plotW) { lastVisibleIdx = Math.min(values.length - 1, i + 2); break; } // буфер справа
-      }
+      const { start, end } = chartCore.indicators.LOD(baseLayout, values.length, 2);
 
       // --- рисуем только видимый диапазон ---
-      for (let i = firstIdx; i <= lastVisibleIdx; i++) {
+      for (let i = start; i <= end; i++) {
         const val = values[i];
         if (val == null) continue;
 
@@ -127,8 +114,9 @@ export const ao = {
         overlay.updateParam('ao', `${short}, ${long}`);
       }
       if (showVal && overlay?.updateValue && values.length) {
+        const lastIdx = values.length - 1;
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
-        const val = isHoverLocked ? values[hoverIdx] : lastVal;
+        const val = isHoverLocked ? values[hoverIdx] : values[lastIdx];
         overlay.updateValue('ao', val != null ? val.toFixed(2) : '');
       }
     }
@@ -149,6 +137,6 @@ export const ao = {
       overlay.updateValue('ao', v != null ? v.toFixed(2) : '');
     }
 
-    return { render, updateHover };
+    return { render, updateHover, calculate, values };
   }
 };

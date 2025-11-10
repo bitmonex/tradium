@@ -14,7 +14,8 @@ export const rsi = {
       levelColors: [0xFF2E2E, 0x00ff00],
       dashLen: 4,
       gapLen: 6,
-      dashThickness: 0.7
+      dashThickness: 0.7,
+      smooth: 2
     }
   },
 
@@ -27,6 +28,7 @@ export const rsi = {
     const dashLen       = params.dashLen       ?? rsi.meta.defaultParams.dashLen;
     const gapLen        = params.gapLen        ?? rsi.meta.defaultParams.gapLen;
     const dashThickness = params.dashThickness ?? rsi.meta.defaultParams.dashThickness;
+    const smooth        = params.smooth        ?? rsi.meta.defaultParams.smooth;
 
     const showPar = true;
     const showVal = true;
@@ -41,11 +43,11 @@ export const rsi = {
     layer.addChild(levelLine, rsiLine);
 
     let values = [];
+    let smoothed = [];
     let hoverIdx = null;
 
     function calculateRSI(data, p) {
-      if (!Array.isArray(data) || data.length < p + 1) return Array(data?.length || 0).fill(null);
-      const result = Array(p).fill(null);
+      const result = Array(data.length).fill(null);
       let gain = 0, loss = 0;
       for (let i = 1; i < p; i++) {
         const diff = data[i].close - data[i - 1].close;
@@ -63,6 +65,19 @@ export const rsi = {
       return result;
     }
 
+    function smoothArray(arr, windowSize = 2) {
+      const out = Array(arr.length).fill(null);
+      for (let i = 0; i < arr.length; i++) {
+        let sum = 0, count = 0;
+        for (let j = 0; j < windowSize; j++) {
+          const v = arr[i + j];
+          if (v != null) { sum += v; count++; }
+        }
+        out[i] = count ? sum / count : null;
+      }
+      return out;
+    }
+
     function drawDashedHorizontalRects(gfx, y, width, color, dash = 6, gap = 4, thickness = 1) {
       const yy = Math.round(y) + 0.5 - (thickness / 2);
       let x = 0;
@@ -76,7 +91,7 @@ export const rsi = {
     }
 
     function render(localLayout, globalLayout, baseLayout) {
-      if (!values?.length) return;
+      if (!smoothed?.length) return;
       if (!localLayout?.plotW || !localLayout?.plotH) return;
 
       const indexToXPanel = (i) => {
@@ -84,8 +99,8 @@ export const rsi = {
         return baseLayout.indexToX(i) - baseLayout.plotX;
       };
 
-      const lastIdx = values.length - 1;
-      const lastVal = values[lastIdx];
+      const lastIdx = smoothed.length - 1;
+      const lastVal = smoothed[lastIdx];
 
       rsiLine.clear();
       levelLine.clear();
@@ -95,18 +110,12 @@ export const rsi = {
       const obj = chartCore?.indicators?.get('rsi');
       const scaleY = obj?.scaleY ?? 1;
 
-      const { start, end } = chartCore.indicators.LOD(baseLayout, values.length, 2);
+      const { start, end } = chartCore.indicators.LOD(baseLayout, smoothed.length, 2);
 
-      const windowSize = 2; // сглаживание
       let started = false;
       rsiLine.beginPath();
       for (let i = start; i <= end; i++) {
-        let avg = 0, count = 0;
-        for (let j = 0; j < windowSize; j++) {
-          const v = values[i + j];
-          if (v != null) { avg += v; count++; }
-        }
-        const val = count ? avg / count : values[i];
+        const val = smoothed[i];
         if (val == null) continue;
 
         const x = indexToXPanel(i);
@@ -117,10 +126,9 @@ export const rsi = {
         else { rsiLine.lineTo(x, y); }
       }
       if (started) {
-        rsiLine.stroke({ width: lineWidth, color }); // 🔹 используем толщину линии
+        rsiLine.stroke({ width: lineWidth, color });
       }
 
-      // уровни
       levels.forEach((level, idx) => {
         const y = plotH/2 - ((level - 50) / 100) * plotH * scaleY;
         const lineColor = levelColors[idx] ?? 0xffffff;
@@ -130,24 +138,24 @@ export const rsi = {
       if (showPar && overlay?.updateParam) {
         overlay.updateParam('rsi', `${period}`);
       }
-      if (showVal && overlay?.updateValue && values.length) {
+      if (showVal && overlay?.updateValue && smoothed.length) {
         const isHoverLocked = hoverIdx != null && hoverIdx !== lastIdx;
-        const val = isHoverLocked ? values[hoverIdx] : lastVal;
+        const val = isHoverLocked ? smoothed[hoverIdx] : lastVal;
         overlay.updateValue('rsi', val != null ? val.toFixed(2) : '');
       }
     }
 
     function updateHover(candle, idx) {
-      if (!showVal || !overlay?.updateValue || !values?.length) return;
-      const lastIdx = values.length - 1;
-      if (idx == null || idx < 0 || idx >= values.length) {
+      if (!showVal || !overlay?.updateValue || !smoothed?.length) return;
+      const lastIdx = smoothed.length - 1;
+      if (idx == null || idx < 0 || idx >= smoothed.length) {
         hoverIdx = null;
-        const autoVal = values[lastIdx];
+        const autoVal = smoothed[lastIdx];
         overlay.updateValue('rsi', autoVal != null ? autoVal.toFixed(2) : '');
         return;
       }
       hoverIdx = idx;
-      const v = values[idx];
+      const v = smoothed[idx];
       overlay.updateValue('rsi', v != null ? v.toFixed(2) : '');
     }
 
@@ -156,9 +164,10 @@ export const rsi = {
       updateHover,
       calculate: (candles) => {
         values = calculateRSI(candles, period);
-        return values;
+        smoothed = smoothArray(values, smooth);
+        return smoothed;
       },
-      values
+      values: smoothed
     };
   }
 };
