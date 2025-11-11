@@ -19,7 +19,7 @@ export class FPS {
     if (!this._alive) return;
     this.frameCount++;
     const elapsed = currentTime - this.lastTime;
-    if (elapsed >= 500) { //частота обновления
+    if (elapsed >= 500) {
       const fps = Math.round((this.frameCount * 1000) / elapsed);
       let html = `FPS: ${fps}`;
       if (this.showMemory) {

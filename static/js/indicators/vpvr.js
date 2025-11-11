@@ -6,32 +6,28 @@ export const vpvr = {
     zIndex: 50,
     width: 200,
     defaultParams: {
-      rows: 240,             // количество строк (24..240)
-      side: 'right',         // 'left' или 'right'
-      direction: 'inward',   // 'inward' (бары внутрь графика) или 'outward' (наружу)
-      upColor: 0x00ff00,     // цвет баров профиля
-      pocColor: 0xff0000,    // цвет линии POC
-      pocLineWidth: 2,       // толщина линии POC
-      vahval: true,          // включение Value Area High/Low
-      vahColor: 0x0000ff,    // цвет VAH
-      valColor: 0x0000ff,    // цвет VAL
-      vahvalLineWidth: 1.5,  // толщина VAH/VAL
-      candleOpacity: 1.0     // прозрачность баров профиля (0.5 = 50%)
+      rows: 240,
+      side: 'right',           // 'right' или 'left'
+      direction: 'inward',     // 'inward' (внутрь графика) или 'outward'
+      upColor: 0x548431,       // зелёная внутренняя вставка (up)
+      downColor: 0x6B1025,     // красная база (total)
+      pocColor: 0xff0000,
+      pocLineWidth: 2,
+      vahval: true,
+      vahColor: 0x43E300,
+      valColor: 0x00F6FA,
+      vahvalLineWidth: 1,
+      candleOpacity: 0.75,
+      outsideOpacity: 0.2
     }
   },
 
   createIndicator({ layer }, layout, params = {}) {
-    const rows            = params.rows            ?? vpvr.meta.defaultParams.rows;
-    const side            = params.side            ?? vpvr.meta.defaultParams.side;
-    const direction       = params.direction       ?? vpvr.meta.defaultParams.direction;
-    const upColor         = params.upColor         ?? vpvr.meta.defaultParams.upColor;
-    const pocColor        = params.pocColor        ?? vpvr.meta.defaultParams.pocColor;
-    const pocLineWidth    = params.pocLineWidth    ?? vpvr.meta.defaultParams.pocLineWidth;
-    const vahval          = params.vahval          ?? vpvr.meta.defaultParams.vahval;
-    const vahColor        = params.vahColor        ?? vpvr.meta.defaultParams.vahColor;
-    const valColor        = params.valColor        ?? vpvr.meta.defaultParams.valColor;
-    const vahvalLineWidth = params.vahvalLineWidth ?? vpvr.meta.defaultParams.vahvalLineWidth;
-    const candleOpacity   = params.candleOpacity   ?? vpvr.meta.defaultParams.candleOpacity;
+    const {
+      rows, side, direction, upColor, downColor,
+      pocColor, pocLineWidth, vahval, vahColor, valColor,
+      vahvalLineWidth, candleOpacity, outsideOpacity
+    } = { ...vpvr.meta.defaultParams, ...params };
 
     const bars = new PIXI.Graphics();
     const pocLine = new PIXI.Graphics();
@@ -43,65 +39,107 @@ export const vpvr = {
     vahvalLines.zIndex = 12;
     layer.addChild(bars, pocLine, vahvalLines);
 
-    let profile = [];
+    let profile = [];       // [{ priceLow, priceHigh, total, up, down }]
     let pocIdx = null;
     let vahIdx = null;
     let valIdx = null;
 
-    // --- расчёт профиля по видимому окну ---
-    function calculate(candles, localLayout) {
-      if (!candles?.length || rows <= 0) return [];
+    // агрегаты для панели: B, S, Σ, Δ
+    let aggBuy = 0;
+    let aggSell = 0;
+    let aggTotal = 0;
+    let aggDelta = 0;
 
-      const denom = localLayout.spacing * localLayout.scaleX;
-      if (!Number.isFinite(denom) || denom === 0) return [];
+    // кэш границ
+    let lastStart = null, lastEnd = null, lastHash = null;
 
-      const start = Math.max(0, Math.floor((localLayout.plotX - localLayout.offsetX) / denom));
+    // прокси-логика направления свечи: up если close > open, down если close < open, doji -> 50/50
+    function splitCandleVolume(c) {
+      const v = Number(c?.volume) || 0;
+      if (c.close > c.open) return { up: v, down: 0 };
+      if (c.close < c.open) return { up: 0, down: v };
+      const half = v / 2;
+      return { up: half, down: half };
+    }
+
+    function calculate(candles, layout) {
+      const denom = layout.spacing * layout.scaleX;
+      if (!Number.isFinite(denom) || denom === 0 || !candles?.length || rows <= 0) return [];
+
+      const start = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / denom));
       const end = Math.min(
         candles.length - 1,
-        Math.ceil((localLayout.plotX + localLayout.plotW - localLayout.offsetX) / denom) - 1
+        Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / denom) - 1
       );
-      const slice = candles.slice(start, end + 1);
-      if (!slice.length) return [];
+      const hash = candles[start]?.time + ':' + candles[end]?.time;
+      if (start === lastStart && end === lastEnd && hash === lastHash) return profile;
 
+      lastStart = start; lastEnd = end; lastHash = hash;
+
+      const slice = candles.slice(start, end + 1);
       const minPrice = Math.min(...slice.map(c => c.low));
       const maxPrice = Math.max(...slice.map(c => c.high));
-      if (!isFinite(minPrice) || !isFinite(maxPrice) || minPrice === maxPrice) return [];
+      if (!isFinite(minPrice) || !isFinite(maxPrice) || minPrice === maxPrice) {
+        profile = [];
+        aggBuy = aggSell = aggTotal = aggDelta = 0;
+        pocIdx = vahIdx = valIdx = null;
+        return profile;
+      }
 
       const step = (maxPrice - minPrice) / rows;
-      const bins = Array(rows).fill(0);
+      const upBins = Array(rows).fill(0);
+      const downBins = Array(rows).fill(0);
 
+      // распределяем объём свечи равномерно по всем бинам её ценового диапазона
       for (const c of slice) {
-        const vol = c.volume ?? 0;
+        const { up, down } = splitCandleVolume(c);
         const lo = Math.floor((c.low  - minPrice) / step);
         const hi = Math.floor((c.high - minPrice) / step);
         const idxLow = Math.max(0, lo);
         const idxHigh = Math.min(rows - 1, hi);
-        for (let i = idxLow; i <= idxHigh; i++) bins[i] += vol;
+        const span = Math.max(1, idxHigh - idxLow + 1);
+        const upPerBin = up / span;
+        const downPerBin = down / span;
+
+        for (let i = idxLow; i <= idxHigh; i++) {
+          upBins[i]   += upPerBin;
+          downBins[i] += downPerBin;
+        }
       }
 
-      profile = bins.map((v, i) => ({
-        priceLow:  minPrice + i * step,
-        priceHigh: minPrice + (i + 1) * step,
-        volume:    v
-      }));
+      profile = upBins.map((u, i) => {
+        const d = downBins[i];
+        return {
+          priceLow:  minPrice + i * step,
+          priceHigh: minPrice + (i + 1) * step,
+          up:        u,
+          down:      d,
+          total:     u + d
+        };
+      });
 
-      // POC
-      let maxVol = -Infinity;
+      // агрегаты
+      aggBuy   = profile.reduce((a, p) => a + p.up, 0);
+      aggSell  = profile.reduce((a, p) => a + p.down, 0);
+      aggTotal = aggBuy + aggSell;
+      aggDelta = aggBuy - aggSell;
+
+      // POC по total
+      let maxTotal = -Infinity;
       pocIdx = null;
       for (let i = 0; i < profile.length; i++) {
-        if (profile[i].volume > maxVol) { maxVol = profile[i].volume; pocIdx = i; }
+        if (profile[i].total > maxTotal) { maxTotal = profile[i].total; pocIdx = i; }
       }
 
-      // VAH/VAL
+      // VAH/VAL (70% по total)
       if (vahval) {
-        const totalVol = profile.reduce((a, p) => a + p.volume, 0);
-        const targetVol = totalVol * 0.7;
+        const target = aggTotal * 0.7;
         let acc = 0;
-        const sorted = [...profile].sort((a, b) => b.volume - a.volume);
+        const sorted = [...profile].sort((a, b) => b.total - a.total);
         const included = [];
         for (const p of sorted) {
-          if (acc >= targetVol) break;
-          acc += p.volume;
+          if (acc >= target) break;
+          acc += p.total;
           included.push(p);
         }
         const minLow = Math.min(...included.map(p => p.priceLow));
@@ -113,60 +151,79 @@ export const vpvr = {
       return profile;
     }
 
-    // --- отрисовка ---
-    function render(localLayout) {
-      const candles = localLayout?.candles;
+    function render(layout) {
+      const candles = layout?.candles;
       if (!candles?.length) return;
 
-      calculate(candles, localLayout);
+      calculate(candles, layout);
       if (!profile.length) return;
 
       bars.clear();
       pocLine.clear();
       vahvalLines.clear();
 
-      const plotX = localLayout.plotX;
-      const plotW = localLayout.plotW;
+      const plotX = layout.plotX;
+      const plotW = layout.plotW;
       const width = vpvr.meta.width;
-      const yFromPrice = (price) => localLayout.priceToY(price);
-
-      const maxVol = Math.max(...profile.map(p => p.volume)) || 1;
-
+      const yFromPrice = (price) => layout.priceToY(price);
       const baseX = (side === 'right') ? (plotX + plotW) : plotX;
 
-      // бары профиля
+      const maxTotal = Math.max(...profile.map(p => p.total)) || 1;
+
       for (let i = 0; i < profile.length; i++) {
         const p = profile[i];
         const yTop = yFromPrice(p.priceHigh);
         const yBot = yFromPrice(p.priceLow);
-        const height = Math.max(1, Math.abs(yBot - yTop));
-        const len = (p.volume / maxVol) * width;
-        const color = (i === pocIdx) ? pocColor : upColor;
+        const rawHeight = Math.abs(yBot - yTop);
+        const height = Math.max(1, rawHeight - 1); // 1px зазор
+        const yMid = (yTop + yBot) / 2;
+        const y = yMid - height / 2;
 
-        bars.beginFill(color, candleOpacity);
+        const isInsideVA = vahval && vahIdx != null && valIdx != null && i >= valIdx && i <= vahIdx;
+        const opacity = isInsideVA ? candleOpacity : outsideOpacity;
 
+        // длины: красная база = total, зелёная вставка = up
+        const lenTotal = (p.total / maxTotal) * width;
+        const lenUp    = (p.up    / maxTotal) * width;
+
+        // Рисуем базу — КРАСНУЮ (downColor) всегда
+        bars.beginFill(downColor, opacity);
         if (side === 'right') {
           if (direction === 'inward') {
-            // внутрь графика
-            bars.drawRect(baseX - len, Math.min(yTop, yBot), len, height);
+            bars.drawRect(baseX - lenTotal, y, lenTotal, height);
           } else {
-            // наружу вправо
-            bars.drawRect(baseX, Math.min(yTop, yBot), len, height);
+            bars.drawRect(baseX, y, lenTotal, height);
           }
         } else {
           if (direction === 'inward') {
-            // внутрь графика
-            bars.drawRect(baseX, Math.min(yTop, yBot), len, height);
+            bars.drawRect(baseX, y, lenTotal, height);
           } else {
-            // наружу влево
-            bars.drawRect(baseX - len, Math.min(yTop, yBot), len, height);
+            bars.drawRect(baseX - lenTotal, y, lenTotal, height);
           }
         }
-
         bars.endFill();
+
+        // Вставка — ЗЕЛЁНАЯ (upColor) поверх базы, с той же геометрией, но длиной lenUp
+        if (lenUp > 0) {
+          bars.beginFill(upColor, opacity);
+          if (side === 'right') {
+            if (direction === 'inward') {
+              bars.drawRect(baseX - lenUp, y, lenUp, height);
+            } else {
+              bars.drawRect(baseX, y, lenUp, height);
+            }
+          } else {
+            if (direction === 'inward') {
+              bars.drawRect(baseX, y, lenUp, height);
+            } else {
+              bars.drawRect(baseX - lenUp, y, lenUp, height);
+            }
+          }
+          bars.endFill();
+        }
       }
 
-      // линия POC
+      // Линия POC по total
       if (pocIdx != null) {
         const pocYTop = yFromPrice(profile[pocIdx].priceHigh);
         const pocYBot = yFromPrice(profile[pocIdx].priceLow);
@@ -176,7 +233,7 @@ export const vpvr = {
         pocLine.stroke({ width: pocLineWidth, color: pocColor });
       }
 
-      // линии VAH/VAL
+      // Линии VAH/VAL
       if (vahval && vahIdx != null && valIdx != null) {
         const vahY = yFromPrice(profile[vahIdx].priceHigh);
         const valY = yFromPrice(profile[valIdx].priceLow);
@@ -191,6 +248,21 @@ export const vpvr = {
       }
     }
 
-    return { render, calculate: () => profile, values: profile };
+    return {
+      render,
+      calculate: () => profile,
+      values: profile,
+      // агрегаты для панели инфо (как на скрине: B, S, Σ, Δ)
+      getAggregates: () => ({
+        buy: aggBuy,
+        sell: aggSell,
+        total: aggTotal,
+        delta: aggDelta
+      }),
+      // быстрый доступ к VA/POC
+      getPOC: () => (pocIdx != null ? profile[pocIdx] : null),
+      getVAH: () => (vahIdx != null ? profile[vahIdx] : null),
+      getVAL: () => (valIdx != null ? profile[valIdx] : null)
+    };
   }
 };

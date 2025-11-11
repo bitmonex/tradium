@@ -22,8 +22,8 @@ export function LivePrice(chartCore, config) {
   let currentPrice = null;
 
   function getCandleColor(candle) {
-    const upColor = +(config.livePrice?.priceUpColor ?? 0x0C6600);
-    const downColor = +(config.livePrice?.priceDownColor ?? 0xBF1717);
+    const upColor = +(config.livePrice?.priceUpColor ?? 0x577D0A);
+    const downColor = +(config.livePrice?.priceDownColor ?? 0xC41638);
     if (!candle) return upColor;
     return (candle.close >= candle.open) ? upColor : downColor;
   }

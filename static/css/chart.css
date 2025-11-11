@@ -1,7 +1,7 @@
 #pixi-outer{position:absolute; top:62px; right:0; bottom:0; left:0}
 #chart-container{position:relative; width:100%; height:100%;}
 
-.m-fps{position:absolute; top:40px; left:15px; font-size:.95em; color:#0f0; pointer-events:none}
+.m-fps{position:absolute; top:40px; left:15px; font-size:.95em; color:#43E300; pointer-events:none}
 
 .m-ohlcv{ position:absolute; top:13px; left:15px; font-size:.95em; pointer-events: none; user-select:none}
 .m-ohlcv strong{text-transform: uppercase; color:#FFC61C; margin-right:10px; cursor:pointer; pointer-events: auto}
