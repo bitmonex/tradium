@@ -3,6 +3,7 @@ import { ChartConfig } from './chart-config.js';
 import { initModules } from './chart-modules.js';
 import { createLayout, autoCenterCandles } from './chart-layout.js';
 import { getLeftVisibleIndex, getRightVisibleIndex } from './chart-candles.js';
+import { createCursorOverlay } from './chart-cursor.js';
 
 export async function createChartCore(container, userConfig = {}) {
   const chartId = userConfig.chartId || container.id || "chart1";
@@ -98,7 +99,7 @@ export async function createChartCore(container, userConfig = {}) {
     const { width, height, rightOffset, bottomOffset } = state.layout;
     const w = width - rightOffset;
     const h = height - bottomOffset;
-    g.beginFill(0x0F0E0E, 1);
+    g.beginFill(0x000000, 1);
     g.drawRect(0, 0, w, h);
     g.endFill();
   }
@@ -109,7 +110,7 @@ export async function createChartCore(container, userConfig = {}) {
   // --- Render ---
   let isRendering = false;
 
-const Render = ({ full = false } = {}) => {
+  const Render = ({ full = false } = {}) => {
   if (isRendering) return;
   isRendering = true;
 
@@ -135,6 +136,7 @@ const Render = ({ full = false } = {}) => {
       );
       if (!state.layout) return;
       state.layout.candles = state.candles;
+      chartCore.cursor?.updateBox(state.layout);
 
       const minX = state.layout.indexToX(0) - state.layout.plotW;
       const maxX = state.layout.indexToX(state.candles.length - 1) + state.layout.plotW;
@@ -153,6 +155,7 @@ const Render = ({ full = false } = {}) => {
         );
         if (!state.layout) return;
         state.layout.candles = state.candles;
+        chartCore.cursor?.updateBox(state.layout);
       }
 
       state.subGroup.y = state.layout.plotY + state.layout.plotH;
@@ -227,6 +230,9 @@ const Render = ({ full = false } = {}) => {
     chartSettings
   });
 
+  // Курсор
+  chartCore.cursor = createCursorOverlay(chartCore);
+  
   // Подключаем модули
   initModules({ app, config, chartSettings, graphGroup, state, modules, chartCore });
 

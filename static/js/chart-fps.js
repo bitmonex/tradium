@@ -25,7 +25,7 @@ export class FPS {
       if (this.showMemory) {
         const mem = MEM();
         if (mem) {
-          html += `<br>Mem: ${mem.usedJSHeap} MB`;
+          html += ` -  Mem: ${mem.usedJSHeap} MB`;
         }
       }
       this.dom.innerHTML = html;

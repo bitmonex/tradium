@@ -112,11 +112,11 @@ export function createIndicatorsManager(chartCore) {
   function syncEye(id, hidden) {
     if (!active.has(id)) return;
     // меню
-    const menuSpan = menu?.querySelector(`span[data-indicator="${id}"]`);
-    if (menuSpan) {
-      const menuEyeIcon = menuSpan.querySelector('i b');
+    const menuItem = menu?.querySelector(`div[data-indicator="${id}"]`);
+    if (menuItem) {
+      const menuEyeIcon = menuItem.querySelector('span i b');
       if (menuEyeIcon) menuEyeIcon.className = hidden ? 'icon-view-off' : 'icon-view';
-      if (hidden) menuSpan.classList.remove('on'); else menuSpan.classList.add('on');
+      if (hidden) menuItem.classList.remove('on'); else menuItem.classList.add('on');
     }
     // оверлей
     const overlayIcon = document.querySelector(`.indicator-overlay[data-indicator="${id}"] .iheader i b`);
@@ -171,29 +171,44 @@ export function createIndicatorsManager(chartCore) {
     menu.appendChild(btn);
   }
 
-  // DOM меню
   function renderDOM(id) {
     if (!menu) return;
     if (menu.querySelector(`[data-indicator="${id}"]`)) return;
 
-    const span = document.createElement('span');
-    span.setAttribute('data-indicator', id);
-    span.classList.add('on');
+    const obj = active.get(id);
+    const titleText = obj?.title ?? id.toUpperCase();
 
-    const title = document.createElement('strong');
-    title.textContent = id.toUpperCase();
-    span.appendChild(title);
+    const div = document.createElement('div');
+    div.setAttribute('data-indicator', id);
+    div.classList.add('on');
+
+    const span = document.createElement('span');
+    const strong = document.createElement('strong');
+    strong.textContent = id.toUpperCase();
+    span.appendChild(strong);
 
     createIndicatorMenu(id, span, { active, overlayMgr, chartCore, saveToStorage, remove, syncEye });
+    div.appendChild(span);
 
-    menu.appendChild(span);
+    // 🔹 Рыба для теста
+    const u = document.createElement('u');
+    u.innerHTML = `
+      <s>B</s>419.713M
+      <s>S</s>314.353M
+      <s>Σ</s>734.067M
+      <s>Δ</s>+105.36M (+33.5%)
+    `;
+    div.appendChild(u);
+
+    menu.appendChild(div);
     menu.classList.add('on');
   }
-
   function removeDOM(id) {
-    const el = menu?.querySelector(`[data-indicator="${id}"]`);
+    const el = menu?.querySelector(`div[data-indicator="${id}"]`);
     if (el) el.remove();
-    if (menu && menu.querySelectorAll('span').length === 0) menu.classList.remove('on');
+    if (menu && menu.querySelectorAll('div[data-indicator]').length === 0) {
+      menu.classList.remove('on');
+    }
   }
 
   // управление
@@ -433,8 +448,8 @@ export function createIndicatorsManager(chartCore) {
 
   function initFromConfig() {
     destroyIndicators();
-    menu?.querySelectorAll("span").forEach(el => el.remove());
-    menu?.classList.remove("on");
+    menu?.querySelectorAll('div[data-indicator]').forEach(el => el.remove());
+    menu?.classList.remove('on');
 
     const saved = loadFromStorage();
     fullscreenMode = loadFullscreen();
@@ -466,8 +481,8 @@ export function createIndicatorsManager(chartCore) {
     destroyIndicators();
     localStorage.removeItem(storageKey);
     localStorage.removeItem(fullscreenKey);
-    menu?.querySelectorAll("span").forEach(el => el.remove());
-    menu?.classList.remove("on");
+    menu?.querySelectorAll('div[data-indicator]').forEach(el => el.remove());
+    menu?.classList.remove('on');
     fullscreenMode = false;
     chartCore.fullscreenMode = false;
   }

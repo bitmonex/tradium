@@ -93,18 +93,17 @@ export function createOverlayManager(chartCore) {
   // Обновление VAL <u>
   function updateValue(id, value, asHtml = false) {
     const ov = overlays.get(id);
-    if (!ov) {
-      console.warn('[Overlay] нет overlay для', id);
-      return;
-    }
-    if (!ov.u) {
-      console.warn('[Overlay] нет <u> для', id);
-      return;
-    }
-    if (asHtml) {
-      ov.u.innerHTML = value != null ? String(value) : '';
-    } else {
-      ov.u.textContent = value != null ? String(value) : '';
+    if (!ov) { console.warn('[Overlay] нет overlay для', id); return; }
+    if (!ov.u) { console.warn('[Overlay] нет <u> для', id); return; }
+
+    if (asHtml) ov.u.innerHTML = value != null ? String(value) : '';
+    else ov.u.textContent = value != null ? String(value) : '';
+
+    // 🔹 синхронизация меню .m-indicators
+    const menuU = document.querySelector(`.m-indicators div[data-indicator="${id}"] u`);
+    if (menuU) {
+      if (asHtml) menuU.innerHTML = value != null ? String(value) : '';
+      else menuU.textContent = value != null ? String(value) : '';
     }
   }
 

@@ -3,57 +3,56 @@ export const vpvr = {
     id: 'vpvr',
     name: 'Volume Profile Visible Range',
     position: 'right',
-    zIndex: 50,
+    zIndex: 5,
     width: 200,
     defaultParams: {
-      rows: 240,
-      side: 'right',           // 'right' или 'left'
-      direction: 'inward',     // 'inward' (внутрь графика) или 'outward'
-      upColor: 0x548431,       // зелёная внутренняя вставка (up)
-      downColor: 0x6B1025,     // красная база (total)
+      rows: 120,
+      side: 'right',
+      direction: 'inward',
+      upColor: 0x548431,
+      downColor: 0x6B1025,
+      upColorDim: 0x2F4F1A,
+      downColorDim: 0x4A0C1B,
       pocColor: 0xff0000,
       pocLineWidth: 2,
       vahval: true,
       vahColor: 0x43E300,
       valColor: 0x00F6FA,
-      vahvalLineWidth: 1,
-      candleOpacity: 0.75,
-      outsideOpacity: 0.2
+      vahvalLineWidth: 1
     }
   },
 
-  createIndicator({ layer }, layout, params = {}) {
+  createIndicator({ layer, overlay }, layout, params = {}) {
     const {
-      rows, side, direction, upColor, downColor,
+      rows, side, direction,
+      upColor, downColor, upColorDim, downColorDim,
       pocColor, pocLineWidth, vahval, vahColor, valColor,
-      vahvalLineWidth, candleOpacity, outsideOpacity
+      vahvalLineWidth
     } = { ...vpvr.meta.defaultParams, ...params };
 
     const bars = new PIXI.Graphics();
     const pocLine = new PIXI.Graphics();
     const vahvalLines = new PIXI.Graphics();
 
+    layer.alpha = 1;
+    bars.alpha = 1;
+    pocLine.alpha = 1;
+    vahvalLines.alpha = 1;
+
     layer.sortableChildren = true;
-    bars.zIndex = 10;
-    pocLine.zIndex = 11;
-    vahvalLines.zIndex = 12;
+    bars.zIndex = 5;
+    pocLine.zIndex = 6;
+    vahvalLines.zIndex = 7;
     layer.addChild(bars, pocLine, vahvalLines);
 
-    let profile = [];       // [{ priceLow, priceHigh, total, up, down }]
+    let profile = [];
     let pocIdx = null;
     let vahIdx = null;
     let valIdx = null;
+    let aggBuy = 0, aggSell = 0, aggTotal = 0, aggDelta = 0;
+    let lastHash = null;
+    let hoverLastHash = null;
 
-    // агрегаты для панели: B, S, Σ, Δ
-    let aggBuy = 0;
-    let aggSell = 0;
-    let aggTotal = 0;
-    let aggDelta = 0;
-
-    // кэш границ
-    let lastStart = null, lastEnd = null, lastHash = null;
-
-    // прокси-логика направления свечи: up если close > open, down если close < open, doji -> 50/50
     function splitCandleVolume(c) {
       const v = Number(c?.volume) || 0;
       if (c.close > c.open) return { up: v, down: 0 };
@@ -72,16 +71,14 @@ export const vpvr = {
         Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / denom) - 1
       );
       const hash = candles[start]?.time + ':' + candles[end]?.time;
-      if (start === lastStart && end === lastEnd && hash === lastHash) return profile;
-
-      lastStart = start; lastEnd = end; lastHash = hash;
+      if (hash === lastHash) return profile;
+      lastHash = hash;
 
       const slice = candles.slice(start, end + 1);
       const minPrice = Math.min(...slice.map(c => c.low));
       const maxPrice = Math.max(...slice.map(c => c.high));
       if (!isFinite(minPrice) || !isFinite(maxPrice) || minPrice === maxPrice) {
-        profile = [];
-        aggBuy = aggSell = aggTotal = aggDelta = 0;
+        profile = []; aggBuy = aggSell = aggTotal = aggDelta = 0;
         pocIdx = vahIdx = valIdx = null;
         return profile;
       }
@@ -90,7 +87,6 @@ export const vpvr = {
       const upBins = Array(rows).fill(0);
       const downBins = Array(rows).fill(0);
 
-      // распределяем объём свечи равномерно по всем бинам её ценового диапазона
       for (const c of slice) {
         const { up, down } = splitCandleVolume(c);
         const lo = Math.floor((c.low  - minPrice) / step);
@@ -100,9 +96,8 @@ export const vpvr = {
         const span = Math.max(1, idxHigh - idxLow + 1);
         const upPerBin = up / span;
         const downPerBin = down / span;
-
         for (let i = idxLow; i <= idxHigh; i++) {
-          upBins[i]   += upPerBin;
+          upBins[i] += upPerBin;
           downBins[i] += downPerBin;
         }
       }
@@ -118,20 +113,13 @@ export const vpvr = {
         };
       });
 
-      // агрегаты
       aggBuy   = profile.reduce((a, p) => a + p.up, 0);
       aggSell  = profile.reduce((a, p) => a + p.down, 0);
       aggTotal = aggBuy + aggSell;
       aggDelta = aggBuy - aggSell;
 
-      // POC по total
-      let maxTotal = -Infinity;
-      pocIdx = null;
-      for (let i = 0; i < profile.length; i++) {
-        if (profile[i].total > maxTotal) { maxTotal = profile[i].total; pocIdx = i; }
-      }
+      pocIdx = profile.reduce((maxIdx, p, i) => p.total > profile[maxIdx].total ? i : maxIdx, 0);
 
-      // VAH/VAL (70% по total)
       if (vahval) {
         const target = aggTotal * 0.7;
         let acc = 0;
@@ -154,20 +142,16 @@ export const vpvr = {
     function render(layout) {
       const candles = layout?.candles;
       if (!candles?.length) return;
-
       calculate(candles, layout);
       if (!profile.length) return;
 
-      bars.clear();
-      pocLine.clear();
-      vahvalLines.clear();
+      bars.clear(); pocLine.clear(); vahvalLines.clear();
 
       const plotX = layout.plotX;
       const plotW = layout.plotW;
       const width = vpvr.meta.width;
       const yFromPrice = (price) => layout.priceToY(price);
       const baseX = (side === 'right') ? (plotX + plotW) : plotX;
-
       const maxTotal = Math.max(...profile.map(p => p.total)) || 1;
 
       for (let i = 0; i < profile.length; i++) {
@@ -175,55 +159,40 @@ export const vpvr = {
         const yTop = yFromPrice(p.priceHigh);
         const yBot = yFromPrice(p.priceLow);
         const rawHeight = Math.abs(yBot - yTop);
-        const height = Math.max(1, rawHeight - 1); // 1px зазор
+        const height = Math.max(1, rawHeight - 1);
         const yMid = (yTop + yBot) / 2;
         const y = yMid - height / 2;
 
-        const isInsideVA = vahval && vahIdx != null && valIdx != null && i >= valIdx && i <= vahIdx;
-        const opacity = isInsideVA ? candleOpacity : outsideOpacity;
+        const inVA = vahval && vahIdx != null && valIdx != null && i >= valIdx && i <= vahIdx;
+        const baseColor = inVA ? downColor : downColorDim;
+        const insertColor = inVA ? upColor : upColorDim;
 
-        // длины: красная база = total, зелёная вставка = up
         const lenTotal = (p.total / maxTotal) * width;
         const lenUp    = (p.up    / maxTotal) * width;
 
-        // Рисуем базу — КРАСНУЮ (downColor) всегда
-        bars.beginFill(downColor, opacity);
+        bars.beginFill(baseColor, 1);
         if (side === 'right') {
-          if (direction === 'inward') {
-            bars.drawRect(baseX - lenTotal, y, lenTotal, height);
-          } else {
-            bars.drawRect(baseX, y, lenTotal, height);
-          }
+          if (direction === 'inward') bars.drawRect(baseX - lenTotal, y, lenTotal, height);
+          else                        bars.drawRect(baseX, y, lenTotal, height);
         } else {
-          if (direction === 'inward') {
-            bars.drawRect(baseX, y, lenTotal, height);
-          } else {
-            bars.drawRect(baseX - lenTotal, y, lenTotal, height);
-          }
+          if (direction === 'inward') bars.drawRect(baseX, y, lenTotal, height);
+          else                        bars.drawRect(baseX - lenTotal, y, lenTotal, height);
         }
         bars.endFill();
 
-        // Вставка — ЗЕЛЁНАЯ (upColor) поверх базы, с той же геометрией, но длиной lenUp
         if (lenUp > 0) {
-          bars.beginFill(upColor, opacity);
+          bars.beginFill(insertColor, 1);
           if (side === 'right') {
-            if (direction === 'inward') {
-              bars.drawRect(baseX - lenUp, y, lenUp, height);
-            } else {
-              bars.drawRect(baseX, y, lenUp, height);
-            }
+            if (direction === 'inward') bars.drawRect(baseX - lenUp, y, lenUp, height);
+            else                        bars.drawRect(baseX, y, lenUp, height);
           } else {
-            if (direction === 'inward') {
-              bars.drawRect(baseX, y, lenUp, height);
-            } else {
-              bars.drawRect(baseX - lenUp, y, lenUp, height);
-            }
+            if (direction === 'inward') bars.drawRect(baseX, y, lenUp, height);
+            else                        bars.drawRect(baseX - lenUp, y, lenUp, height);
           }
           bars.endFill();
         }
       }
 
-      // Линия POC по total
       if (pocIdx != null) {
         const pocYTop = yFromPrice(profile[pocIdx].priceHigh);
         const pocYBot = yFromPrice(profile[pocIdx].priceLow);
@@ -233,7 +202,6 @@ export const vpvr = {
         pocLine.stroke({ width: pocLineWidth, color: pocColor });
       }
 
-      // Линии VAH/VAL
       if (vahval && vahIdx != null && valIdx != null) {
         const vahY = yFromPrice(profile[vahIdx].priceHigh);
         const valY = yFromPrice(profile[valIdx].priceLow);
@@ -248,21 +216,45 @@ export const vpvr = {
       }
     }
 
+    function updateHover(candle, idx) {
+      if (!candle || !layout || !layout.candles?.length) return;
+
+      const denom = layout.spacing * layout.scaleX;
+      const start = Math.max(0, Math.floor((layout.plotX - layout.offsetX) / denom));
+      const end = Math.min(
+        layout.candles.length - 1,
+        Math.ceil((layout.plotX + layout.plotW - layout.offsetX) / denom) - 1
+      );
+      const hash = layout.candles[start]?.time + ':' + layout.candles[end]?.time;
+      if (hash !== hoverLastHash) {
+        calculate(layout.candles, layout);
+        hoverLastHash = hash;
+      }
+
+      const fmt = (n, d = 6) => Number.isFinite(n) ? n.toFixed(d) : '0';
+      const fmtPct = (num, den) => {
+        const pct = den > 0 ? ((num / den) * 100) : 0;
+        const sign = num >= 0 ? '+' : '';
+        return `${sign}${fmt(num, 3)} (${sign}${pct.toFixed(2)}%)`;
+      };
+
+      const b = aggBuy, s = aggSell, sum = aggTotal, d = aggDelta;
+      const vpvrDelta = fmtPct(d, sum);
+
+      const line = `VPVR: B: ${fmt(b, 6)}  S: ${fmt(s, 6)}  Σ: ${fmt(sum, 6)}  Δ: ${vpvrDelta}`;
+      console.log(line);
+
+      if (overlay?.updateValue) {
+        overlay.updateValue('vpvr', line);
+      }
+    }
+
     return {
       render,
       calculate: () => profile,
       values: profile,
-      // агрегаты для панели инфо (как на скрине: B, S, Σ, Δ)
-      getAggregates: () => ({
-        buy: aggBuy,
-        sell: aggSell,
-        total: aggTotal,
-        delta: aggDelta
-      }),
-      // быстрый доступ к VA/POC
-      getPOC: () => (pocIdx != null ? profile[pocIdx] : null),
-      getVAH: () => (vahIdx != null ? profile[vahIdx] : null),
-      getVAL: () => (valIdx != null ? profile[valIdx] : null)
+      updateHover,
+      getAggregates: () => ({ buy: aggBuy, sell: aggSell, total: aggTotal, delta: aggDelta })
     };
   }
 };

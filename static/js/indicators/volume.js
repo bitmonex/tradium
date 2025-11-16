@@ -6,8 +6,10 @@ export const volume = {
     position: 'overlay',
     zIndex: 20,
     defaultParams: {
-      upColor: 0x00ff00,
-      downColor: 0xff3b3b,
+      upColor: 0x558531,
+      downColor: 0xA1253F,
+      //up-sw 0A4B23
+      //down-sw 530918
       height: 80,
       autoheight: true
     }

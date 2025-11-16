@@ -2,7 +2,7 @@
 export const ma = {
   meta: {
     id: 'ma',
-    name: 'MA50 & MA200',
+    name: 'MA',
     position: 'top',
     zIndex: 9999,
     defaultParams: {

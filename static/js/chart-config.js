@@ -5,7 +5,7 @@ export const ChartConfig = {
     chartFont:       "Roboto Condensed",
     chartFontSize:   14,
     chartFontWeight: "normal",
-    chartBG:         0x111111,
+    chartBG:         0x0F1013,
     biBG:            0x161616,
     letterSpacing:   0
   },

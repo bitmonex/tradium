@@ -1,12 +1,76 @@
 #pixi-outer{position:absolute; top:62px; right:0; bottom:0; left:0}
 #chart-container{position:relative; width:100%; height:100%;}
 
+/* Курсоры */
+.cur{position:absolute; z-index:5000; pointer-events:none; cursor:crosshair}
+.cur b, .cur u{position:absolute; margin:0; padding:0}
+.cur b{height:100%;}
+.cur u{width:100%;}
+.cur.solid b{border-left:1px solid #555;}
+.cur.solid u{border-top:1px solid #555}
+.cur.dashed b{border-left:1px dashed #555}
+.cur.dashed u{border-top:1px dashed #555}
+.cur.dotted b{border-left:1px dotted #555}
+.cur.dotted u{border-top:1px dotted #555}
+/* Общие стили для плашек */
+.tip {
+  position: absolute;
+  display: flex;
+  padding: 2px 4px;
+  font-size: .7em;
+  font-weight:normal; border:none;
+  color: #111;
+  background:#FEFFFE;
+  border-radius: 3px;
+  text-decoration: none;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 6000;
+}
+
+/* Плашка цены (справа от графика) */
+.tip.price {
+  transform: translate(7px, -9px);
+  text-align: left;
+  height:12px;
+  line-height:12px;
+  border-radius:0;
+  border-top-right-radius: 3px;
+  border-bottom-right-radius: 3px;
+}
+.tip.price::before {
+  content: '';
+  position: absolute;
+  left: -2.55px;
+  top: 50%;
+  transform: translate(-50%, calc(-50%)) rotate(90deg);
+  border-style: solid;
+  border-width: 5px 8px 0px 8px;
+  border-color: #fff transparent transparent;
+}
+
+/* Плашка времени (снизу графика) */
+.tip.time {
+  transform: translateY(6px);
+  text-align: center;
+}
+.tip.time::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: 15px;
+  transform: translateX(-50%) rotateX(180deg);
+  border-width: 5px;
+  border-style: solid;
+  border-color: #fff transparent transparent transparent;
+}
+
 .m-fps{position:absolute; top:40px; left:15px; font-size:.95em; color:#43E300; pointer-events:none}
 
 .m-ohlcv{ position:absolute; top:13px; left:15px; font-size:.95em; pointer-events: none; user-select:none}
 .m-ohlcv strong{text-transform: uppercase; color:#FFC61C; margin-right:10px; cursor:pointer; pointer-events: auto}
 .m-ohlcv i {color:#BDBDBD; margin-right:10px}
-.m-ohlcv i b{color:#666; margin-right:3px}
+.m-ohlcv i b{color:#777; margin-right:3px}
 
 .m-live{position:absolute; top:0; left:0; width:100%; pointer-events:none}
 .m-live span{position:absolute; right:0; font-size:.9em; text-align:center; width:70px; padding:3px 0; background:#000; color:#fff; transform:translateY(-50%);}
@@ -14,25 +78,46 @@
 .m-live span i{display:block; margin-top:2px;}
 .m-live u{position:absolute; left:0; width:100%; height:1px;}
 
-.m-indicators.on{position:absolute; top:85px; left:15px; display:flex; flex-wrap:wrap; max-width:250px}
-.m-indicators{display:none}
+.m-indicators{display:none; pointer-events:none; transition: .25s ease}
+.m-indicators.on{position:absolute; top:65px; left:15px; display:flex; flex-direction:column; flex-wrap:nowrap; align-items:flex-start}
 .m-indicators i{cursor:pointer}
-.m-indicators.min span{display:none}
-.m-indicators span{clear:both; display:block; width:100%; height:20px; margin-bottom:7px; text-shadow: 2px 2px 2px rgba(0,0,0,5);}
-.m-indicators span strong{float:left; font-size:.9em; font-weight:normal; user-select:none}
-.m-indicators span:hover strong{color:#fff}
-.m-indicators span i{float:left; color margin:0; padding:0; width:16px; margin-left:7px}
-.m-indicators span i:hover{color:#fff}
-.m-indicators span b{float:left; color:#999; font-size:.9em}
+.m-indicators.min div{display:none}
+
+
+.m-indicators div{display:flex; font-size:.95em; margin-bottom:5px; text-shadow: 2px 2px 2px rgba(0,0,0,5);}
+
+.m-indicators div span{float:left; border-radius:3px; background: rgba(0, 0, 0, 0.7); border:1px solid #000; padding:2px 4px 1px 4px; margin:-1px 0 0 -5px; pointer-events:auto; transition: .25s ease}
+.m-indicators div span:hover{background:#222; border:1px solid #777; margin-right:6px}
+
+.m-indicators div.on strong{color:#777}
+.m-indicators div strong{order:999; color:#444; float:left; font-weight:normal}
+.m-indicators div:hover strong{color:#fff} 
+
+.m-indicators div.on span i{display:none}
+.m-indicators div span i{float:left; margin:0; padding:0; width:16px; margin-left:7px}
+.m-indicators div span i:nth-last-child(-n+2){display:none}
+.m-indicators div span i:last-child{margin-right:4px}
+.m-indicators div span:hover i{display:flex}
+
+.m-indicators span b{float:left; color:#464646; font-size:.9em; transition: .25s ease}
+.m-indicators span:hover b{color:#999;}
 .m-indicators span b:hover{color:#fff}
 
-.m-indicators .switcher{order: 999; color:#998; font-size:1.1em; margin-left:-2px}
+.m-indicators div u{visibility:hidden}
+.m-indicators div.on u{visibility:visible; color:#BDBDBD; margin:2px 0 0 3px;}
+.m-indicators div u s{color:#777; margin:0 4px 0 0px}
+
+
+
+
+
+.m-indicators .switcher{width:40px; order: 999; color:#998; font-size:1.1em; margin-left:-2px; transition: .25s ease; pointer-events:auto}
 .m-indicators .switcher:hover{color:#fff}
 
-.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center; color:#ccc; background:#3B3B3B; border-radius:50%; margin:1px 0 0 8px}
+.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center; color:#ccc; background:#3B3B3B; border-radius:50%; position:relative; top:-17px; left:30px; transition: .25s ease; pointer-events:auto}
 .m-indicators .fs:hover{color:#000; background:#fff}
 
-.indicator-overlay{position:absolute; xz-index:100; pointer-events:none; user-select:none;}
+.indicator-overlay{position:absolute; pointer-events:none; user-select:none;}
 .indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto; user-select: none}
 .indicator-overlay .sw:hover{background:#222}
 .indicator-overlay .sw b{display:block; height:1px; background:#333}
@@ -45,10 +130,11 @@
 .iheader span i{display:none; cursor: pointer}
 .iheader span:hover i{display:inline}
 .iheader span i:hover {color:#fff; cursor:pointer}
+
 .iheader em{color:#555; font-style:normal; margin-left:10px}
 .iheader u{color:#999; margin-left:10px}
 .iheader u i{color:#ccc; margin-right:10px}
-.iheader u b{color:#999; font-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px}
+.iheader u b{color:#999; font-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px; transition: .25s ease}
 .on .iheader em,.on .iheader u{visibility:visible}
 .iheader em,.iheader u{visibility:hidden; user-select:none}
 
