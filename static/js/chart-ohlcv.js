@@ -1,4 +1,3 @@
-// chart-ohlcv.js
 import { formatMoney } from './chart-utils.js';
 
 export function getOHLCVItems(candle, candles) {
@@ -40,7 +39,7 @@ export class OHLCV {
     this.interval   = options.interval ?? 500;
     this._alive     = true;
 
-    this._hoverCandle = null;   // 👉 текущая свеча под курсором
+    this._hoverCandle = null;
 
     this.update = this.update.bind(this);
     this.timer = setInterval(this.update, this.interval);
@@ -54,13 +53,10 @@ export class OHLCV {
     const candles = this.chartCore?.state?.candles;
     if (!candles?.length) return;
 
-    // 👉 если курсор на свече (и это не последняя) — не трогаем
     if (this._hoverCandle) {
       this.renderItems(this._hoverCandle, candles);
       return;
     }
-
-    // иначе показываем последнюю
     const last = candles[candles.length - 1];
     this.renderItems(last, candles);
   }
@@ -72,16 +68,13 @@ export class OHLCV {
 
     if (candle) {
       if (candle === last) {
-        // навели на последнюю → автообновление
         this._hoverCandle = null;
         this.renderItems(last, candles);
       } else {
-        // навели на закрытую свечу → фиксируем её
         this._hoverCandle = candle;
         this.renderItems(candle, candles);
       }
     } else {
-      // курсор ушёл → сброс
       this._hoverCandle = null;
       this.renderItems(last, candles);
     }
@@ -95,6 +88,14 @@ export class OHLCV {
       .map(it => `<i class="ohlcv ${it.label.toLowerCase()}"><b>${it.label}:</b>${it.value}</i>`)
       .join(" ");
     this.dom.innerHTML = header + " " + body;
+
+    // алерт
+    const strongEl = this.dom.querySelector("strong.id");
+    if (strongEl) {
+      strongEl.addEventListener("click", () => {
+        alert(`Tickers Modal: ${this.exchange} ${this.marketType} ${this.symbol}`);
+      });
+    }
   }
 
   destroy() {

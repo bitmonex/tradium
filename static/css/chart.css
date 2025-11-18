@@ -1,6 +1,21 @@
 #pixi-outer{position:absolute; top:62px; right:0; bottom:0; left:0}
 #chart-container{position:relative; width:100%; height:100%;}
 
+:root {
+  --f:.95em;
+  --fs:2px 2px 2px rgba(0,0,0,5);
+  --white:#fff;
+  --black:#000;
+  --tip-c:#111;
+  --tip-bg:#FEFFFE;
+  --ibb:1px solid #000;
+  --ibbh:1px solid #777;
+  --ibg:rgba(0, 0, 0, 0.7);
+  --ibgh:#222;
+  --ibr:4px;
+  --t:.25s ease;
+}
+
 /* Курсоры */
 .cur{position:absolute; z-index:5000; pointer-events:none; cursor:crosshair}
 .cur b, .cur u{position:absolute; margin:0; padding:0}
@@ -18,9 +33,10 @@
   display: flex;
   padding: 2px 4px;
   font-size: .7em;
-  font-weight:normal; border:none;
-  color: #111;
-  background:#FEFFFE;
+  font-weight:normal;
+  border:none;
+  color:var(--tip-c);
+  background:var(--tip-bg);
   border-radius: 3px;
   text-decoration: none;
   pointer-events: none;
@@ -46,76 +62,80 @@
   transform: translate(-50%, calc(-50%)) rotate(90deg);
   border-style: solid;
   border-width: 5px 8px 0px 8px;
-  border-color: #fff transparent transparent;
+  border-color: var(--tip-bg) transparent transparent;
 }
 
 /* Плашка времени (снизу графика) */
 .tip.time {
-  transform: translateY(6px);
+  transform: translateY(7px);
   text-align: center;
 }
 .tip.time::after {
   content: '';
   position: absolute;
-  left: 50%;
+  left: calc(50% - 1px);
   bottom: 15px;
   transform: translateX(-50%) rotateX(180deg);
   border-width: 5px;
   border-style: solid;
-  border-color: #fff transparent transparent transparent;
+  border-color: var(--tip-bg) transparent transparent transparent;
 }
 
-.m-fps{position:absolute; top:40px; left:15px; font-size:.95em; color:#43E300; pointer-events:none}
+.m-fps{position:absolute; top:38px; left:9px; font-size:var(--f); color:#43E300; background: rgba(0, 0, 0, 0.7); border-radius:var(--ibr); padding:2px 4px 1px 4px; pointer-events:none}
 
-.m-ohlcv{ position:absolute; top:13px; left:15px; font-size:.95em; pointer-events: none; user-select:none}
-.m-ohlcv strong{text-transform: uppercase; color:#FFC61C; margin-right:10px; cursor:pointer; pointer-events: auto}
-.m-ohlcv i {color:#BDBDBD; margin-right:10px}
+.m-ohlcv{ position:absolute; top:13px; left:15px; xfont-size:var(--f); pointer-events:none}
+
+
+.m-ohlcv strong{text-transform: uppercase; color:#FFC61C; 
+  border-radius:var(--ibr); background: var(--ibg); border:var(--ibb); padding:2px 4px 1px 3px; margin:-1px 10px 0 -6px;
+  cursor:pointer; pointer-events:auto}
+.m-ohlcv strong:hover{color:#fff; background:var(--ibgh); border:var(--ibbh)}
+.m-ohlcv i {height:20px; line-height:20px; color:#999; border-radius:var(--ibr); background: rgba(0, 0, 0, 0.7); padding:1px 3px; margin-right:10px;}
 .m-ohlcv i b{color:#777; margin-right:3px}
 
+
+
+
 .m-live{position:absolute; top:0; left:0; width:100%; pointer-events:none}
-.m-live span{position:absolute; right:0; font-size:.9em; text-align:center; width:70px; padding:3px 0; background:#000; color:#fff; transform:translateY(-50%);}
+.m-live span{position:absolute; right:0; xfont-size:.9em; text-align:center; width:70px; padding:3px 0; background:var(--black); color:var(--thite); transform:translateY(-50%);}
 .m-live span b{font-weight:normal;}
 .m-live span i{display:block; margin-top:2px;}
 .m-live u{position:absolute; left:0; width:100%; height:1px;}
 
-.m-indicators{display:none; pointer-events:none; transition: .25s ease}
+.m-indicators{display:none; pointer-events:none; transition:var(--t)}
 .m-indicators.on{position:absolute; top:65px; left:15px; display:flex; flex-direction:column; flex-wrap:nowrap; align-items:flex-start}
 .m-indicators i{cursor:pointer}
 .m-indicators.min div{display:none}
 
 
-.m-indicators div{display:flex; font-size:.95em; margin-bottom:5px; text-shadow: 2px 2px 2px rgba(0,0,0,5);}
+.m-indicators div{display:flex; xfont-size:var(--f); margin-bottom:5px; text-shadow:var(--fs)}
 
-.m-indicators div span{float:left; border-radius:3px; background: rgba(0, 0, 0, 0.7); border:1px solid #000; padding:2px 4px 1px 4px; margin:-1px 0 0 -5px; pointer-events:auto; transition: .25s ease}
-.m-indicators div span:hover{background:#222; border:1px solid #777; margin-right:6px}
+.m-indicators div span{float:left; border-radius:var(--ibr); background:var(--ibg); border:var(--ibb); padding:2px 5px 1px 3px; margin:0 0 0 -6px; pointer-events:auto; transition:var(--t)}
+.m-indicators div span:hover{background:var(--ibgh); border:var(--ibbh); margin-right:3px}
 
-.m-indicators div.on strong{color:#777}
-.m-indicators div strong{order:999; color:#444; float:left; font-weight:normal}
-.m-indicators div:hover strong{color:#fff} 
+.m-indicators div.on strong{color:#999}
+.m-indicators div strong{order:999; color:#555; float:left; font-weight:normal}
+.m-indicators div:hover strong{color:var(--white)} 
 
 .m-indicators div.on span i{display:none}
-.m-indicators div span i{float:left; margin:0; padding:0; width:16px; margin-left:7px}
+.m-indicators div span i{float:left; margin:0; padding:0; width:16px; margin:0 3px 0 5px}
 .m-indicators div span i:nth-last-child(-n+2){display:none}
-.m-indicators div span i:last-child{margin-right:4px}
+.m-indicators div span i:last-child{margin-right:6px}
 .m-indicators div span:hover i{display:flex}
 
-.m-indicators span b{float:left; color:#464646; font-size:.9em; transition: .25s ease}
+.m-indicators span b{float:left; color:#555; xfont-size:.9em; margin-right:3px; transition:var(--t)}
 .m-indicators span:hover b{color:#999;}
-.m-indicators span b:hover{color:#fff}
+.m-indicators span b:hover{color:var(--white)}
 
 .m-indicators div u{visibility:hidden}
-.m-indicators div.on u{visibility:visible; color:#BDBDBD; margin:2px 0 0 3px;}
+.m-indicators div.on u{visibility:visible; height:19px; line-height:20px; color:#BDBDBD; border-radius:var(--ibr); background:var(--ibg); padding:0 3px; margin:2px 0 0 3px;}
 .m-indicators div u s{color:#777; margin:0 4px 0 0px}
 
-
-
-
-
-.m-indicators .switcher{width:40px; order: 999; color:#998; font-size:1.1em; margin-left:-2px; transition: .25s ease; pointer-events:auto}
+.m-indicators .switcher{width:40px; order: 999; color:#999; font-size:1.1em; margin-left:-5px; transition:var(--t); pointer-events:auto}
 .m-indicators .switcher:hover{color:#fff}
 
-.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center; color:#ccc; background:#3B3B3B; border-radius:50%; position:relative; top:-17px; left:30px; transition: .25s ease; pointer-events:auto}
-.m-indicators .fs:hover{color:#000; background:#fff}
+.m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center; color:#ccc; background:#3B3B3B; border-radius:50%; position:relative; top:-17px; left:27px; transition:var(--t); pointer-events:auto}
+.m-indicators .fs:hover{color:var(--black); background:var(--white)}
 
 .indicator-overlay{position:absolute; pointer-events:none; user-select:none;}
 .indicator-overlay .sw{position:absolute; left:0; top:0; right:0; height:4px; cursor:row-resize; pointer-events:auto; user-select: none}
@@ -123,20 +143,26 @@
 .indicator-overlay .sw b{display:block; height:1px; background:#333}
 .indicator-overlay .sw:hover b{background:#777}
 
-.iheader{position:absolute; left:10px; top:10px; height:20px; font-size:.95em; text-shadow: 2px 2px 0 #000; color:#ccc; pointer-events:auto}
-.on .iheader span strong{color:#ccc}
-.iheader span strong{color:#555; cursor:pointer}
-.iheader span:hover strong{color:#fff; margin-right:12px}
-.iheader span i{display:none; cursor: pointer}
-.iheader span:hover i{display:inline}
-.iheader span i:hover {color:#fff; cursor:pointer}
+.iheader{position:absolute; left:8px; top:12px; height:20px; xfont-size:var(--f); text-shadow:var(--fs); pointer-events:none}
+.iheader span{border-radius:var(--ibr); background:var(--ibg); border:var(--ibb); padding:2px 5px 1px 3px;
+ pointer-events:auto; transition:var(--t)}
+.iheader span:hover{background:var(--ibgh); border:var(--ibbh); padding-right:2px;}
 
-.iheader em{color:#555; font-style:normal; margin-left:10px}
-.iheader u{color:#999; margin-left:10px}
-.iheader u i{color:#ccc; margin-right:10px}
-.iheader u b{color:#999; font-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px; transition: .25s ease}
+.on .iheader span strong{color:#999}
+.iheader span strong{color:#555}
+.iheader span:hover strong{color:var(--white); margin-right:7px}
+.iheader span i{display:none; cursor:pointer; transition:var(--t)}
+.iheader span:hover i{display:inline}
+.iheader span i:hover {color:var(--white); cursor:pointer}
+
+.iheader em,.iheader u{border-radius:var(--ibr); background:var(--ibg); padding:0 3px;}
+.iheader em{color:#777; font-style:normal; margin-left:3px}
+.iheader u{color:#999; margin-left:3px}
+
+.xiheader u i{color:#color:#555;; margin-right:10px}
+.xiheader u b{color:#999; xfont-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px; transition:var(--t)}
 .on .iheader em,.on .iheader u{visibility:visible}
-.iheader em,.iheader u{visibility:hidden; user-select:none}
+.iheader em,.iheader u{visibility:hidden}
 
 .loader{position:absolute;transform: translateY(-100%); z-index:9999; background:#222; color:#ccc; border-radius:25px; padding:5px 10px; margin:-10px 0 0 10px}
 

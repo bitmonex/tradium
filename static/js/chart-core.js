@@ -85,6 +85,7 @@ export async function createChartCore(container, userConfig = {}) {
     });
   };
 
+  //Debug
   function renderDebugViewport(state, layer) {
     if (!state.layout) return;
     let g = layer._debugG;

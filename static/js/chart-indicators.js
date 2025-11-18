@@ -564,7 +564,7 @@ export function createIndicatorsManager(chartCore) {
     return null;
   }
 
-  // 🔹 Масштабирование индикаторов
+  // Масштабирование индикаторов
   function setScaleOne(id, factor) {
     const obj = active.get(id);
     if (!obj) return;

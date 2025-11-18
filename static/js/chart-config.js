@@ -6,7 +6,8 @@ export const ChartConfig = {
     chartFontSize:   14,
     chartFontWeight: "normal",
     chartBG:         0x0F1013,
-    biBG:            0x161616,
+    //biBG:            0xff0000,
+    biBG:            0x0D0D0D,
     letterSpacing:   0
   },
 

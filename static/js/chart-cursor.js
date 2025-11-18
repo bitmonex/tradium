@@ -19,7 +19,7 @@ export function createCursorOverlay(chartCore) {
 
   parent.appendChild(el);
 
-  let mode = 'dashed'; // 'default' | 'solid' | 'dashed' | 'dotted'
+  let mode = 'default'; // 'default' | 'solid' | 'dashed' | 'dotted'
   el.classList.add(mode);
 
   function setVisible(on) {
@@ -43,15 +43,24 @@ export function createCursorOverlay(chartCore) {
     const lx = mx - layout.plotX;
     const ly = my - layout.plotY;
     const inChart = mx >= layout.plotX && mx <= layout.plotX + layout.plotW;
+    if (!inChart) {
+      el.classList.add('hide');
+      return;
+    }
 
-    setVisible(inChart && mode !== 'default');
-    if (!inChart) return;
+    el.classList.remove('hide');
 
-    // 🔹 линии — сдвиг на 1px
-    v.style.left = (lx - 2) + 'px';
-    v.style.top = '0px';
-    h.style.left = '0px';
-    h.style.top = (ly - 1) + 'px';
+    // 🔹 линии — только если стиль не default
+    const showLines = mode !== 'default';
+    v.style.display = showLines ? 'block' : 'none';
+    h.style.display = showLines ? 'block' : 'none';
+
+    if (showLines) {
+      v.style.left = (lx - 2) + 'px';
+      v.style.top = '0px';
+      h.style.left = '0px';
+      h.style.top = (ly - 1) + 'px';
+    }
 
     // 🔹 цена
     const price = layout.maxPrice - ((my - layout.plotY) / layout.plotH) * (layout.maxPrice - layout.minPrice);
