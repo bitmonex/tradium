@@ -11,9 +11,10 @@
   --ibb:1px solid #000;
   --ibbh:1px solid #777;
   --ibg:rgba(0, 0, 0, 0.7);
+  --ibg-bi:rgba(13, 13, 13, 0.7);
   --ibgh:#222;
   --ibr:4px;
-  --t:.25s ease;
+  --t:.25s ease-out;
 }
 
 /* Курсоры */
@@ -84,17 +85,10 @@
 .m-fps{position:absolute; top:38px; left:9px; font-size:var(--f); color:#43E300; background: rgba(0, 0, 0, 0.7); border-radius:var(--ibr); padding:2px 4px 1px 4px; pointer-events:none}
 
 .m-ohlcv{ position:absolute; top:13px; left:15px; xfont-size:var(--f); pointer-events:none}
-
-
-.m-ohlcv strong{text-transform: uppercase; color:#FFC61C; 
-  border-radius:var(--ibr); background: var(--ibg); border:var(--ibb); padding:2px 4px 1px 3px; margin:-1px 10px 0 -6px;
-  cursor:pointer; pointer-events:auto}
-.m-ohlcv strong:hover{color:#fff; background:var(--ibgh); border:var(--ibbh)}
-.m-ohlcv i {height:20px; line-height:20px; color:#999; border-radius:var(--ibr); background: rgba(0, 0, 0, 0.7); padding:1px 3px; margin-right:10px;}
+.m-ohlcv strong{text-transform: uppercase; color:#FFC61C; border-radius:var(--ibr); background: var(--ibg); border:var(--ibb); padding:2px 4px 1px 3px; margin:-1px 7px 0 -6px; cursor:pointer; pointer-events:auto}
+.m-ohlcv strong:hover{color:var(--white); background:var(--ibgh); border:var(--ibbh)}
+.m-ohlcv i {height:20px; line-height:20px; color:#999; border-radius:var(--ibr); background: rgba(0, 0, 0, 0.7); padding:1px 3px; margin-right:5px;}
 .m-ohlcv i b{color:#777; margin-right:3px}
-
-
-
 
 .m-live{position:absolute; top:0; left:0; width:100%; pointer-events:none}
 .m-live span{position:absolute; right:0; xfont-size:.9em; text-align:center; width:70px; padding:3px 0; background:var(--black); color:var(--thite); transform:translateY(-50%);}
@@ -106,34 +100,26 @@
 .m-indicators.on{position:absolute; top:65px; left:15px; display:flex; flex-direction:column; flex-wrap:nowrap; align-items:flex-start}
 .m-indicators i{cursor:pointer}
 .m-indicators.min div{display:none}
-
-
-.m-indicators div{display:flex; xfont-size:var(--f); margin-bottom:5px; text-shadow:var(--fs)}
-
-.m-indicators div span{float:left; border-radius:var(--ibr); background:var(--ibg); border:var(--ibb); padding:2px 5px 1px 3px; margin:0 0 0 -6px; pointer-events:auto; transition:var(--t)}
+.m-indicators div{display:flex; xfont-size:var(--f); margin-bottom:2px; text-shadow:var(--fs)}
+.m-indicators div span{float:left; border-radius:var(--ibr); background:var(--ibg); border:var(--ibb); padding:2px 5px 2px 3px; margin:0 0 0 -6px; pointer-events:auto; transition:var(--t)}
 .m-indicators div span:hover{background:var(--ibgh); border:var(--ibbh); margin-right:3px}
-
 .m-indicators div.on strong{color:#999}
 .m-indicators div strong{order:999; color:#555; float:left; font-weight:normal}
 .m-indicators div:hover strong{color:var(--white)} 
-
 .m-indicators div.on span i{display:none}
 .m-indicators div span i{float:left; margin:0; padding:0; width:16px; margin:0 3px 0 5px}
 .m-indicators div span i:nth-last-child(-n+2){display:none}
 .m-indicators div span i:last-child{margin-right:6px}
 .m-indicators div span:hover i{display:flex}
-
 .m-indicators span b{float:left; color:#555; xfont-size:.9em; margin-right:3px; transition:var(--t)}
 .m-indicators span:hover b{color:#999;}
 .m-indicators span b:hover{color:var(--white)}
-
 .m-indicators div u{visibility:hidden}
-.m-indicators div.on u{visibility:visible; height:19px; line-height:20px; color:#BDBDBD; border-radius:var(--ibr); background:var(--ibg); padding:0 3px; margin:2px 0 0 3px;}
-.m-indicators div u s{color:#777; margin:0 4px 0 0px}
-
+.m-indicators div.on u{visibility:visible; height:19px; line-height:20px; color:#999; border-radius:var(--ibr); background:var(--ibg); padding:0 3px; margin:2px 0 0 3px;}
+.m-indicators div u s{color:#777; margin:0 4px 0 10px}
+.m-indicators div u s:first-child{margin-left:0}
 .m-indicators .switcher{width:40px; order: 999; color:#999; font-size:1.1em; margin-left:-5px; transition:var(--t); pointer-events:auto}
 .m-indicators .switcher:hover{color:#fff}
-
 .m-indicators .fs{order:999; width:16px; height:16px; line-height:16px; font-size:.75em; text-align:center; color:#ccc; background:#3B3B3B; border-radius:50%; position:relative; top:-17px; left:27px; transition:var(--t); pointer-events:auto}
 .m-indicators .fs:hover{color:var(--black); background:var(--white)}
 
@@ -144,23 +130,20 @@
 .indicator-overlay .sw:hover b{background:#777}
 
 .iheader{position:absolute; left:8px; top:12px; height:20px; xfont-size:var(--f); text-shadow:var(--fs); pointer-events:none}
-.iheader span{border-radius:var(--ibr); background:var(--ibg); border:var(--ibb); padding:2px 5px 1px 3px;
- pointer-events:auto; transition:var(--t)}
-.iheader span:hover{background:var(--ibgh); border:var(--ibbh); padding-right:2px;}
-
+.iheader span{border-radius:var(--ibr); background:var(--ibg-bi); border:var(--ibb); padding:2px 5px 2px 3px; pointer-events:auto; transition:var(--t)}
+.iheader span:hover{background:var(--ibgh); border:var(--ibbh); margin-right:4px}
 .on .iheader span strong{color:#999}
 .iheader span strong{color:#555}
 .iheader span:hover strong{color:var(--white); margin-right:7px}
-.iheader span i{display:none; cursor:pointer; transition:var(--t)}
+.iheader span i{display:none; cursor:pointer; color:#999; transition:var(--t)}
 .iheader span:hover i{display:inline}
+.iheader span:hover i:last-child{margin-right:-2px}
 .iheader span i:hover {color:var(--white); cursor:pointer}
-
 .iheader em,.iheader u{border-radius:var(--ibr); background:var(--ibg); padding:0 3px;}
 .iheader em{color:#777; font-style:normal; margin-left:3px}
-.iheader u{color:#999; margin-left:3px}
-
-.xiheader u i{color:#color:#555;; margin-right:10px}
-.xiheader u b{color:#999; xfont-size:.8em; font-weight:normal; margin-right:1px; position:relative; top:-1px; transition:var(--t)}
+.iheader u{color:#999; margin-left:5px}
+.iheader u i{color:#color:#555; margin-right:10px}
+.iheader u b{color:#999; font-weight:normal; transition:var(--t)}
 .on .iheader em,.on .iheader u{visibility:visible}
 .iheader em,.iheader u{visibility:hidden}
 
