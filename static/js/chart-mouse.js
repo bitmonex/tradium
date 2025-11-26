@@ -259,19 +259,33 @@ export class Mouse {
       return;
     }
 
-    // Горизонтальный ресайз по времени
+    // Горизонтальный ресайз по времени (простой, из центра)
     if (this.resizingX && dx !== 0) {
       if (!inTimeScale) return;
       this.movedScale = true;
       const f = Math.exp(-dx * 0.003);
-      const z = this.zoomX?.({ mx, scaleX: s.scaleX, offsetX: s.offsetX, config: this.config, direction: f });
+
+      // берём центр плота вместо mx
+      const centerX = L.plotX + L.plotW / 2;
+      const z = this.zoomX?.({
+        mx: centerX,
+        scaleX: s.scaleX,
+        offsetX: s.offsetX,
+        config: this.config,
+        direction: f
+      });
+
       if (z) {
         s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, z.scaleX));
         s.offsetX = z.offsetX;
       }
+
       s._needRedrawCandles = true;
       const now = Date.now();
-      if (now - this._lastResizeX > 16) { this.chartCore?.scheduleRender({ full:true }); this._lastResizeX = now; }
+      if (now - this._lastResizeX > 16) {
+        this.chartCore?.scheduleRender({ full: true });
+        this._lastResizeX = now;
+      }
       return;
     }
 
@@ -412,8 +426,28 @@ export class Mouse {
         return;
       }
 
-      // X‑зум: временная шкала или график
-      if (inTimeScale || (inPlotX && !e.shiftKey)) {
+      // X‑зум: временная шкала (простой, из центра)
+      if (inTimeScale) {
+        const centerX = L.plotX + L.plotW / 2;
+        const z = this.zoomX?.({
+          mx: centerX,
+          scaleX: s.scaleX,
+          offsetX: s.offsetX,
+          config: this.config,
+          direction: f
+        });
+        if (z) {
+          s.scaleX = z.scaleX;
+          s.offsetX = z.offsetX;
+        }
+        this.chartCore?.scheduleRender({ full: true });
+        this.chartCore?.indicators?.updateHoverAll?.(null, null, { my: null });
+        safeCheckAndLoadHistory(this.chartCore, "zoomX");
+        return;
+      }
+
+      // X‑зум: график (сложный, из точки курсора)
+      if (inPlotX && !e.shiftKey) {
         const z = this.zoomX?.({
           mx,
           scaleX: s.scaleX,
@@ -430,6 +464,7 @@ export class Mouse {
         safeCheckAndLoadHistory(this.chartCore, "zoomX");
         return;
       }
+
 
       // Оффсайд‑зона индикаторов
       for (const [id, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
