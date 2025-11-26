@@ -58,6 +58,8 @@ export function createIndicatorsManager(chartCore) {
 
   const active = new Map();
   let resizeState = null;
+  let lastMy = undefined;
+  let lastHoverActive = false;
 
   const bgLayer = new PIXI.Graphics();
   chartCore.graphGroup?.addChildAt(bgLayer, 0);
@@ -176,8 +178,6 @@ export function createIndicatorsManager(chartCore) {
     if (menu.querySelector(`[data-indicator="${id}"]`)) return;
 
     const obj = active.get(id);
-    const titleText = obj?.title ?? id.toUpperCase();
-
     const div = document.createElement('div');
     div.setAttribute('data-indicator', id);
     div.classList.add('on');
@@ -190,19 +190,16 @@ export function createIndicatorsManager(chartCore) {
     createIndicatorMenu(id, span, { active, overlayMgr, chartCore, saveToStorage, remove, syncEye });
     div.appendChild(span);
 
-    // 🔹 Рыба для теста
+    // создаём <u> и сохраняем ссылку
     const u = document.createElement('u');
-    u.innerHTML = `
-      <s>B</s>419.713M
-      <s>S</s>314.353M
-      <s>Σ</s>734.067M
-      <s>Δ</s>+105.36M (+33.5%)
-    `;
+    u.innerHTML = ``; 
     div.appendChild(u);
+    obj.domU = u; // сохраняем для updateHover
 
     menu.appendChild(div);
     menu.classList.add('on');
   }
+
   function removeDOM(id) {
     const el = menu?.querySelector(`div[data-indicator="${id}"]`);
     if (el) el.remove();
@@ -546,9 +543,14 @@ export function createIndicatorsManager(chartCore) {
   }
 
   // Универсальный вызов updateHover для всех индикаторов
-  function updateHoverAll(candle, idx) {
+  function updateHoverAll(candle, idx, extra) {
+    const my = (extra && extra.my != null) ? extra.my : null;
+    const mx = (extra && extra.mx != null) ? extra.mx : null;
+
+    const normExtra = { my, mx };
+
     for (const [, obj] of active.entries()) {
-      obj.instance?.updateHover?.(candle, idx);
+      obj.instance?.updateHover?.(candle, idx, normExtra);
     }
   }
 

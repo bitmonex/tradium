@@ -183,169 +183,162 @@ export class Mouse {
 };
 
   onPointerMove = (e) => {
-  if (e.pointerType === "touch") e.preventDefault();
-  if (this.ignoreNextMove) { this.ignoreNextMove = false; return; }
+    if (e.pointerType === "touch") e.preventDefault();
+    if (this.ignoreNextMove) { this.ignoreNextMove = false; return; }
 
-  const s = this.getState?.(); 
-  if (!s) return; 
-  this.ensureStateSafe(s);
+    const s = this.getState?.(); 
+    if (!s) return; 
+    this.ensureStateSafe(s);
 
-  const r = this.getRect();
-  const dx = e.clientX - this.lastX;
-  const dy = e.clientY - this.lastY;
-  this.lastX = e.clientX; 
-  this.lastY = e.clientY; 
-  const mx = e.clientX - r.left;
-  const my = e.clientY - r.top;
-  const L = s.layout; 
-  if (!L) return;
+    const r = this.getRect();
+    const dx = e.clientX - this.lastX;
+    const dy = e.clientY - this.lastY;
+    this.lastX = e.clientX; 
+    this.lastY = e.clientY; 
+    const mx = e.clientX - r.left;
+    const my = e.clientY - r.top;
+    const L = s.layout; 
+    if (!L) return;
 
-  // 🔹 обновляем позицию перекрестия
-  this.chartCore?.cursor?.updatePosition(mx, my, L);
+    // обновляем позицию перекрестия
+    this.chartCore?.cursor?.updatePosition(mx, my, L);
 
-  const cursorMode = this.chartCore?.cursor?.getStyle?.();
-  const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
-  const inTimeScale  = my >= L.height - L.bottomOffset && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
-  const inPlotFull   = mx >= L.plotX && mx <= L.plotX + L.plotW && my >= L.plotY && my <= L.plotY + L.plotH;
-  const inPlotX      = mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const cursorMode = this.chartCore?.cursor?.getStyle?.();
+    const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
+    const inTimeScale  = my >= L.height - L.bottomOffset && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
+    const inPlotFull   = mx >= L.plotX && mx <= L.plotX + L.plotW && my >= L.plotY && my <= L.plotY + L.plotH;
+    const inPlotX      = mx >= L.plotX && mx <= L.plotX + L.plotW;
 
-  // --- Dragging графика ---
-  if (this.dragging) {
-    // переключаем курсор на grabbing
-    this.app.view.style.cursor = 'grabbing';
-
-    const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy });
-    if (!inPlotFull) {
-      this.dragging = false;
-      this.app.view.style.cursor = 'default';
-      return;
-    }
-    if (p) {
-      s.offsetX = p.offsetX;
-      s.offsetY = p.offsetY;
-    }
-    s._needRedrawCandles = true;
-    this.chartCore?.scheduleRender();
-    if (!this.chartCore?.state?.noMoreData) {
-      this.loadUntilFilled("drag");
-    }
-    return;
-  }
-
-  // --- Граббинг индикатора ---
-  if (this.draggingIndicators) {
-    const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
-    const box = obj?._lastGlobalLayout;
-    if (box && (my < box.plotY || my > box.plotY + box.plotH)) {
-      this.draggingIndicators = false;
-      this.draggingIndicatorId = null;
-      this.app.view.style.cursor = 'default';
-      return;
-    }
-    if (this.draggingIndicatorId) {
-      const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
-      const next = prev + dy;
-      this.indicatorOffsets.set(this.draggingIndicatorId, next);
-      obj.localOffsetY = next;
-    }
-    this.chartCore?.scheduleRender({ full:true });
-    return;
-  }
-
-  // --- Ресайз индикатора ---
-  if (this.resizingIndicatorId && dy !== 0) {
-    const obj = this.chartCore?.indicators?.get(this.resizingIndicatorId);
-    const box = obj?._offsideBox;
-    if (!box || mx < box.x || mx > box.x + box.w || my < box.y || my > box.y + box.h) {
-      this.resizingIndicatorId = null;
-      this.app.view.style.cursor = 'default';
-      return;
-    }
-    const factor = 1 - dy * 0.01;
-    this.chartCore.indicators.setScaleOne(this.resizingIndicatorId, factor);
-    return;
-  }
-
-  // --- Горизонтальный ресайз по временной шкале ---
-  if (this.resizingX && dx !== 0) {
-    if (!inTimeScale) return;
-    this.movedScale = true;
-
-    const f = Math.exp(-dx * 0.003);
-    const z = this.zoomX?.({
-      mx,
-      scaleX: s.scaleX,
-      offsetX: s.offsetX,
-      config: this.config,
-      direction: f
-    });
-    if (z) {
-      s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, z.scaleX));
-      s.offsetX = z.offsetX;
-    }
-
-    s._needRedrawCandles = true;
-    const now = Date.now();
-    if (now - this._lastResizeX > 16) {
-      this.chartCore?.scheduleRender({ full:true });
-      this._lastResizeX = now;
-    }
-    return;
-  }
-
-  // --- Вертикальный ресайз по ценовой шкале ---
-  if (this.resizingY && dy !== 0) {
-    if (!inPriceScale) return;
-    this.movedScale = true;
-    const f = 1 - dy * 0.05;
-    const centerY = L.plotY + L.plotH / 2;
-    const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
-    const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
-    const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
-    s.scaleY = newScaleY;
-    s.offsetY = newOffsetY;
-    s._needRedrawCandles = true;
-    this.chartCore?.scheduleRender();
-    return;
-  }
-
-  // --- Курсор по зонам ---
-  if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
-    if (cursorMode && cursorMode !== 'default') {
-      this.app.view.style.cursor = 'crosshair';
-    } else if (inPriceScale) {
-      this.app.view.style.cursor = 'ns-resize';
-    } else if (inTimeScale) {
-      this.app.view.style.cursor = 'ew-resize';
-    } else {
-      let inOffside = false;
-      for (const [, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
-        const box = obj._offsideBox;
-        if (box && mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
-          inOffside = true;
-          break;
-        }
+    // Dragging графика
+    if (this.dragging) {
+      this.app.view.style.cursor = 'grabbing';
+      const p = this.pan?.({ offsetX: s.offsetX, offsetY: s.offsetY, dx, dy });
+      if (!inPlotFull) {
+        this.dragging = false;
+        this.app.view.style.cursor = 'default';
+        return;
       }
-      this.app.view.style.cursor = inOffside ? 'ns-resize' : 'default';
+      if (p) { s.offsetX = p.offsetX; s.offsetY = p.offsetY; }
+      s._needRedrawCandles = true;
+      this.chartCore?.scheduleRender();
+      if (!this.chartCore?.state?.noMoreData) this.loadUntilFilled("drag");
+      return;
     }
-  }
 
-  // --- Hover по свечам ---
-  if (!L || !s.candles?.length) return;
-  s.mouseX = mx; 
-  s.mouseY = my;
-  if (!inPlotX) {
-    this.update?.(null);
-    this.chartCore?.indicators?.updateHoverAll?.(null, null);
-    return;
-  }
-  const t = L.screenToTime(mx), C = s.candles;
-  const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
-  if (idx === s._lastHoverIdx) return;
-  s._lastHoverIdx = idx;
-  this.update?.(C[idx]);
-  this.chartCore?.indicators?.updateHoverAll(C[idx], idx);
-};
+    // Граббинг индикатора
+    if (this.draggingIndicators) {
+      const obj = this.chartCore?.indicators?.get(this.draggingIndicatorId);
+      const box = obj?._lastGlobalLayout;
+      if (box && (my < box.plotY || my > box.plotY + box.plotH)) {
+        this.draggingIndicators = false;
+        this.draggingIndicatorId = null;
+        this.app.view.style.cursor = 'default';
+        return;
+      }
+      if (this.draggingIndicatorId) {
+        const prev = this.indicatorOffsets.get(this.draggingIndicatorId) || 0;
+        const next = prev + dy;
+        this.indicatorOffsets.set(this.draggingIndicatorId, next);
+        obj.localOffsetY = next;
+      }
+      this.chartCore?.scheduleRender({ full:true });
+      return;
+    }
+
+    // Ресайз индикатора
+    if (this.resizingIndicatorId && dy !== 0) {
+      const obj = this.chartCore?.indicators?.get(this.resizingIndicatorId);
+      const box = obj?._offsideBox;
+      if (!box || mx < box.x || mx > box.x + box.w || my < box.y || my > box.y + box.h) {
+        this.resizingIndicatorId = null;
+        this.app.view.style.cursor = 'default';
+        return;
+      }
+      const factor = 1 - dy * 0.01;
+      this.chartCore.indicators.setScaleOne(this.resizingIndicatorId, factor);
+      return;
+    }
+
+    // Горизонтальный ресайз по времени
+    if (this.resizingX && dx !== 0) {
+      if (!inTimeScale) return;
+      this.movedScale = true;
+      const f = Math.exp(-dx * 0.003);
+      const z = this.zoomX?.({ mx, scaleX: s.scaleX, offsetX: s.offsetX, config: this.config, direction: f });
+      if (z) {
+        s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, z.scaleX));
+        s.offsetX = z.offsetX;
+      }
+      s._needRedrawCandles = true;
+      const now = Date.now();
+      if (now - this._lastResizeX > 16) { this.chartCore?.scheduleRender({ full:true }); this._lastResizeX = now; }
+      return;
+    }
+
+    // Вертикальный ресайз по цене
+    if (this.resizingY && dy !== 0) {
+      if (!inPriceScale) return;
+      this.movedScale = true;
+      const f = 1 - dy * 0.05;
+      const centerY = L.plotY + L.plotH / 2;
+      const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+      const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
+      const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+      s.scaleY = newScaleY; s.offsetY = newOffsetY;
+      s._needRedrawCandles = true;
+      this.chartCore?.scheduleRender();
+      return;
+    }
+
+    // Курсор по зонам
+    if (!this.dragging && !this.resizingX && !this.resizingY && !this.resizingIndicatorId) {
+      if (cursorMode && cursorMode !== 'default') {
+        this.app.view.style.cursor = 'crosshair';
+      } else if (inPriceScale) {
+        this.app.view.style.cursor = 'ns-resize';
+      } else if (inTimeScale) {
+        this.app.view.style.cursor = 'ew-resize';
+      } else {
+        let inOffside = false;
+        for (const [, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
+          const box = obj._offsideBox;
+          if (box && mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
+            inOffside = true; break;
+          }
+        }
+        this.app.view.style.cursor = inOffside ? 'ns-resize' : 'default';
+      }
+    }
+
+    // VPVR: вертикальный ховер по всему plot
+    const inPlotY = my >= L.plotY && my <= L.plotY + L.plotH;
+    if (inPlotY) {
+      // Точечно отправляем вертикаль только в VPVR, чтобы не дергать остальные
+      const vpvrInst = this.chartCore?.indicators?.get('vpvr')?.instance;
+      vpvrInst?.updateHover?.(null, null, { my });
+    }
+
+    // Обычный hover по свечам (горизонтальный в основной области)
+    if (!L || !s.candles?.length) return;
+    s.mouseX = mx;
+    s.mouseY = my;
+
+    if (!inPlotX) {
+      this.update?.(null);
+      this.chartCore?.indicators?.updateHoverAll?.(null, null);
+      return;
+    }
+
+    const t = L.screenToTime(mx), C = s.candles;
+    const idx = Math.min(Math.max(Math.floor((t - C[0].time) / L.tfMs), 0), C.length - 1);
+    if (idx === s._lastHoverIdx) return;
+    s._lastHoverIdx = idx;
+
+    this.update?.(C[idx]);
+    this.chartCore?.indicators?.updateHoverAll(C[idx], idx);
+
+
+  };
 
   onPointerUp = () => { 
     this.dragging = this.resizingX = this.resizingY = this.draggingIndicators = false;
@@ -363,102 +356,108 @@ export class Mouse {
   };
 
   onWheel = (e) => {
-    const s = this.getState?.(); if (!s) return; this.ensureStateSafe(s);
-    e.preventDefault();
+  const s = this.getState?.(); if (!s) return;
+  this.ensureStateSafe(s);
+  e.preventDefault();
 
-    const r = this.getRect(), mx = e.clientX - r.left, my = e.clientY - r.top, L = s.layout; if (!L) return;
-    const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
-    const inTimeScale  = my >= L.plotY + L.plotH && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
+  const r = this.getRect();
+  const mx = e.clientX - r.left;
+  const my = e.clientY - r.top;
+  const L = s.layout;
+  if (!L) return;
 
-    //  горизонтальный диапазон графика (plot + индикаторы + нижняя шкала)
-    const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
-    const ax = Math.abs(e.deltaX), ay = Math.abs(e.deltaY);
+  const inPriceScale = mx >= L.plotX + L.plotW && mx <= L.width && my >= L.plotY && my <= L.plotY + L.plotH;
+  const inTimeScale  = my >= L.plotY + L.plotH && my <= L.height && mx >= L.plotX && mx <= L.plotX + L.plotW;
+  const inPlotX = mx >= L.plotX && mx <= L.plotX + L.plotW;
 
-    // горизонтальный скролл — панорамирование по всей высоте графика
-    if (inPlotX && ax > ay + 2) {
-      s.offsetX -= e.deltaX;
-      const C = s.candles;
-      const L = s.layout;
-      const lastIdx = C.length - 1;
-      if (lastIdx >= 0 && C.length > 5000) {
-        const maxRight = L.indexToX(lastIdx) + 2 * L.plotW;
-        const minLeft = L.indexToX(0) - 2 * L.plotW;
-        s.offsetX = Math.min(maxRight, Math.max(minLeft, s.offsetX));
-      }
-      this.chartCore?.scheduleRender({ full:true });
-      if (!this.chartCore?.state?.noMoreData) {
-        this.loadUntilFilled("wheel");
-      }
+  const ax = Math.abs(e.deltaX);
+  const ay = Math.abs(e.deltaY);
+
+  // 🔹 Горизонтальный скролл — панорамирование
+  if (inPlotX && ax > ay + 2) {
+    s.offsetX -= e.deltaX;
+
+    const C = s.candles;
+    const lastIdx = C.length - 1;
+
+    if (lastIdx >= 0 && C.length > 5000) {
+      const maxRight = L.indexToX(lastIdx) + 2 * L.plotW;
+      const minLeft = L.indexToX(0) - 2 * L.plotW;
+      s.offsetX = Math.min(maxRight, Math.max(minLeft, s.offsetX));
+    }
+
+    this.chartCore?.scheduleRender({ full: true });
+    this.chartCore?.indicators?.updateHoverAll?.(null, null, { my: null });
+
+    if (!this.chartCore?.state?.noMoreData) {
+      this.loadUntilFilled("wheel");
+    }
+    return;
+  }
+
+  // 🔹 Вертикальный скролл — привычный горизонтальный зум
+  if (ay > ax + 2) {
+    const f = Math.exp(-e.deltaY * 0.005);
+
+    // Y‑зум: ценовая шкала
+    if (inPriceScale) {
+      const centerY = L.plotY + L.plotH / 2;
+      const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+      const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
+      const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+      s.scaleY = newScaleY;
+      s.offsetY = newOffsetY;
+      this.chartCore?.scheduleRender({ full: true });
+      this.chartCore?.indicators?.updateHoverAll?.(null, null, { my: null });
       return;
     }
-    // вертикальный скролл — зум
-    if (ay > ax + 2) {
-      const f = Math.exp(-e.deltaY * 0.005);
 
-      // Y‑зум: ценовая шкала (простой зум) тачем
-      if (inPriceScale) {
-        const centerY = L.plotY + L.plotH / 2;
-        const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
-        const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
-        const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
-        s.scaleY = newScaleY;
-        s.offsetY = newOffsetY;
-        this.chartCore?.scheduleRender({ full:true });
-        return;
+    // X‑зум: временная шкала или график
+    if (inTimeScale || (inPlotX && !e.shiftKey)) {
+      const z = this.zoomX?.({
+        mx,
+        scaleX: s.scaleX,
+        offsetX: s.offsetX,
+        config: this.config,
+        direction: f
+      });
+      if (z) {
+        s.scaleX = z.scaleX;
+        s.offsetX = z.offsetX;
       }
+      this.chartCore?.scheduleRender({ full: true });
+      this.chartCore?.indicators?.updateHoverAll?.(null, null, { my: null });
+      safeCheckAndLoadHistory(this.chartCore, "zoomX");
+      return;
+    }
 
-      // X‑зум: временная шкала или график без Shift тачем
-      if (inTimeScale || (inPlotX && !e.shiftKey)) {
-        const z = this.zoomX?.({
-          mx,
-          scaleX: s.scaleX,
-          offsetX: s.offsetX,
-          config: this.config,
-          direction: f
-        });
-        if (z) {
-          s.scaleX = Math.min(this.maxScaleX, Math.max(this.minScaleX, z.scaleX));
-          s.offsetX = z.offsetX;
-        }
-
-        // Дополнительно Y‑зум в точке курсора
-        const centerY = my;
-        const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
-        const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
-        const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
-        s.scaleY = newScaleY;
-        s.offsetY = newOffsetY;
-
-        this.chartCore?.scheduleRender({ full: true });
-        safeCheckAndLoadHistory(this.chartCore, "zoomX");
-        return;
-      }
-
-      // Проверка оффсайд‑зоны индикаторов
-      for (const [id, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
-        const box = obj._offsideBox;
-        if (!box) continue;
-        if (mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
-          const factor = Math.exp(-e.deltaY * 0.005);
-          this.chartCore.indicators.setScaleOne(id, factor);
-          return;
-        }
-      }
-
-      // Y‑зум из центра основного графика при Shift
-      const inMainPlotY = my >= L.plotY && my <= L.plotY + L.plotH;
-      if (inMainPlotY && e.shiftKey) {
-        const centerY = L.plotY + L.plotH / 2;
-        const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
-        const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
-        const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
-        s.scaleY = newScaleY;
-        s.offsetY = newOffsetY;
-        this.chartCore?.scheduleRender({ full:true });
+    // Оффсайд‑зона индикаторов
+    for (const [id, obj] of this.chartCore?.indicators?.activeEntries?.() || []) {
+      const box = obj._offsideBox;
+      if (!box) continue;
+      if (mx >= box.x && mx <= box.x + box.w && my >= box.y && my <= box.y + box.h) {
+        const factor = Math.exp(-e.deltaY * 0.005);
+        this.chartCore.indicators.setScaleOne(id, factor);
+        this.chartCore?.indicators?.updateHoverAll?.(null, null, { my: null });
         return;
       }
     }
-  };
+
+    // Y‑зум из центра графика при Shift
+    const inMainPlotY = my >= L.plotY && my <= L.plotY + L.plotH;
+    if (inMainPlotY && e.shiftKey) {
+      const centerY = L.plotY + L.plotH / 2;
+      const worldY0 = (centerY - s.offsetY) / (L.plotH * s.scaleY);
+      const newScaleY = Math.min(this.maxScaleY, Math.max(this.minScaleY, s.scaleY * f));
+      const newOffsetY = centerY - worldY0 * (L.plotH * newScaleY);
+      s.scaleY = newScaleY;
+      s.offsetY = newOffsetY;
+      this.chartCore?.scheduleRender({ full: true });
+      this.chartCore?.indicators?.updateHoverAll?.(null, null, { my: null });
+      return;
+    }
+  }
+};
 
   onClick = (e) => {
     // защита от ложного шагового зума после ресайза индикатора
